@@ -36,8 +36,70 @@
 #include <platform.h>
 #include <board.h>
 
+#define min(a,b) ((a) < (b) ? (a) : (b))
+
 extern int target_is_emmc_boot(void);
 extern uint32_t target_dev_tree_mem(void *fdt, uint32_t memory_node_offset);
+
+struct msm_id
+{
+	uint32_t platform_id;
+	uint32_t hardware_id;
+	uint32_t soc_rev;
+};
+
+static bool is_dev_tree_compatible(void *dtb)
+{
+	int root_offset;
+	const void *prop;
+	char model[128];
+	struct msm_id msm_id;
+	int len;
+
+	root_offset = fdt_path_offset(dtb, "/");
+	if (root_offset < 0)
+		return false;
+
+	prop = fdt_getprop(dtb, root_offset, "model", &len);
+	if (prop && len > 0) {
+		memcpy(model, prop, min((int)sizeof(model), len));
+		model[sizeof(model) - 1] = '\0';
+	} else {
+		model[0] = '\0';
+	}
+
+	prop = fdt_getprop(dtb, root_offset, "qcom,msm-id", &len);
+	if (!prop || len <= 0) {
+		dprintf(INFO, "qcom,msm-id entry not found\n");
+		return false;
+	} else if (len < (int)sizeof(struct msm_id)) {
+		dprintf(INFO, "qcom,msm-id entry size mismatch (%d != %d)\n",
+			len, sizeof(struct msm_id));
+		return false;
+	}
+	msm_id.platform_id = fdt32_to_cpu(((const struct msm_id *)prop)->platform_id);
+	msm_id.hardware_id = fdt32_to_cpu(((const struct msm_id *)prop)->hardware_id);
+	msm_id.soc_rev = fdt32_to_cpu(((const struct msm_id *)prop)->soc_rev);
+
+	dprintf(INFO, "Found an appended flattened device tree (%s - %d %d 0x%x)\n",
+		*model ? model : "unknown",
+		msm_id.platform_id, msm_id.hardware_id, msm_id.soc_rev);
+
+	if (msm_id.platform_id != board_platform_id() ||
+	    msm_id.hardware_id != board_hardware_id() ||
+	    msm_id.soc_rev != board_soc_version()) {
+		dprintf(INFO, "Device tree's msm_id doesn't match the board: <%d %d 0x%x> != <%d %d 0x%x>\n",
+			msm_id.platform_id,
+			msm_id.hardware_id,
+			msm_id.soc_rev,
+			board_platform_id(),
+			board_hardware_id(),
+			board_soc_version());
+		return false;
+	}
+
+	return true;
+}
 
 /*
  * Will relocate the DTB to the tags addr if the device tree is found and return
@@ -48,26 +110,41 @@ extern uint32_t target_dev_tree_mem(void *fdt, uint32_t memory_node_offset);
  * Return Value: DTB address : If appended device tree is found
  *               'NULL'         : Otherwise
  */
-void *dev_tree_appended(void *kernel, void *tags)
+void *dev_tree_appended(void *kernel, uint32_t kernel_size, void *tags)
 {
+	void *kernel_end = kernel + kernel_size;
 	uint32_t app_dtb_offset = 0;
-	uint32_t dtb_magic = 0;
+	void *dtb;
 
 	memcpy((void*) &app_dtb_offset, (void*) (kernel + DTB_OFFSET), sizeof(uint32_t));
-	memcpy((void*) &dtb_magic, (void*) (kernel + app_dtb_offset), sizeof(uint32_t));
 
-	if (dtb_magic == DTB_MAGIC) {
-		void *dtb;
-		int rc;
+	dtb = kernel + app_dtb_offset;
+	while (dtb + sizeof(struct fdt_header) < kernel_end) {
+		bool compat;
+		struct fdt_header dtb_hdr;
+		uint32_t dtb_size;
 
-		dprintf(INFO, "Found Appeneded Flattened Device tree\n");
-		dtb = kernel + app_dtb_offset;
-		rc = fdt_open_into(dtb, tags, fdt_totalsize(dtb));
-		if (rc == 0) {
+		/* the DTB could be unaligned, so extract the header,
+		 * and operate on it separately */
+		memcpy(&dtb_hdr, dtb, sizeof(struct fdt_header));
+		if (fdt_check_header((const void *)&dtb_hdr) != 0 ||
+		    (dtb + fdt_totalsize((const void *)&dtb_hdr) > kernel_end))
+			break;
+		dtb_size = fdt_totalsize(&dtb_hdr);
+
+		/* now that we know we have a valid DTB, we need to copy
+		 * it somewhere aligned, like tags */
+		memcpy(tags, dtb, dtb_size);
+
+		compat = is_dev_tree_compatible(tags);
+		if (compat) {
 			/* clear out the old DTB magic so kernel doesn't find it */
-			*((uint32_t *)dtb) = 0;
+			*((uint32_t *)(kernel + app_dtb_offset)) = 0;
 			return tags;
 		}
+
+		/* goto the next device tree if any */
+		dtb += dtb_size;
 	}
 
 	return NULL;
