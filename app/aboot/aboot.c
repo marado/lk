@@ -1840,6 +1840,7 @@ void cmd_boot(const char *arg, void *data, unsigned sz)
 	// Initialize boot state before trying to verify boot.img
 #if VERIFIED_BOOT
 		boot_verifier_init();
+#endif
 	/* Handle overflow if the input image size is greater than
 	 * boot image buffer can hold
 	 */
@@ -1848,7 +1849,6 @@ void cmd_boot(const char *arg, void *data, unsigned sz)
 		fastboot_fail("booimage: size is greater than boot image buffer can hold");
 		return;
 	}
-#endif
 
 	/* Verify the boot image
 	 * device & page_size are initialized in aboot_init
