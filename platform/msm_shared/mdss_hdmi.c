@@ -1093,7 +1093,11 @@ static void mdss_hdmi_panel_init(struct msm_panel_info *pinfo)
 		pinfo->lcdc.dual_pipe  = 1;
 		pinfo->lm_split[0] = pinfo->xres / 2;
 		pinfo->lm_split[1] = pinfo->xres - pinfo->lm_split[0];
+	} else {
+		pinfo->lcdc.dual_pipe  = 0;
 	}
+
+	pinfo->pipe_type = MDSS_MDP_PIPE_TYPE_RGB;
 }
 
 static uint8_t mdss_hdmi_cable_status(void)

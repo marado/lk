@@ -1447,12 +1447,15 @@ int mdss_hdmi_config(struct msm_panel_info *pinfo, struct fbcon_config *fb)
 	uint32_t old_intf_sel;
 	mdss_intf_tg_setup(pinfo, MDP_INTF_3_BASE + mdss_mdp_intf_offset());
 	mdss_intf_fetch_start_config(pinfo, MDP_INTF_3_BASE + mdss_mdp_intf_offset());
-	pinfo->pipe_type = MDSS_MDP_PIPE_TYPE_RGB;
+
 	if (pinfo->dest == DISPLAY_3) {
 		pinfo->pipe_id = 2;
 		pinfo->zorder = 2;
 	} else if (pinfo->dest == DISPLAY_2) {
 		pinfo->pipe_id = 1;
+		pinfo->zorder = 2;
+	} else {
+		pinfo->pipe_id = 0;
 		pinfo->zorder = 2;
 	}
 
@@ -1475,17 +1478,17 @@ int mdss_hdmi_config(struct msm_panel_info *pinfo, struct fbcon_config *fb)
 		if (pinfo->lcdc.dual_pipe)
 			writel(0x181F40, MDP_CTL_2_BASE + CTL_TOP);
 		else
-			writel(0x40, MDP_CTL_2_BASE + CTL_TOP);
+			writel(0x1f40, MDP_CTL_2_BASE + CTL_TOP);
 	} else if (pinfo->dest == DISPLAY_2) {
 		if (pinfo->lcdc.dual_pipe)
 			writel(0x181F40, MDP_CTL_1_BASE + CTL_TOP);
 		else
-			writel(0x40, MDP_CTL_1_BASE + CTL_TOP);
+			writel(0x1f40, MDP_CTL_1_BASE + CTL_TOP);
 	} else {
 		if (pinfo->lcdc.dual_pipe)
 			writel(0x181F40, MDP_CTL_0_BASE + CTL_TOP);
 		else
-			writel(0x40, MDP_CTL_0_BASE + CTL_TOP);
+			writel(0x1f40, MDP_CTL_0_BASE + CTL_TOP);
 	}
 
 	old_intf_sel = readl(MDP_DISP_INTF_SEL);
@@ -1758,13 +1761,39 @@ int mdp_edp_on(struct msm_panel_info *pinfo)
 
 int mdss_hdmi_on(struct msm_panel_info *pinfo)
 {
-	if (pinfo->dest == DISPLAY_3)
-		writel(0x20028120, MDP_CTL_2_BASE + CTL_FLUSH);
-	else if (pinfo->dest == DISPLAY_2)
-		writel(0x20024090, MDP_CTL_1_BASE + CTL_FLUSH);
-	else
-		writel(0x20022048, MDP_CTL_0_BASE + CTL_FLUSH);
+	uint32_t ctl0_reg_val;
+	uint32_t ctl_base_addr;
 
+	if (pinfo->dest == DISPLAY_3) {
+		ctl0_reg_val = 0x20028120;
+		ctl_base_addr = MDP_CTL_2_BASE;
+	} else if (pinfo->dest == DISPLAY_2) {
+		ctl0_reg_val = 0x20024090;
+		ctl_base_addr = MDP_CTL_1_BASE;
+	} else {
+		ctl0_reg_val = 0x20022048;
+		ctl_base_addr = MDP_CTL_0_BASE;
+	}
+
+	if (pinfo->pipe_type == MDSS_MDP_PIPE_TYPE_VIG){
+		switch (pinfo->pipe_id) {
+			case 0:
+				ctl0_reg_val |= BIT(0);
+				break;
+			case 1:
+				ctl0_reg_val |= BIT(1);
+				break;
+			case 2:
+				ctl0_reg_val |= BIT(2);
+				break;
+			case 3:
+			default:
+				ctl0_reg_val |= BIT(18);
+				break;
+		}
+	}
+
+	writel(ctl0_reg_val, ctl_base_addr + CTL_FLUSH);
 	writel(0x01, MDP_INTF_3_TIMING_ENGINE_EN + mdss_mdp_intf_offset());
 
 	return NO_ERROR;
@@ -1772,12 +1801,39 @@ int mdss_hdmi_on(struct msm_panel_info *pinfo)
 
 int mdss_hdmi_update(struct msm_panel_info *pinfo)
 {
-	if (pinfo->dest == DISPLAY_3)
-		writel(0x20028120, MDP_CTL_2_BASE + CTL_FLUSH);
-	else if (pinfo->dest == DISPLAY_2)
-		writel(0x20024090, MDP_CTL_1_BASE + CTL_FLUSH);
-	else
-		writel(0x20022048, MDP_CTL_0_BASE + CTL_FLUSH);
+	uint32_t ctl0_reg_val;
+	uint32_t ctl_base_addr;
+
+	if (pinfo->dest == DISPLAY_3) {
+		ctl0_reg_val = 0x20028120;
+		ctl_base_addr = MDP_CTL_2_BASE;
+	} else if (pinfo->dest == DISPLAY_2) {
+		ctl0_reg_val = 0x20024090;
+		ctl_base_addr = MDP_CTL_1_BASE;
+	} else {
+		ctl0_reg_val = 0x20022048;
+		ctl_base_addr = MDP_CTL_0_BASE;
+	}
+
+	if (pinfo->pipe_type == MDSS_MDP_PIPE_TYPE_VIG){
+		switch (pinfo->pipe_id) {
+			case 0:
+				ctl0_reg_val |= BIT(0);
+				break;
+			case 1:
+				ctl0_reg_val |= BIT(1);
+				break;
+			case 2:
+				ctl0_reg_val |= BIT(2);
+				break;
+			case 3:
+			default:
+				ctl0_reg_val |= BIT(18);
+				break;
+		}
+	}
+
+	writel(ctl0_reg_val, ctl_base_addr + CTL_FLUSH);
 
 	return NO_ERROR;
 }
