@@ -14,6 +14,23 @@ endif
 
 EMMC_BOOT := 1
 
+#Enable OTA Support
+ENABLE_VBOOT_MOTA_SUPPORT := 1
+
+ifeq ($(VERIFIED_BOOT),1)
+ENABLE_MDTP_SUPPORT := 1
+ifeq ($(ENABLE_VBOOT_MOTA_SUPPORT),1)
+DEFINES += VBOOT_MOTA=1
+else
+ENABLE_SECAPP_LOADER := 1
+ENABLE_RPMB_SUPPORT := 1
+
+#enable fbcon display menu
+ENABLE_FBCON_DISPLAY_MSG := 1
+endif
+endif
+
+
 ENABLE_SMD_SUPPORT := 1
 ENABLE_PWM_SUPPORT := true
 #ENABLE_BOOT_CONFIG_SUPPORT := 1
@@ -75,6 +92,12 @@ DEFINES += NO_SCM_V8_SUPPORT=1
 ENABLE_REBOOT_MODULE := 1
 #Use PON register for reboot reason
 DEFINES += USE_PON_REBOOT_REG=1
+
+#Enable fbcon display for verified boot.
+ifeq ($(ENABLE_FBCON_DISPLAY_MSG),1)
+DEFINES += FBCON_DISPLAY_MSG=1
+endif
+
 
 #enable battery voltage check
 DEFINES += CHECK_BAT_VOLTAGE=1

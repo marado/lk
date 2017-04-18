@@ -281,4 +281,17 @@
 /* EBI2 */
 #define TLMM_EBI2_EMMC_GPIO_CFG     (TLMM_BASE_ADDR + 0x00111000)
 #define TCSR_BOOT_MISC_DETECT       0x193D100
+
+/* RPMB send receive buffer needs to be mapped
+ * as device memory, define the start address
+ * and size in MB
+ */
+#define RPMB_SND_RCV_BUF            0x90000000
+#define RPMB_SND_RCV_BUF_SZ         0x1
+
+/* QSEECOM: Secure app region notification */
+#define APP_REGION_ADDR 0x87a00000
+#define APP_REGION_SIZE 0x200000
+
+
 #endif
