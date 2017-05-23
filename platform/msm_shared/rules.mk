@@ -62,7 +62,6 @@ endif
 
 ifeq ($(ENABLE_GLINK_SUPPORT),1)
 OBJS += \
-		$(LOCAL_DIR)/rpm-ipc.o \
 		$(LOCAL_DIR)/glink/glink_api.o \
 		$(LOCAL_DIR)/glink/glink_core_if.o \
 		$(LOCAL_DIR)/glink/glink_core_internal.o \
@@ -74,6 +73,11 @@ OBJS += \
 		$(LOCAL_DIR)/glink/xport_rpm_config.o \
 		$(LOCAL_DIR)/smem_list.o \
 		$(LOCAL_DIR)/rpm-glink.o
+endif
+
+ifneq ($(ENABLE_SMD_SUPPORT),1)
+OBJS += \
+	$(LOCAL_DIR)/rpm-ipc.o
 endif
 
 ifeq ($(PLATFORM),msm8x60)
@@ -520,10 +524,12 @@ DEFINES += DISPLAY_TYPE_MDSS=1
 			$(LOCAL_DIR)/image_verify.o \
 			$(LOCAL_DIR)/qseecom_lk.o \
 			$(LOCAL_DIR)/i2c_qup.o \
+			$(LOCAL_DIR)/qseecom_lk.o \
 			$(LOCAL_DIR)/mdp3.o \
 			$(LOCAL_DIR)/display.o \
 			$(LOCAL_DIR)/mipi_dsi.o \
 			$(LOCAL_DIR)/mipi_dsi_phy.o \
+			$(LOCAL_DIR)/flash-ubi.o \
 			$(LOCAL_DIR)/mipi_dsi_autopll.o
 endif
 

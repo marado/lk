@@ -1,4 +1,4 @@
-/* Copyright (c) 2014-2016, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2014-2017, The Linux Foundation. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -56,6 +56,7 @@
 #include <boot_device.h>
 #include <qmp_phy.h>
 #include <crypto5_wrapper.h>
+#include <rpm-glink.h>
 
 extern void smem_ptable_init(void);
 extern void smem_add_modem_partitions(struct ptable *flash_ptable);
@@ -150,7 +151,15 @@ void target_init(void)
 	pmic_info_populate();
 
 	spmi_init(PMIC_ARB_CHANNEL_NUM, PMIC_ARB_OWNER_ID);
-	rpm_smd_init();
+	if(!platform_is_sdx20())
+	{
+		rpm_smd_init();
+	}
+	else
+	{
+		/* Initialize Glink */
+		rpm_glink_init();
+	}
 
 	if (platform_boot_dev_isemmc()) {
 		target_sdc_init();
@@ -205,7 +214,7 @@ void reboot_device(unsigned reboot_reason)
 {
 	uint8_t reset_type = 0;
 
-	if (platform_is_mdmcalifornium())
+	if (platform_is_mdm9650() || platform_is_sdx20())
 	{
 		/* Clear the boot partition select cookie to indicate
 		 * its a normal reset and avoid going to download mode */
@@ -220,9 +229,9 @@ void reboot_device(unsigned reboot_reason)
 	else
 		reset_type = PON_PSHOLD_HARD_RESET;
 
-	if (platform_is_mdmcalifornium())
+	if (platform_is_mdm9650() || platform_is_sdx20())
 	{
-		/* PMD9655 is the PMIC used for MDMcalifornium */
+		/* PMD9655 is the PMIC used for MDM9650 */
 		pm8x41_reset_configure(reset_type);
 	} else {
 		/* Configure PMIC for warm reset */
@@ -388,13 +397,16 @@ void target_sdc_init()
 
 	config.slot = 1;
 	config.bus_width = DATA_BUS_WIDTH_8BIT;
-	config.max_clk_rate = MMC_CLK_171MHZ;
 	config.sdhc_base    = MSM_SDC1_SDHCI_BASE;
 	config.pwrctl_base  = MSM_SDC1_BASE;
 	config.pwr_irq      = SDCC1_PWRCTL_IRQ;
 	config.hs400_support = 0;
 	config.hs200_support = 0;
 	config.use_io_switch = 1;
+	if (platform_is_sdx20())
+		config.max_clk_rate = MMC_CLK_200MHZ;
+	else
+		config.max_clk_rate = MMC_CLK_171MHZ;
 
 	if (!(dev = mmc_init(&config))) {
 		dprintf(CRITICAL, "mmc init failed!");
@@ -419,15 +431,50 @@ void target_uninit(void)
 	if (crypto_initialized())
 		crypto_eng_cleanup();
 
-	rpm_smd_uninit();
+	if(!platform_is_sdx20())
+	{
+		rpm_smd_uninit();
+	}
+	else
+	{
+		/* Tear down glink channels */
+		rpm_glink_uninit();
+	}
+}
+void target_mux_configure(void)
+{
+	uint32_t val;
+	//USB30_GENERAL_CFG_PIPE_UTMI_CLK_DIS
+	val = readl(USB30_GENERAL_CFG_PIPE);
+	val = val | 0x100;
+	writel(val, USB30_GENERAL_CFG_PIPE);
+	udelay(100);
+
+	//USB30_GENERAL_CFG_PIPE_UTMI_CLK_SEL
+	val = readl(USB30_GENERAL_CFG_PIPE);
+	val = val | 0x1;
+	writel(val, USB30_GENERAL_CFG_PIPE);
+	udelay(100);
+
+	//USB30_GENERAL_CFG_PIPE3_PHYSTATUS_SW
+	val = readl(USB30_GENERAL_CFG_PIPE);
+	val = val | 0x8;
+	writel(val, USB30_GENERAL_CFG_PIPE);
+	udelay(100);
+
+	//USB30_GENERAL_CFG_PIPE_UTMI_CLK_ENABLE
+	val = readl(USB30_GENERAL_CFG_PIPE);
+	val = val & 0xfffffeff;
+	writel(val, USB30_GENERAL_CFG_PIPE);
+	udelay(100);
 }
 
 void target_usb_phy_reset(void)
 {
-	/* Reset sequence for californium is different from 9x40, use the reset sequence
+	/* Reset sequence for 9650 is different from 9x40, use the reset sequence
 	 * from clock driver
 	 */
-	if (platform_is_mdmcalifornium() || platform_is_sdxhedgehog())
+	if (platform_is_mdm9650() || platform_is_sdx20())
 		clock_reset_usb_phy(); // This is the reset function for USB3
 	else
 		usb30_qmp_phy_reset();
@@ -443,8 +490,10 @@ target_usb_iface_t* target_usb30_init()
 	ASSERT(t_usb_iface);
 
 	t_usb_iface->mux_config = NULL;
-	if (platform_is_sdxhedgehog())
+	if (platform_is_sdx20()){
+		t_usb_iface->mux_config = target_mux_configure;
 		t_usb_iface->phy_init   = NULL;
+	}
 	else
 		t_usb_iface->phy_init   = usb30_qmp_phy_init;
 	t_usb_iface->phy_reset  = target_usb_phy_reset;
@@ -456,7 +505,7 @@ target_usb_iface_t* target_usb30_init()
 
 uint32_t target_override_pll()
 {
-	if (platform_is_mdmcalifornium() || platform_is_sdxhedgehog())
+	if (platform_is_mdm9650() || platform_is_sdx20())
 		return 0;
 	else
 		return 1;
@@ -467,7 +516,7 @@ uint32_t target_get_hlos_subtype()
 	return board_hlos_subtype();
 }
 
-/* QMP settings are different from californium when compared to v2.0/v1.0 hardware.
+/* QMP settings are different from 9650 when compared to v2.0/v1.0 hardware.
  * Use the QMP settings from target code to keep the common driver clean
  */
 struct qmp_reg qmp_settings[] =
@@ -563,7 +612,7 @@ struct qmp_reg qmp_settings[] =
 
 struct qmp_reg *target_get_qmp_settings()
 {
-	if (platform_is_mdmcalifornium() || platform_is_sdxhedgehog())
+	if (platform_is_mdm9650() || platform_is_sdx20())
 		return qmp_settings;
 	else
 		return NULL;
@@ -571,7 +620,7 @@ struct qmp_reg *target_get_qmp_settings()
 
 int target_get_qmp_regsize()
 {
-	if (platform_is_mdmcalifornium() || platform_is_sdxhedgehog())
+	if (platform_is_mdm9650() || platform_is_sdx20())
 		return ARRAY_SIZE(qmp_settings);
 	else
 		return 0;

@@ -2,7 +2,7 @@
  * Copyright (c) 2009, Google Inc.
  * All rights reserved.
  *
- * Copyright (c) 2009-2016, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2009-2017, The Linux Foundation. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are met:
@@ -105,6 +105,9 @@ void write_device_info_mmc(device_info *dev);
 void write_device_info_flash(device_info *dev);
 static int aboot_save_boot_hash_mmc(uint32_t image_addr, uint32_t image_size);
 static int aboot_frp_unlock(char *pname, void *data, unsigned sz);
+bool pwr_key_is_pressed = false;
+
+static bool is_systemd_present=false;
 
 /* fastboot command function pointer */
 typedef void (*fastboot_cmd_fn) (const char *, void *, unsigned);
@@ -158,6 +161,8 @@ static const char *emmc_cmdline = " androidboot.emmc=true";
 #endif
 static const char *usb_sn_cmdline = " androidboot.serialno=";
 static const char *androidboot_mode = " androidboot.mode=";
+
+static const char *systemd_ffbm_mode = " systemd.unit=ffbm.target";
 static const char *alarmboot_cmdline = " androidboot.alarmboot=true";
 static const char *loglevel         = " quiet";
 static const char *battchg_pause = " androidboot.mode=charger";
@@ -337,6 +342,11 @@ unsigned char *update_cmdline(const char * cmdline)
 	int have_target_boot_params = 0;
 	char *boot_dev_buf = NULL;
     bool is_mdtp_activated = 0;
+
+#if USE_LE_SYSTEMD
+	is_systemd_present=true;
+#endif
+
 #if VERIFIED_BOOT
 #if !VBOOT_MOTA
     uint32_t boot_state = boot_verify_get_state();
@@ -385,6 +395,10 @@ unsigned char *update_cmdline(const char * cmdline)
 
 	if (boot_into_ffbm) {
 		cmdline_len += strlen(androidboot_mode);
+
+		if(is_systemd_present)
+			cmdline_len += strlen(systemd_ffbm_mode);
+
 		cmdline_len += strlen(ffbm_mode_string);
 		/* reduce kernel console messages to speed-up boot */
 		cmdline_len += strlen(loglevel);
@@ -454,6 +468,7 @@ unsigned char *update_cmdline(const char * cmdline)
 			break;
 	}
 
+#if ENABLE_DISPLAY
 	if (cmdline) {
 		if ((strstr(cmdline, DISPLAY_DEFAULT_PREFIX) == NULL) &&
 			target_display_panel_node(display_panel_buf,
@@ -462,6 +477,7 @@ unsigned char *update_cmdline(const char * cmdline)
 			cmdline_len += strlen(display_panel_buf);
 		}
 	}
+#endif
 
 	if (target_warm_boot()) {
 		warm_boot = true;
@@ -561,6 +577,13 @@ unsigned char *update_cmdline(const char * cmdline)
 			src = ffbm_mode_string;
 			if (have_cmdline) --dst;
 			while ((*dst++ = *src++));
+
+			if(is_systemd_present) {
+				src = systemd_ffbm_mode;
+				if (have_cmdline) --dst;
+				while ((*dst++ = *src++));
+			}
+
 			src = loglevel;
 			if (have_cmdline) --dst;
 			while ((*dst++ = *src++));
@@ -818,6 +841,9 @@ void boot_linux(void *kernel, unsigned *tags,
 #if FBCON_DISPLAY_MSG
 #if ENABLE_VB_ATTEST
 		display_bootverify_menu(DISPLAY_MENU_EIO);
+		wait_for_users_action();
+		if(!pwr_key_is_pressed)
+			shutdown_device();
 #else
 		display_bootverify_menu(DISPLAY_MENU_LOGGING);
 #endif
@@ -1032,6 +1058,7 @@ static bool check_format_bit()
 		return ret;
 	}
 	buf = (char *) memalign(CACHE_LINE, ROUNDUP(page_size, CACHE_LINE));
+	mmc_set_lun(partition_get_lun(index));
 	ASSERT(buf);
 	if (mmc_read(offset, (uint32_t *)buf, page_size))
 	{
@@ -1700,6 +1727,17 @@ int boot_linux_from_flash(void)
 				return -1;
 			}
 
+			if(dt_entry.offset > (UINT_MAX - dt_entry.size)) {
+				dprintf(CRITICAL, "ERROR: Device tree contents are Invalid\n");
+				return -1;
+			}
+
+			/* Ensure we are not overshooting dt_size with the dt_entry selected */
+			if ((dt_entry.offset + dt_entry.size) > dt_size) {
+				dprintf(CRITICAL, "ERROR: Device tree contents are Invalid\n");
+				return -1;
+			}
+
 			best_match_dt_addr = (unsigned char *)table + dt_entry.offset;
 			dtb_size = dt_entry.size;
 			memmove((void *)hdr->tags_addr, (char *)best_match_dt_addr, dtb_size);
@@ -1968,6 +2006,9 @@ static int read_allow_oem_unlock(device_info *dev)
 	ptn_size = partition_get_size(index);
 	offset = ptn_size - blocksize;
 
+	/* Set Lun for partition */
+	mmc_set_lun(partition_get_lun(index));
+
 	if (mmc_read(ptn + offset, (void *)buf, blocksize))
 	{
 		dprintf(CRITICAL, "Reading MMC failed\n");
@@ -2002,6 +2043,7 @@ static int write_allow_oem_unlock(bool allow_unlock)
 	ptn = partition_get_offset(index);
 	ptn_size = partition_get_size(index);
 	offset = ptn_size - blocksize;
+	mmc_set_lun(partition_get_lun(index));
 
 	if (mmc_read(ptn + offset, (void *)buf, blocksize))
 	{
@@ -2221,7 +2263,7 @@ static void set_device_unlock(int type, bool status)
 
 	/* wipe data */
 	struct recovery_message msg;
-
+	memset(&msg, 0, sizeof(msg));
 	snprintf(msg.recovery, sizeof(msg.recovery), "recovery\n--wipe_data");
 	write_misc(0, &msg, sizeof(msg));
 
@@ -2417,6 +2459,7 @@ void cmd_boot(const char *arg, void *data, unsigned sz)
 	// Initialize boot state before trying to verify boot.img
 #if VERIFIED_BOOT
 	boot_verifier_init();
+#endif
 	/* Handle overflow if the input image size is greater than
 	 * boot image buffer can hold
 	 */
@@ -2425,7 +2468,6 @@ void cmd_boot(const char *arg, void *data, unsigned sz)
 		fastboot_fail("booimage: size is greater than boot image buffer can hold");
 		goto boot_failed;
 	}
-#endif
 
 	/* Verify the boot image
 	 * device & page_size are initialized in aboot_init
@@ -2858,7 +2900,14 @@ void cmd_flash_meta_img(const char *arg, void *data, unsigned sz)
 			(img_header_entry[i].start_offset == 0) ||
 			(img_header_entry[i].size == 0))
 			break;
-
+		if ((UINT_MAX - img_header_entry[i].start_offset) < (uintptr_t)data) {
+			fastboot_fail("Integer overflow detected in start_offset of img");
+			break;
+		}
+		else if ((UINT_MAX - (img_header_entry[i].start_offset + (uintptr_t)data)) < img_header_entry[i].size) {
+			fastboot_fail("Integer overflow detected in size of img");
+			break;
+		}
 		if( data_end < ((uintptr_t)data + img_header_entry[i].start_offset
 						+ img_header_entry[i].size) )
 		{
@@ -3459,7 +3508,7 @@ void cmd_oem_unlock_go(const char *arg, void *data, unsigned sz)
 
 		/* wipe data */
 		struct recovery_message msg;
-
+	        memset(&msg, 0, sizeof(msg));
 		snprintf(msg.recovery, sizeof(msg.recovery), "recovery\n--wipe_data");
 		write_misc(0, &msg, sizeof(msg));
 

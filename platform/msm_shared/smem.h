@@ -2,7 +2,7 @@
  * Copyright (c) 2009, Google Inc.
  * All rights reserved.
  *
- * Copyright (c) 2009-2016, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2009-2017, The Linux Foundation. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -432,11 +432,11 @@ enum {
 	FSM9916  = 276,
 	APQ8076  = 277,
 	MSM8976  = 278,
-	MDMCALIFORNIUM1  = 279,
-	MDMCALIFORNIUM2  = 283,
-	MDMCALIFORNIUM3  = 284,
-	MDMCALIFORNIUM4  = 285,
-	MDMCALIFORNIUM5  = 286,
+	MDM9650  = 279,
+	MDM9655  = 283,
+	MDM9250  = 284,
+	MDM9255  = 285,
+	MDM9350  = 286,
 	APQ8052  = 289,
 	MDM9607 = 290,
 	MDM8207  = 296,
@@ -459,7 +459,12 @@ enum {
 	MSM8996AU = 310,
 	APQ8096AU = 311,
 	APQ8096SG = 312,
-	SDXHEDGEHOG = 314
+	SDX201 = 314,
+	SDX202 = 333,
+	MSM8909W = 300,
+	APQ8009W = 301,
+	SDM450 = 338,
+	MDM9206 = 322
 };
 
 enum platform {
@@ -474,6 +479,7 @@ enum platform {
 	HW_PLATFORM_LIQUID = 9,
 	HW_PLATFORM_DRAGON = 10,
 	HW_PLATFORM_QRD = 11,
+	HW_PLATFORM_IPC = 12,
 	HW_PLATFORM_HRD = 13,
 	HW_PLATFORM_DTV = 14,
 	HW_PLATFORM_RUMI   = 15,
@@ -494,6 +500,8 @@ enum platform_subtype {
 	HW_PLATFORM_SUBTYPE_CSFB = 1,
 	HW_PLATFORM_SUBTYPE_SVLTE1 = 2,
 	HW_PLATFORM_SUBTYPE_IOT = 2,
+	HW_PLATFORM_SUBTYPE_SAP = 2,
+	HW_PLATFORM_SUBTYPE_SAP_NOPMI = 3,
 	HW_PLATFORM_SUBTYPE_SVLTE2A = 3,
 	HW_PLATFORM_SUBTYPE_SGLTE = 6,
 	HW_PLATFORM_SUBTYPE_DSDA = 7,
@@ -503,6 +511,7 @@ enum platform_subtype {
 	HW_PLATFORM_SUBTYPE_POLARIS = 64,
 	HW_PLATFORM_SUBTYPE_SWOC_WEAR = 9,
 	HW_PLATFORM_SUBTYPE_SWOC_NOWGR_CIRC = 13,
+	HW_PLATFORM_SUBTYPE_8909_PM660 = 15,
 	HW_PLATFORM_SUBTYPE_32BITS = 0x7FFFFFFF
 };
 

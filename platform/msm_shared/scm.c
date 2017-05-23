@@ -1,4 +1,4 @@
-/* Copyright (c) 2011-2016, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2011-2017, The Linux Foundation. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -54,6 +54,15 @@
                                    SCM_CLASS_REGISTER | \
                                    SCM_MASK_IRQS | \
                                    ((n) & 0xf))
+
+#define SECBOOT_FUSE_BIT                  0
+#define SECBOOT_FUSE_SHK_BIT              1
+#define SECBOOT_FUSE_DEBUG_DISABLED_BIT   2
+#define SECBOOT_FUSE_ANTI_ROLLBACK_BIT    3
+#define SECBOOT_FUSE_FEC_ENABLED_BIT      4
+#define SECBOOT_FUSE_RPMB_ENABLED_BIT     5
+#define SECBOOT_FUSE_DEBUG_RE_ENABLED_BIT 6
+#define CHECK_BIT(var, pos) ((var) & (1 << (pos)))
 
 /* SCM interface as per ARM spec present? */
 bool scm_arm_support;
@@ -1085,6 +1094,13 @@ int scm_random(uintptr_t * rbuf, uint32_t  r_len)
 	// Memory passed to TZ should be algined to cache line
 	BUF_DMA_ALIGN(rand_buf, sizeof(uintptr_t));
 
+	// r_len must be less than or equal to sizeof(rand_buf) to avoid memory corruption.
+	if (r_len > sizeof(rand_buf))
+	{
+		dprintf(CRITICAL, "r_len is larger than sizeof(randbuf).");
+		return -1;
+	}
+
 	if (!is_scm_armv8_support())
 	{
 		data.out_buf     = (uint8_t*) rand_buf;
@@ -1244,7 +1260,7 @@ uint32_t scm_call2(scmcall_arg *arg, scmcall_ret *ret)
 	return 0;
 }
 
-static bool secure_boot_enabled = true;
+static bool secure_boot_enabled = false;
 static bool wdog_debug_fuse_disabled = true;
 
 void scm_check_boot_fuses()
@@ -1265,14 +1281,16 @@ void scm_check_boot_fuses()
 		resp[0] = scm_ret.x1;
 	}
 
-
-	/* Parse Bit 0 and Bit 2 of the response */
-	if(!ret) {
-		/* Bit 0 - SECBOOT_ENABLE_CHECK */
-		if(resp[0] & 0x1)
-			secure_boot_enabled = false;
+	if (!ret) {
+		/* Check for secure device: Bit#0 = 0, Bit#1 = 0 Bit#2 = 0 , Bit#5 = 0 , Bit#6 = 1 */
+        	if (!CHECK_BIT(resp[0], SECBOOT_FUSE_BIT) && !CHECK_BIT(resp[0], SECBOOT_FUSE_SHK_BIT) &&
+        		!CHECK_BIT(resp[0], SECBOOT_FUSE_DEBUG_DISABLED_BIT) &&
+        		!CHECK_BIT(resp[0], SECBOOT_FUSE_RPMB_ENABLED_BIT) &&
+        		CHECK_BIT(resp[0], SECBOOT_FUSE_DEBUG_RE_ENABLED_BIT)) {
+        		secure_boot_enabled = true;
+        	}
 		/* Bit 2 - DEBUG_DISABLE_CHECK */
-		if(resp[0] & 0x4)
+		if (CHECK_BIT(resp[0], SECBOOT_FUSE_DEBUG_DISABLED_BIT))
 			wdog_debug_fuse_disabled = false;
 	} else
 		dprintf(CRITICAL, "scm call to check secure boot fuses failed\n");
