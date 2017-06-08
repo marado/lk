@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2013-2016, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2013-2017, The Linux Foundation. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are met:
@@ -106,8 +106,8 @@ void clock_usb30_init(void)
 
 	clock_usb30_gdsc_enable();
 
-	if (platform_is_sdxhedgehog())
-		ret = clk_get_set_enable("usb30_master_clk_sdxhedgehog", 200000000, 1);
+	if (platform_is_sdx20())
+		ret = clk_get_set_enable("usb30_master_clk_sdx20", 200000000, 1);
 	else
 		ret = clk_get_set_enable("usb30_master_clk", 125000000, 1);
 	if(ret)
@@ -116,10 +116,10 @@ void clock_usb30_init(void)
 		ASSERT(0);
 	}
 
-	if (platform_is_mdmcalifornium())
-		ret = clk_get_set_enable("usb30_pipe_clk_mdmcalifornium", 0, 1);
-	else if (platform_is_sdxhedgehog())
-		ret = clk_get_set_enable("usb30_pipe_clk_sdxhedgehog", 0, 1);
+	if (platform_is_mdm9650())
+		ret = clk_get_set_enable("usb30_pipe_clk_mdm9650", 0, 1);
+	else if (platform_is_sdx20())
+		ret = clk_get_set_enable("usb30_pipe_clk_sdx20", 0, 1);
 	else
 		ret = clk_get_set_enable("usb30_pipe_clk", 19200000, 1);
 
@@ -136,8 +136,8 @@ void clock_usb30_init(void)
 		ASSERT(0);
 	}
 
-	if (platform_is_sdxhedgehog())
-		ret = clk_get_set_enable("usb30_mock_utmi_clk_sdxhedgehog", 19200000, 1);
+	if (platform_is_sdx20())
+		ret = clk_get_set_enable("usb30_mock_utmi_clk_sdx20", 19200000, 1);
 	else
 		ret = clk_get_set_enable("usb30_mock_utmi_clk", 60000000, true);
 	if(ret)
@@ -183,8 +183,8 @@ void clock_config_mmc(uint32_t interface, uint32_t freq)
 	int ret = 0;
 	char clk_name[64];
 
-	if(platform_is_sdxhedgehog())
-		snprintf(clk_name, sizeof(clk_name), "sdc%u_core_clk_sdxhedgehog", interface);
+	if(platform_is_sdx20())
+		snprintf(clk_name, sizeof(clk_name), "sdc%u_core_clk_sdx20", interface);
 	else
 		snprintf(clk_name, sizeof(clk_name), "sdc%u_core_clk", interface);
 
@@ -221,7 +221,7 @@ void clock_bumpup_pipe3_clk()
 {
 	int ret =0;
 
-	if (platform_is_mdmcalifornium())
+	if (platform_is_mdm9650())
 		ret = clk_get_set_enable("usb30_pipe_clk", 0, true);
 	else
 		ret = clk_get_set_enable("usb30_pipe_clk", 125000000, true);
@@ -251,8 +251,8 @@ void clock_reset_usb_phy()
 	phy_reset_clk = clk_get("usb30_phy_reset");
 	ASSERT(phy_reset_clk);
 
-	if(platform_is_sdxhedgehog()){
-		pipe_reset_clk = clk_get("usb30_pipe_clk_sdxhedgehog");
+	if(platform_is_sdx20()){
+		pipe_reset_clk = clk_get("usb30_pipe_clk_sdx20");
 		ASSERT(pipe_reset_clk);
 	}
 	else{
@@ -316,7 +316,7 @@ void clock_ce_enable(uint8_t instance)
 	int ret;
 	char clk_name[64];
 
-	if (platform_is_mdmcalifornium())
+	if (platform_is_mdm9650())
 	{
 		if (instance == 1)
 			rpm_send_data(&CE1_CLK[GENERIC_ENABLE][0], 24, RPM_REQUEST_TYPE);
@@ -377,7 +377,7 @@ void clock_ce_disable(uint8_t instance)
 	struct clk *src_clk;
 	char clk_name[64];
 
-	if (platform_is_mdmcalifornium())
+	if (platform_is_mdm9650())
 	{
 		if (instance == 1)
 		rpm_send_data(&CE1_CLK[GENERIC_DISABLE][0], 24, RPM_REQUEST_TYPE);

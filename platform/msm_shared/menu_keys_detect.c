@@ -1,4 +1,4 @@
-/* Copyright (c) 2015-2016, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2015-2017, The Linux Foundation. All rights reserved.
 *
 * Redistribution and use in source and binary forms, with or without
 * modification, are permitted provided that the following conditions are
@@ -45,11 +45,13 @@
 #include <sys/types.h>
 #include <../../../app/aboot/recovery.h>
 #include <../../../app/aboot/devinfo.h>
+#include <string.h>
 
 #define KEY_DETECT_FREQUENCY		50
 
 static time_t before_time;
 
+extern bool pwr_key_is_pressed;
 extern int target_volume_up();
 extern uint32_t target_volume_down();
 extern void reboot_device(unsigned reboot_reason);
@@ -127,6 +129,7 @@ static void update_device_status(struct select_msg_info* msg_info, int reason)
 				/* wipe data */
 				struct recovery_message msg;
 
+				memset(&msg, 0, sizeof(msg));
 				snprintf(msg.recovery, sizeof(msg.recovery), "recovery\n--wipe_data");
 				write_misc(0, &msg, sizeof(msg));
 			}
@@ -153,6 +156,7 @@ static void update_device_status(struct select_msg_info* msg_info, int reason)
 
 			break;
 		case FFBM:
+			memset(&ffbm_page_buffer, 0, sizeof(ffbm_page_buffer));
 			snprintf(ffbm_page_buffer, sizeof(ffbm_page_buffer), "ffbm-00");
 			write_misc(0, ffbm_page_buffer, sizeof(ffbm_page_buffer));
 
@@ -251,7 +255,10 @@ static void power_key_func(struct select_msg_info* msg_info)
 		case DISPLAY_MENU_ORANGE:
 		case DISPLAY_MENU_RED:
 		case DISPLAY_MENU_LOGGING:
+			reason = CONTINUE;
+			break;
 		case DISPLAY_MENU_EIO:
+			pwr_key_is_pressed = true;
 			reason = CONTINUE;
 			break;
 		case DISPLAY_MENU_MORE_OPTION:

@@ -1,4 +1,5 @@
-/* Copyright (c) 2013-2014, The Linux Foundation. All rights reserved.
+/*
+ * Copyright (c) 2017, The Linux Foundation. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are met:
@@ -25,39 +26,41 @@
  * ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  *
  */
+#include <fastboot.h>
 
-#ifndef __IRQS_MDM9640_H
-#define __IRQS_MDM9640_H
+extern const char *suffix_slot[];
 
-/* TBD: The numbers need to be reviewed */
+#define SUFFIX_SLOT(part_slot) suffix_slot[(part_slot)]
 
-/* 0-15:  STI/SGI (software triggered/generated interrupts)
- * 16-31: PPI (private peripheral interrupts)
- * 32+:   SPI (shared peripheral interrupts)
- */
+enum
+{
+ SLOT_A = 0,
+ SLOT_B = 1,
+ AB_SUPPORTED_SLOTS = 2,
+ INVALID = -1
+};
 
-#define GIC_PPI_START                          16
-#define GIC_SPI_START                          32
+/* Structure to print get var info */
+struct ab_slot_info
+{
+	char slot_is_unbootable[MAX_GET_VAR_NAME_SIZE];
+	char slot_is_unbootable_rsp[MAX_RSP_SIZE];
+	char slot_is_active[MAX_GET_VAR_NAME_SIZE];
+	char slot_is_active_rsp[MAX_RSP_SIZE];
+	char slot_is_succesful[MAX_GET_VAR_NAME_SIZE];
+	char slot_is_succesful_rsp[MAX_RSP_SIZE];
+	char slot_retry_count[MAX_GET_VAR_NAME_SIZE];
+	char slot_retry_count_rsp[MAX_RSP_SIZE];
+};
 
-#define INT_QTMR_FRM_0_PHYSICAL_TIMER_EXP      (GIC_SPI_START + 7)
+/* A/B support API(s) */
+bool partition_multislot_is_supported();/* Check Multislot is supported */
+bool partition_scan_for_multislot();	/* Calling to scan part. table. */
+void partition_mark_active_slot();	/* Marking slot active */
+void partition_reset_attributes();	/* Resetting slot attr. */
+void partition_fill_slot_meta();	/* Fill slot meta infomation */
+void partition_switch_slots();		/* Switching slots */
+int partition_find_boot_slot();		/* Find bootable partition */
+int partition_find_active_slot();	/* Find current active partition*/
+int partition_fill_partition_meta();	/* Fill partition slot info meta*/
 
-#define USB1_HS_IRQ                            (GIC_SPI_START + 134)
-
-#define USB30_EE1_IRQ                          (GIC_SPI_START + 131)
-
-#define SDCC1_PWRCTL_IRQ                       (GIC_SPI_START + 138)
-
-#define GLINK_IPC_IRQ                          (GIC_SPI_START + 168)
-/* Retrofit universal macro names */
-#define INT_USB_HS                             USB1_HS_IRQ
-
-#define EE0_KRAIT_HLOS_SPMI_PERIPH_IRQ         (GIC_SPI_START + 190)
-
-#define NR_MSM_IRQS                            256
-#define NR_GPIO_IRQS                           173
-#define NR_BOARD_IRQS                          0
-
-#define NR_IRQS                                (NR_MSM_IRQS + NR_GPIO_IRQS + \
-                                               NR_BOARD_IRQS)
-#define SMD_IRQ                                (GIC_SPI_START + 168)
-#endif /* __IRQS_9640_H */

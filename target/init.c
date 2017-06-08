@@ -1,7 +1,7 @@
 /*
  * Copyright (c) 2008 Travis Geiselbrecht
  *
- * Copyright (c) 2015-2016, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2015-2017, The Linux Foundation. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining
  * a copy of this software and associated documentation files
@@ -242,10 +242,43 @@ __WEAK void target_crypto_init_params()
 {
 }
 
+__WEAK bool target_is_pmi_enabled(void)
+{
+	return 1;
+}
+
 /* Default CFG delay value */
 __WEAK uint32_t target_ddr_cfg_val()
 {
 	return DDR_CONFIG_VAL;
+}
+
+/* Default CFG register value */
+uint32_t target_ddr_cfg_reg()
+{
+	uint32_t platform = board_platform_id();
+	uint32_t ret = SDCC_HC_REG_DDR_CONFIG;
+
+	switch(platform)
+	{
+		case MSM8937:
+		case MSM8940:
+		case APQ8037:
+		case MSM8917:
+		case MSM8920:
+		case MSM8217:
+		case MSM8617:
+		case APQ8017:
+		case MSM8953:
+		case APQ8053:
+		case SDM450:
+		/* SDCC HC DDR CONFIG has shifted by 4 bytes for these platform */
+			ret += 4;
+			break;
+		default:
+			break;
+	}
+	return ret;
 }
 
 #if PON_VIB_SUPPORT
@@ -278,6 +311,7 @@ void get_vibration_type(struct qpnp_hap *config)
 		case APQ8017:
 		case MSM8953:
 		case APQ8053:
+		case SDM450:
 			config->vib_type = VIB_LRA_TYPE;
 			config->hap_rate_cfg1 = QPNP_HAP_RATE_CFG1_41;
 			config->hap_rate_cfg2 = QPNP_HAP_RATE_CFG2_03;
@@ -331,8 +365,11 @@ bool target_battery_is_present()
 		case PMIC_IS_PMI8950:
 		case PMIC_IS_PMI8994:
 		case PMIC_IS_PMI8996:
-			value = REG_READ(PMIC_SLAVE_ID|
-			BAT_IF_BAT_PRES_STATUS);
+			if(target_is_pmi_enabled())
+			{
+				value = REG_READ(PMIC_SLAVE_ID|
+						BAT_IF_BAT_PRES_STATUS);
+			}
 			break;
 		default:
 			dprintf(CRITICAL, "ERROR: Couldn't get the pmic type\n");
@@ -364,10 +401,13 @@ uint32_t target_get_battery_voltage()
 		case PMIC_IS_PMI8950:
 		case PMIC_IS_PMI8994:
 		case PMIC_IS_PMI8996:
-			if (!pm_fg_usr_get_vbat(1, &vbat)) {
-				vbat = vbat*1000; //uv
-			} else {
-				dprintf(CRITICAL, "ERROR: Get battery voltage failed!!!\n");
+			if(target_is_pmi_enabled())
+			{
+				if (!pm_fg_usr_get_vbat(1, &vbat)) {
+					vbat = vbat*1000; //uv
+				} else {
+					dprintf(CRITICAL, "ERROR: Get battery voltage failed!!!\n");
+				}
 			}
 			break;
 		default:

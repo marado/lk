@@ -84,6 +84,8 @@
 #define RECOVERY_MODE           0x77665502
 #define PON_SOFT_RB_SPARE       0x88F
 
+#define EXT4_CMDLINE  " rootfstype=ext4 root=/dev/mmcblk0p"
+
 #define CE1_INSTANCE            1
 #define CE_EE                   1
 #define CE_FIFO_SIZE            64
@@ -292,20 +294,24 @@ void target_init(void)
 
 	spmi_init(PMIC_ARB_CHANNEL_NUM, PMIC_ARB_OWNER_ID);
 
-	if(platform_is_msm8937() || platform_is_msm8917())
+	if(target_is_pmi_enabled())
 	{
-		uint8_t pmi_rev = 0;
-		uint32_t pmi_type = 0;
-
-		pmi_type = board_pmic_target(1) & 0xffff;
-		if(pmi_type == PMIC_IS_PMI8950)
+		if(platform_is_msm8937() || platform_is_msm8917())
 		{
-			/* read pmic spare register for rev */
-			pmi_rev = pmi8950_get_pmi_subtype();
-			if(pmi_rev)
-				board_pmi_target_set(1,pmi_rev);
+			uint8_t pmi_rev = 0;
+			uint32_t pmi_type = 0;
+
+			pmi_type = board_pmic_target(1) & 0xffff;
+			if(pmi_type == PMIC_IS_PMI8950)
+			{
+				/* read pmic spare register for rev */
+				pmi_rev = pmi8950_get_pmi_subtype();
+				if(pmi_rev)
+					board_pmi_target_set(1,pmi_rev);
+			}
 		}
 	}
+
 
 	target_keystatus();
 
@@ -317,12 +323,14 @@ void target_init(void)
 	}
 
 #if LONG_PRESS_POWER_ON
-	shutdown_detect();
+	if(target_is_pmi_enabled())
+		shutdown_detect();
 #endif
 
 #if PON_VIB_SUPPORT
 	/* turn on vibrator to indicate that phone is booting up to end user */
-	vib_timed_turn_on(VIBRATE_TIME);
+	if(target_is_pmi_enabled())
+		vib_timed_turn_on(VIBRATE_TIME);
 #endif
 
 	if (target_use_signed_kernel())
@@ -492,7 +500,11 @@ void reboot_device(unsigned reboot_reason)
 	else
 		reset_type = PON_PSHOLD_HARD_RESET;
 
-	pm8994_reset_configure(reset_type);
+	if(target_is_pmi_enabled())
+		pm8994_reset_configure(reset_type);
+	else
+		pm8x41_reset_configure(reset_type);
+
 
 	ret = scm_halt_pmic_arbiter();
 	if (ret)
@@ -527,8 +539,12 @@ unsigned target_pause_for_battery_charge(void)
 {
 	uint8_t pon_reason = pm8x41_get_pon_reason();
 	uint8_t is_cold_boot = pm8x41_get_is_cold_boot();
-	bool usb_present_sts = !(USBIN_UV_RT_STS &
-				pm8x41_reg_read(SMBCHG_USB_RT_STS));
+	bool usb_present_sts = 1;	/* don't care by default */
+
+	if(target_is_pmi_enabled())
+		usb_present_sts = (!(USBIN_UV_RT_STS &
+						 pm8x41_reg_read(SMBCHG_USB_RT_STS)));
+
 	dprintf(INFO, "%s : pon_reason is:0x%x cold_boot:%d usb_sts:%d\n", __func__,
 		pon_reason, is_cold_boot, usb_present_sts);
 	/* In case of fastboot reboot,adb reboot or if we see the power key
@@ -548,7 +564,8 @@ unsigned target_pause_for_battery_charge(void)
 void target_uninit(void)
 {
 #if PON_VIB_SUPPORT
-	turn_off_vib_early();
+	if(target_is_pmi_enabled())
+		turn_off_vib_early();
 #endif
 	mmc_put_card_to_sleep(dev);
 	sdhci_mode_disable(&dev->host);
@@ -740,6 +757,53 @@ void target_crypto_init_params()
 
 	crypto_init_params(&ce_params);
 }
+
+bool target_is_pmi_enabled(void)
+{
+	if(platform_is_msm8917() &&
+	   (board_hardware_subtype() ==	HW_PLATFORM_SUBTYPE_SAP_NOPMI))
+		return 0;
+	else
+		return 1;
+}
+
+#if _APPEND_CMDLINE
+int get_target_boot_params(const char *cmdline, const char *part, char **buf)
+{
+	int system_ptn_index = -1;
+	uint32_t buflen;
+	int ret = -1;
+
+	if (!cmdline || !part ) {
+		dprintf(CRITICAL, "WARN: Invalid input param\n");
+		return -1;
+	}
+
+	if (!strstr(cmdline, "root=/dev/ram")) /* This check is to handle kdev boot */
+	{
+		if (target_is_emmc_boot()) {
+			buflen = strlen(EXT4_CMDLINE) + sizeof(int) +1;
+			*buf = (char *)malloc(buflen);
+			if(!(*buf)) {
+				dprintf(CRITICAL,"Unable to allocate memory for boot params\n");
+				return -1;
+			}
+			/* Below is for emmc boot */
+			system_ptn_index = partition_get_index(part) + 1; /* Adding +1 as offsets for eMMC start at 1 and NAND at 0 */
+			if (system_ptn_index < 0) {
+				dprintf(CRITICAL,
+						"WARN: Cannot get partition index for %s\n", part);
+				free(*buf);
+				return -1;
+			}
+			snprintf(*buf, buflen, EXT4_CMDLINE"%d", system_ptn_index);
+			ret = 0;
+		}
+	}
+	/*in success case buf will be freed in the calling function of this*/
+	return ret;
+}
+#endif
 
 uint32_t target_get_pmic()
 {

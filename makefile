@@ -67,7 +67,9 @@ endif
 ifeq ($(APPEND_CMDLINE),1)
   CFLAGS += -D_APPEND_CMDLINE=1
 endif
-
+ifeq ($(ENABLE_HARD_FPU),1)
+  CFLAGS += -mfloat-abi=hard -mfpu=neon
+endif
 # setup toolchain prefix
 TOOLCHAIN_PREFIX ?= arm-eabi-
 CFLAGS += -fstack-protector-all
@@ -119,6 +121,12 @@ endif
 
 ifeq ($(USER_BUILD_VARIANT),true)
   DEFINES += USER_BUILD_VARIANT=1
+endif
+
+ifeq ($(USE_LE_SYSTEMD),true)
+  DEFINES += USE_LE_SYSTEMD=1
+else
+  DEFINES += USE_LE_SYSTEMD=0
 endif
 
 # these need to be filled out by the project/target/platform rules.mk files
