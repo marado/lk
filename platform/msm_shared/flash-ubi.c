@@ -846,6 +846,11 @@ int flash_ubi_img(struct ptentry *ptn, void *data, unsigned size)
 			continue;
 		}
 
+		if (size < UBI_MAGIC_SIZE)
+		{
+			dprintf(CRITICAL, "flash_ubi_img: invalid size provided.\n");
+			return -1;
+		}
 		if (size < block_size)
 			num_pages = size / page_size;
 		else
