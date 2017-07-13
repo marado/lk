@@ -135,3 +135,8 @@ endif
 
 # Enable early camera without gpio
 DEFINES += EARLYCAMERA_NO_GPIO=1
+
+#Enable early mount support for mmc/ufs
+ifeq ($(ENABLE_BOOTDEVICE_MOUNT),1)
+DEFINES += ENABLE_BOOTDEVICE_MOUNT=1
+endif
