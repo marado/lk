@@ -2677,6 +2677,11 @@ void cmd_flash_mmc_sparse_img(const char *arg, void *data, unsigned sz)
 	/* Read and skip over sparse image header */
 	sparse_header = (sparse_header_t *) data;
 
+	if (!sparse_header->blk_sz || (sparse_header->blk_sz % 4)){
+		fastboot_fail("Invalid block size\n");
+		return;
+	}
+
 	if (((uint64_t)sparse_header->total_blks * (uint64_t)sparse_header->blk_sz) > size) {
 		fastboot_fail("size too large");
 		return;
@@ -2730,11 +2735,6 @@ void cmd_flash_mmc_sparse_img(const char *arg, void *data, unsigned sz)
 		if(sparse_header->chunk_hdr_sz != sizeof(chunk_header_t))
 		{
 			fastboot_fail("chunk header size mismatch");
-			return;
-		}
-
-		if (!sparse_header->blk_sz ){
-			fastboot_fail("Invalid block size\n");
 			return;
 		}
 
