@@ -59,6 +59,11 @@ int load_sec_app();
 int get_secapp_handle();
 int send_milestone_call_to_tz();
 int send_delete_keys_to_tz();
+
+#if ENABLE_RECOVERY
 int booting_into_recovery();
+#else
+static inline int booting_into_recovery() { return 0; }
+#endif
 
 #endif /* SAL_MAIN_H */
