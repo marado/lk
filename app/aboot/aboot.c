@@ -185,7 +185,8 @@ static const char *warmboot_cmdline = " qpnp-power-on.warm_boot=1";
 static const char *baseband_apq_nowgr   = " androidboot.baseband=baseband_apq_nowgr";
 static const char *androidboot_slot_suffix = " androidboot.slot_suffix=";
 static const char *skip_ramfs = " skip_initramfs";
-static char *sys_path_cmdline = " rootwait ro init=/init root=/dev/mmcblk0p%d"; /*This will be updated*/
+static const char *sys_path_cmdline = " rootwait ro init=/init";
+static const char *sys_path = "  root=/dev/mmcblk0p";
 
 #if VERIFIED_BOOT
 #if !VBOOT_MOTA
@@ -347,6 +348,11 @@ unsigned char *update_cmdline(const char * cmdline)
 	char *boot_dev_buf = NULL;
     	bool is_mdtp_activated = 0;
 	int current_active_slot = INVALID;
+	int system_ptn_index = -1;
+	unsigned int lun = 0;
+	char lun_char_base = 'a';
+	int syspath_buflen = strlen(sys_path) + sizeof(int) + 1; /*allocate buflen for largest possible string*/
+	char syspath_buf[syspath_buflen];
 
 #if USE_LE_SYSTEMD
 	is_systemd_present=true;
@@ -495,10 +501,22 @@ unsigned char *update_cmdline(const char * cmdline)
 		cmdline_len += (strlen(androidboot_slot_suffix)+
 					strlen(SUFFIX_SLOT(current_active_slot)));
 
-		sprintf(sys_path_cmdline, sys_path_cmdline,
-					(partition_get_index("system")+1));
-		cmdline_len += strlen(sys_path_cmdline);
+		system_ptn_index = partition_get_index("system");
+		if (platform_boot_dev_isemmc())
+		{
+			snprintf(syspath_buf, syspath_buflen, " root=/dev/mmcblk0p%d",
+				system_ptn_index + 1);
+		}
+		else
+		{
+			lun = partition_get_lun(system_ptn_index);
+			snprintf(syspath_buf, syspath_buflen, " root=/dev/sd%c%d",
+					lun_char_base + lun,
+					partition_get_index_in_lun("system", lun));
+		}
 
+		cmdline_len += strlen(sys_path_cmdline);
+		cmdline_len += strlen(syspath_buf);
 		if (!boot_into_recovery)
 			cmdline_len += strlen(skip_ramfs);
 	}
@@ -720,6 +738,10 @@ unsigned char *update_cmdline(const char * cmdline)
 				}
 
 				src = sys_path_cmdline;
+				--dst;
+				while ((*dst++ = *src++));
+
+				src = syspath_buf;
 				--dst;
 				while ((*dst++ = *src++));
 		}
@@ -3482,7 +3504,8 @@ void cmd_flash_nand(const char *arg, void *data, unsigned sz)
 	}
 
 	dprintf(INFO, "writing %d bytes to '%s'\n", sz, ptn->name);
-	if ((sz > UBI_MAGIC_SIZE) && (!memcmp((void *)data, UBI_MAGIC, UBI_MAGIC_SIZE))) {
+	if ((sz > UBI_EC_HDR_SIZE) &&
+		(!memcmp((void *)data, UBI_MAGIC, UBI_MAGIC_SIZE))) {
 		if (flash_ubi_img(ptn, data, sz)) {
 			fastboot_fail("flash write failure");
 			return;
@@ -3545,7 +3568,7 @@ void cmd_reboot(const char *arg, void *data, unsigned sz)
 
 void cmd_set_active(const char *arg, void *data, unsigned sz)
 {
-	char *p = NULL;
+	char *p, *sp = NULL;
 	unsigned i,current_active_slot;
 	const char *current_slot_suffix;
 
@@ -3557,13 +3580,16 @@ void cmd_set_active(const char *arg, void *data, unsigned sz)
 
 	if (arg)
 	{
-		p = (char *)arg;
-		if (p)
+		p = strtok_r((char *)arg, ":", &sp);
+		if (*p)
 		{
 			current_active_slot = partition_find_active_slot();
 
 			/* Check if trying to make curent slot active */
 			current_slot_suffix = SUFFIX_SLOT(current_active_slot);
+			current_slot_suffix = strtok_r((char *)current_slot_suffix,
+							(char *)suffix_delimiter, &sp);
+
 			if (!strncmp(p, current_slot_suffix, sizeof(current_slot_suffix)))
 			{
 				fastboot_okay("Slot already set active");
@@ -3574,6 +3600,8 @@ void cmd_set_active(const char *arg, void *data, unsigned sz)
 				for (i = 0; i < AB_SUPPORTED_SLOTS; i++)
 				{
 					current_slot_suffix = SUFFIX_SLOT(i);
+					current_slot_suffix = strtok_r((char *)current_slot_suffix,
+									(char *)suffix_delimiter, &sp);
 					if (!strncmp(p, current_slot_suffix, sizeof(current_slot_suffix)))
 					{
 						partition_switch_slots(current_active_slot, i);
@@ -4020,6 +4048,7 @@ void publish_getvar_multislot_vars()
 	static char has_slot_reply[NUM_PARTITIONS][MAX_RSP_SIZE];
 	const char *tmp;
 	char tmpbuff[MAX_GET_VAR_NAME_SIZE];
+	signed active_slt;
 
 	if (!published)
 	{
@@ -4029,18 +4058,23 @@ void publish_getvar_multislot_vars()
 		for(i=0; i<count; i++)
 		{
 			memset(tmpbuff, 0, MAX_GET_VAR_NAME_SIZE);
-			sprintf(tmpbuff, "has-slot:%s", has_slot_pname[i]);
-			strcpy(has_slot_pname[i], tmpbuff);
+			snprintf(tmpbuff, MAX_GET_VAR_NAME_SIZE,"has-slot:%s",
+								has_slot_pname[i]);
+			strlcpy(has_slot_pname[i], tmpbuff, MAX_GET_VAR_NAME_SIZE);
 			fastboot_publish(has_slot_pname[i], has_slot_reply[i]);
 		}
 
 		for (i=0; i<AB_SUPPORTED_SLOTS; i++)
 		{
 			tmp = SUFFIX_SLOT(i);
-			sprintf(slot_info[i].slot_is_unbootable, "slot-unbootable:%s", tmp);
-			sprintf(slot_info[i].slot_is_active, "slot-active:%s", tmp);
-			sprintf(slot_info[i].slot_is_succesful, "slot-success:%s", tmp);
-			sprintf(slot_info[i].slot_retry_count, "slot-retry-count:%s", tmp);
+			snprintf(slot_info[i].slot_is_unbootable, sizeof(slot_info[i].slot_is_unbootable),
+										"slot-unbootable:%s", tmp);
+			snprintf(slot_info[i].slot_is_active, sizeof(slot_info[i].slot_is_active),
+										"slot-active:%s", tmp);
+			snprintf(slot_info[i].slot_is_succesful, sizeof(slot_info[i].slot_is_succesful),
+										"slot-success:%s", tmp);
+			snprintf(slot_info[i].slot_retry_count, sizeof(slot_info[i].slot_retry_count),
+										"slot-retry-count:%s", tmp);
 			fastboot_publish(slot_info[i].slot_is_unbootable,
 							slot_info[i].slot_is_unbootable_rsp);
 			fastboot_publish(slot_info[i].slot_is_active,
@@ -4056,8 +4090,13 @@ void publish_getvar_multislot_vars()
 		published = true;
 	}
 
-	sprintf(active_slot_suffix, "%s",
-			SUFFIX_SLOT(partition_find_active_slot()));
+	active_slt = partition_find_active_slot();
+	if (active_slt != INVALID)
+		snprintf(active_slot_suffix, sizeof(active_slot_suffix), "%s",
+			SUFFIX_SLOT(active_slt));
+	else
+		strlcpy(active_slot_suffix, "INVALID", sizeof(active_slot_suffix));
+
 	/* Update partition meta information */
 	partition_fill_slot_meta(slot_info);
 	return;
@@ -4120,7 +4159,7 @@ void aboot_fastboot_register_commands(void)
 						{"oem disable-charger-screen", cmd_oem_disable_charger_screen},
 						{"oem off-mode-charge", cmd_oem_off_mode_charger},
 						{"oem select-display-panel", cmd_oem_select_display_panel},
-						{"oem set_active",cmd_set_active},
+						{"set_active",cmd_set_active},
 #if UNITTEST_FW_SUPPORT
 						{"oem run-tests", cmd_oem_runtests},
 #endif

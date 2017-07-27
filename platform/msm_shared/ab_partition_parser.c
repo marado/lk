@@ -31,12 +31,18 @@
 #include <crc32.h>
 #include <ab_partition_parser.h>
 #include <partition_parser.h>
+#include <boot_device.h>
+#if defined(MMC_SDHCI_SUPPORT) || defined(UFS_SUPPORT)
+#include <mmc_wrapper.h>
+#include <ufs.h>
+#endif
 
 //#define AB_DEBUG
 
 /* Slot suffix */
 const char *suffix_slot[] = {"_a",
 		"_b"};
+const char *suffix_delimiter = "_";
 
 /* local global variables */
 static signed active_slot = INVALID;		/* to store current active slot */
@@ -506,14 +512,14 @@ int partition_fill_partition_meta(char has_slot_pname[][MAX_GET_VAR_NAME_SIZE],
 				/* 2. put the partition name in array */
 				tmp = pname_size-strlen(suffix_str);
 				strlcpy(has_slot_pname[count], pname, tmp+1);
-				strcpy(has_slot_reply[count], " Yes");
+				strlcpy(has_slot_reply[count], " Yes", MAX_RSP_SIZE);
 				count++;
 			}
 		}
 		else
 		{
-			strcpy(has_slot_pname[count], pname);
-			strcpy(has_slot_reply[count], " No");
+			strlcpy(has_slot_pname[count], pname, MAX_GET_VAR_NAME_SIZE);
+			strlcpy(has_slot_reply[count], " No", MAX_RSP_SIZE);
 			count++;
 		}
 
@@ -545,15 +551,18 @@ void partition_fill_slot_meta(struct ab_slot_info *slot_info)
 	for(i=0; i<AB_SUPPORTED_SLOTS; i++)
 	{
 		current_slot_index = boot_slot_index[i];
-		strcpy(slot_info[i].slot_is_unbootable_rsp,
-				slot_is_bootable(ptn_entries, current_slot_index)?"No":"Yes");
-		strcpy(slot_info[i].slot_is_active_rsp,
-				slot_is_active(ptn_entries, current_slot_index)?"Yes":"No");
-		strcpy(slot_info[i].slot_is_succesful_rsp,
-				slot_is_sucessful(ptn_entries, current_slot_index)?"Yes":"No");
+		strlcpy(slot_info[i].slot_is_unbootable_rsp,
+				slot_is_bootable(ptn_entries, current_slot_index)?"No":"Yes",
+				MAX_RSP_SIZE);
+		strlcpy(slot_info[i].slot_is_active_rsp,
+				slot_is_active(ptn_entries, current_slot_index)?"Yes":"No",
+				MAX_RSP_SIZE);
+		strlcpy(slot_info[i].slot_is_succesful_rsp,
+				slot_is_sucessful(ptn_entries, current_slot_index)?"Yes":"No",
+				MAX_RSP_SIZE);
 		itoa(slot_retry_count(ptn_entries, current_slot_index),
 				(unsigned char *)buff, 2, 10);
-		strcpy(slot_info[i].slot_retry_count_rsp, buff);
+		strlcpy(slot_info[i].slot_retry_count_rsp, buff, MAX_RSP_SIZE);
 	}
 }
 
@@ -577,8 +586,19 @@ update_gpt(uint64_t gpt_start_addr,
 	int ret = 0;
 	uint64_t max_gpt_size_bytes =
 		(PARTITION_ENTRY_SIZE*NUM_PARTITIONS + GPT_HEADER_BLOCKS*block_size);
+	int lun = -1;
+
+	/* Get Current LUN for UFS target */
+	if (!platform_boot_dev_isemmc())
+		lun = mmc_get_lun();
 
 	buffer = memalign(CACHE_LINE, ROUNDUP(max_gpt_size_bytes, CACHE_LINE));
+	if (!buffer)
+	{
+		dprintf(CRITICAL, "update_gpt: Failed at memory allocation\n");
+		goto out;
+	}
+
 	ret = mmc_read(gpt_start_addr, (uint32_t *)buffer,
 				max_gpt_size_bytes);
 	if (ret)
@@ -595,6 +615,18 @@ update_gpt(uint64_t gpt_start_addr,
 	tmp = gpt_entries_ptr;
 	for (i=0;i<partition_count;i++)
 	{
+		if (lun != -1)
+		{
+			/* Partition table is populated with entries from lun 0 to max lun.
+			* break out of the loop once we see the partition lun is > current lun */
+			if (partition_entries[i].lun > lun)
+				break;
+			/* Find the entry where the partition table for 'lun' starts
+			and then update the attributes */
+			if (partition_entries[i].lun != lun)
+				continue;
+		}
+
 		/* Update the partition attributes */
 		PUT_LONG_LONG(&tmp[ATTRIBUTE_FLAG_OFFSET],
 			partition_entries[i].attribute_flag);
@@ -629,7 +661,8 @@ update_gpt(uint64_t gpt_start_addr,
 		goto out;
 	}
 out:
-	free(buffer);
+	if (buffer)
+		free(buffer);
 	return ret;
 }
 
@@ -647,32 +680,47 @@ static void attributes_update()
 	unsigned max_entries_size_bytes = PARTITION_ENTRY_SIZE*NUM_PARTITIONS;
 	unsigned max_entries_blocks = max_entries_size_bytes/block_size;
 	unsigned max_gpt_blocks = GPT_HEADER_BLOCKS + max_entries_blocks;
+	int max_luns = 0, lun;
+	int cur_lun = mmc_get_lun();
 
-	/* Update Primary GPT */
-	offset = 0x01;	/*  offset is 0x1 for primary GPT */
-	gpt_start_addr = offset*block_size;
-	/* Take gpt_start_addr as start and calculate offset from that in block sz*/
-	gpt_hdr_offset = 0; /* For primary partition offset is zero */
-	gpt_entries_offset = GPT_HEADER_BLOCKS;
-
-	ret = update_gpt(gpt_start_addr, gpt_hdr_offset, gpt_entries_offset);
-	if (ret)
+#if defined(MMC_SDHCI_SUPPORT) || defined(UFS_SUPPORT)
+	if (platform_boot_dev_isemmc())
+		max_luns = 1;
+	else
+		max_luns = ufs_get_num_of_luns((struct ufs_dev*)target_mmc_device());
+#endif
+	for (lun = 0; lun < max_luns; lun++)
 	{
-		dprintf(CRITICAL, "Failed to update Primary GPT\n");
-		return;
-	}
+		/* Set current LUN */
+		mmc_set_lun(lun);
 
-	/* Update Secondary GPT */
-	offset = ((mmc_get_device_capacity()/block_size) - max_gpt_blocks);
-	gpt_start_addr = offset*block_size;
-	gpt_hdr_offset = max_entries_blocks;
-	gpt_entries_offset = 0; /* For secondary GPT entries offset is zero */
+		/* Update Primary GPT */
+		offset = 0x01;	/*  offset is 0x1 for primary GPT */
+		gpt_start_addr = offset*block_size;
+		/* Take gpt_start_addr as start and calculate offset from that in block sz*/
+		gpt_hdr_offset = 0; /* For primary partition offset is zero */
+		gpt_entries_offset = GPT_HEADER_BLOCKS;
 
-	ret = update_gpt(gpt_start_addr, gpt_hdr_offset, gpt_entries_offset);
-	if (ret)
-	{
-		dprintf(CRITICAL, "Failed to update Secondary GPT\n");
-		return;
+		ret = update_gpt(gpt_start_addr, gpt_hdr_offset, gpt_entries_offset);
+		if (ret)
+		{
+			dprintf(CRITICAL, "Failed to update Primary GPT\n");
+			return;
+		}
+
+		/* Update Secondary GPT */
+		offset = ((mmc_get_device_capacity()/block_size) - max_gpt_blocks);
+		gpt_start_addr = offset*block_size;
+		gpt_hdr_offset = max_entries_blocks;
+		gpt_entries_offset = 0; /* For secondary GPT entries offset is zero */
+
+		ret = update_gpt(gpt_start_addr, gpt_hdr_offset, gpt_entries_offset);
+		if (ret)
+		{
+			dprintf(CRITICAL, "Failed to update Secondary GPT\n");
+			return;
+		}
 	}
+	mmc_set_lun(cur_lun);
 	return;
 }
