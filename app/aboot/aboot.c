@@ -1181,6 +1181,7 @@ int boot_linux_from_mmc(void)
 
 	kernel_actual  = ROUND_TO_PAGE(hdr->kernel_size,  page_mask);
 	ramdisk_actual = ROUND_TO_PAGE(hdr->ramdisk_size, page_mask);
+	second_actual  = ROUND_TO_PAGE(hdr->second_size, page_mask);
 
 	image_addr = (unsigned char *)target_get_scratch_address();
 
@@ -1189,17 +1190,17 @@ int boot_linux_from_mmc(void)
 	dt_size = hdr->dt_size;
 #endif
 	dt_actual = ROUND_TO_PAGE(dt_size, page_mask);
-	if (UINT_MAX < ((uint64_t)kernel_actual + (uint64_t)ramdisk_actual+ (uint64_t)dt_actual + page_size)) {
+	if (UINT_MAX < ((uint64_t)kernel_actual + (uint64_t)ramdisk_actual+ (uint64_t)dt_actual + (uint64_t)second_actual + page_size)) {
 		dprintf(CRITICAL, "Integer overflow detected in bootimage header fields at %u in %s\n",__LINE__,__FILE__);
 		return -1;
 	}
-	imagesize_actual = (page_size + kernel_actual + ramdisk_actual + dt_actual);
+	imagesize_actual = (page_size + kernel_actual + ramdisk_actual + second_actual + dt_actual);
 #else
-	if (UINT_MAX < ((uint64_t)kernel_actual + (uint64_t)ramdisk_actual + page_size)) {
+	if (UINT_MAX < ((uint64_t)kernel_actual + (uint64_t)ramdisk_actual + (uint64_t)second_actual + page_size)) {
 		dprintf(CRITICAL, "Integer overflow detected in bootimage header fields at %u in %s\n",__LINE__,__FILE__);
 		return -1;
 	}
-	imagesize_actual = (page_size + kernel_actual + ramdisk_actual);
+	imagesize_actual = (page_size + kernel_actual + ramdisk_actual + second_actual);
 #endif
 
 #if VERIFIED_BOOT
@@ -1590,6 +1591,7 @@ int boot_linux_from_flash(void)
 
 	kernel_actual  = ROUND_TO_PAGE(hdr->kernel_size,  page_mask);
 	ramdisk_actual = ROUND_TO_PAGE(hdr->ramdisk_size, page_mask);
+	second_actual  = ROUND_TO_PAGE(hdr->second_size, page_mask);
 
 	/* Check if the addresses in the header are valid. */
 	if (check_aboot_addr_range_overlap(hdr->kernel_addr, kernel_actual) ||
@@ -1618,12 +1620,12 @@ int boot_linux_from_flash(void)
 		dt_size = hdr->dt_size;
 #endif
 		dt_actual = ROUND_TO_PAGE(dt_size, page_mask);
-		if (UINT_MAX < ((uint64_t)kernel_actual + (uint64_t)ramdisk_actual+ (uint64_t)dt_actual + page_size)) {
+		if (UINT_MAX < ((uint64_t)kernel_actual + (uint64_t)ramdisk_actual+ (uint64_t)dt_actual + (uint64_t)second_actual + page_size)) {
 			dprintf(CRITICAL, "Integer overflow detected in bootimage header fields\n");
 			return -1;
 		}
 
-		imagesize_actual = (page_size + kernel_actual + ramdisk_actual + dt_actual);
+		imagesize_actual = (page_size + kernel_actual + ramdisk_actual + second_actual + dt_actual);
 
 		if (check_aboot_addr_range_overlap(hdr->tags_addr, dt_size))
 		{
@@ -1631,11 +1633,11 @@ int boot_linux_from_flash(void)
 			return -1;
 		}
 #else
-		if (UINT_MAX < ((uint64_t)kernel_actual + (uint64_t)ramdisk_actual+ page_size)) {
+		if (UINT_MAX < ((uint64_t)kernel_actual + (uint64_t)ramdisk_actual + (uint64_t)second_actual + page_size)) {
 			dprintf(CRITICAL, "Integer overflow detected in bootimage header fields\n");
 			return -1;
 		}
-		imagesize_actual = (page_size + kernel_actual + ramdisk_actual);
+		imagesize_actual = (page_size + kernel_actual + ramdisk_actual + second_actual);
 #endif
 
 		dprintf(INFO, "Loading (%s) image (%d): start\n",
@@ -2357,6 +2359,7 @@ void cmd_boot(const char *arg, void *data, unsigned sz)
 #endif /* MDTP_SUPPORT */
 	unsigned kernel_actual;
 	unsigned ramdisk_actual;
+	unsigned second_actual;
 	uint32_t image_actual;
 	uint32_t dt_actual = 0;
 	uint32_t sig_actual = 0;
@@ -2403,6 +2406,7 @@ void cmd_boot(const char *arg, void *data, unsigned sz)
 
 	kernel_actual = ROUND_TO_PAGE(hdr->kernel_size, page_mask);
 	ramdisk_actual = ROUND_TO_PAGE(hdr->ramdisk_size, page_mask);
+	second_actual = ROUND_TO_PAGE(hdr->second_size, page_mask);
 #if DEVICE_TREE
 #ifndef OSVERSION_IN_BOOTIMAGE
 	dt_size = hdr->dt_size;
@@ -2412,6 +2416,7 @@ void cmd_boot(const char *arg, void *data, unsigned sz)
 
 	image_actual = ADD_OF(page_size, kernel_actual);
 	image_actual = ADD_OF(image_actual, ramdisk_actual);
+	image_actual = ADD_OF(image_actual, second_actual);
 	image_actual = ADD_OF(image_actual, dt_actual);
 
 	if (target_use_signed_kernel() && (!device.is_unlocked)) {
