@@ -2810,6 +2810,7 @@ void cmd_flash_mmc_sparse_img(const char *arg, void *data, unsigned sz)
 	uint64_t chunk_data_sz;
 	uint32_t *fill_buf = NULL;
 	uint32_t fill_val;
+	uint32_t blk_sz_actual = 0;
 	sparse_header_t *sparse_header;
 	chunk_header_t *chunk_header;
 	uint32_t total_blocks = 0;
@@ -2840,6 +2841,11 @@ void cmd_flash_mmc_sparse_img(const char *arg, void *data, unsigned sz)
 
 	/* Read and skip over sparse image header */
 	sparse_header = (sparse_header_t *) data;
+
+	if (!sparse_header->blk_sz || (sparse_header->blk_sz % 4)){
+		fastboot_fail("Invalid block size\n");
+		return;
+	}
 
 	if (((uint64_t)sparse_header->total_blks * (uint64_t)sparse_header->blk_sz) > size) {
 		fastboot_fail("size too large");
@@ -2897,11 +2903,6 @@ void cmd_flash_mmc_sparse_img(const char *arg, void *data, unsigned sz)
 			return;
 		}
 
-		if (!sparse_header->blk_sz ){
-			fastboot_fail("Invalid block size\n");
-			return;
-		}
-
 		chunk_data_sz = (uint64_t)sparse_header->blk_sz * chunk_header->chunk_sz;
 
 		/* Make sure that the chunk size calculated from sparse image does not
@@ -2954,7 +2955,15 @@ void cmd_flash_mmc_sparse_img(const char *arg, void *data, unsigned sz)
 				return;
 			}
 
-			fill_buf = (uint32_t *)memalign(CACHE_LINE, ROUNDUP(sparse_header->blk_sz, CACHE_LINE));
+			blk_sz_actual = ROUNDUP(sparse_header->blk_sz, CACHE_LINE);
+			/* Integer overflow detected */
+			if (blk_sz_actual < sparse_header->blk_sz)
+			{
+				fastboot_fail("Invalid block size");
+				return;
+			}
+
+			fill_buf = (uint32_t *)memalign(CACHE_LINE, blk_sz_actual);
 			if (!fill_buf)
 			{
 				fastboot_fail("Malloc failed for: CHUNK_TYPE_FILL");
