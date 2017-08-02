@@ -324,6 +324,25 @@ void *target_mmc_device()
 		return (void *) &ufs_device;
 }
 
+#if ENABLE_EARLY_ETHERNET
+void toggle_neutrino(void) {
+	struct pm8x41_gpio gpio = {
+                .direction = PM_GPIO_DIR_OUT,
+                .function = PM_GPIO_FUNC_HIGH,
+                .vin_sel = 2,   /* VIN_2 */
+                .output_buffer = PM_GPIO_OUT_CMOS,
+                .out_strength = PM_GPIO_OUT_DRIVE_LOW,
+    };
+
+    pm8x41_gpio_config(13, &gpio);
+	pm8x41_gpio_set(13, 1);
+	mdelay(10);
+	pm8x41_gpio_set(13, 0);
+	mdelay(10);
+	pm8x41_gpio_set(13, 1);
+}
+#endif
+
 void target_init(void)
 {
 	int ret = 0;
@@ -335,7 +354,10 @@ void target_init(void)
 
 	/* Initialize Glink */
 	rpm_glink_init();
-
+#if ENABLE_EARLY_ETHERNET
+	//enable pmic gpio 13
+	toggle_neutrino();
+#endif
 	target_keystatus();
 
 #if defined(LONG_PRESS_POWER_ON) || defined(PON_VIB_SUPPORT)
