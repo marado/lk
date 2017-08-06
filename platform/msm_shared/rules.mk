@@ -1,7 +1,7 @@
 LOCAL_DIR := $(GET_LOCAL_DIR)
 
 INCLUDES += \
-			-I$(LOCAL_DIR)/include -I$(LK_TOP_DIR)/dev/panel/msm
+			-I$(LK_TOP_DIR)/include -I$(LK_TOP_DIR)/include/sys -I$(LOCAL_DIR)/include -I$(LK_TOP_DIR)/dev/panel/msm
 
 DEFINES += $(TARGET_XRES)
 DEFINES += $(TARGET_YRES)
@@ -551,7 +551,8 @@ ifeq ($(PLATFORM),mdm9607)
 			$(LOCAL_DIR)/image_verify.o \
 			$(LOCAL_DIR)/flash-ubi.o \
 			$(LOCAL_DIR)/scm.o \
-			$(LOCAL_DIR)/dev_tree.o
+			$(LOCAL_DIR)/dev_tree.o \
+			$(LOCAL_DIR)/qseecom_lk.o
 endif
 
 ifeq ($(PLATFORM),msm8996)

@@ -76,6 +76,10 @@ mmu_section_t mmu_section_table[] = {
 	{MSM_SHARED_IMEM_BASE,    MSM_SHARED_IMEM_BASE,           1,                              IOMAP_MEMORY},
 };
 
+mmu_section_t mmu_section_table_addon[] = {
+	{RPMB_SND_RCV_BUF,        RPMB_SND_RCV_BUF,               RPMB_SND_RCV_BUF_SZ,            IOMAP_MEMORY}
+};
+
 mmu_section_t mmu_section_table_128[] = {
 	{SCRATCH_REGION1_128,         SCRATCH_REGION1_VIRT_START_128,     SCRATCH_REGION1_SIZE_128/ MB,      SCRATCH_MEMORY},
 	{SCRATCH_REGION2_128,         SCRATCH_REGION2_VIRT_START_128,     SCRATCH_REGION2_SIZE_128/ MB,      SCRATCH_MEMORY},
@@ -97,6 +101,27 @@ static void board_ddr_detect()
 		ddr_based_mmu_mappings(mmu_section_table_256, ARRAY_SIZE(mmu_section_table_256));
 }
 
+static void platform_init_mmu_mappings_9206(void)
+{
+	uint32_t table_size;
+	uint32_t sections;
+	uint32_t i;
+
+	if (platform_is_mdm9206()) {
+		table_size = ARRAY_SIZE(mmu_section_table_addon);
+		for (i = 0; i < table_size; i++) {
+			sections = mmu_section_table_addon[i].num_of_sections;
+			while (sections--) {
+				arm_mmu_map_section(mmu_section_table_addon[i].paddress +
+								sections * MB,
+								mmu_section_table_addon[i].vaddress +
+								sections * MB,
+								mmu_section_table_addon[i].flags);
+			}
+		}
+	}
+}
+
 void platform_early_init(void)
 {
 	board_init();
@@ -105,6 +130,7 @@ void platform_early_init(void)
 	qtimer_init();
 	scm_init();
 	board_ddr_detect();
+	platform_init_mmu_mappings_9206();
 }
 
 void platform_init(void)
@@ -143,6 +169,17 @@ addr_t platform_get_virt_to_phys_mapping(addr_t virt_addr)
 		{
 				paddr = mmu_section_table[i].paddress + (virt_addr - mmu_section_table[i].vaddress);
 				return paddr;
+		}
+	}
+	if (platform_is_mdm9206()) {
+		table_size = ARRAY_SIZE(mmu_section_table_addon);
+		for (uint32_t i = 0; i < table_size; i++) {
+			limit = (mmu_section_table_addon[i].num_of_sections * MB) - 0x1;
+			if (virt_addr >= mmu_section_table_addon[i].vaddress &&
+					virt_addr <= (mmu_section_table_addon[i].vaddress + limit)) {
+				paddr = mmu_section_table_addon[i].paddress + (virt_addr - mmu_section_table_addon[i].vaddress);
+				return paddr;
+			}
 		}
 	}
 	if(ddr_size == 0x8000000)
@@ -199,6 +236,17 @@ addr_t platform_get_phys_to_virt_mapping(addr_t phys_addr)
 		{
 				vaddr = mmu_section_table[i].vaddress + (phys_addr - mmu_section_table[i].paddress);
 				return vaddr;
+		}
+	}
+	if (platform_is_mdm9206()) {
+		table_size = ARRAY_SIZE(mmu_section_table_addon);
+		for (uint32_t i = 0; i < table_size; i++) {
+			limit = (mmu_section_table_addon[i].num_of_sections * MB) - 0x1;
+			if (phys_addr >= mmu_section_table_addon[i].paddress &&
+					phys_addr <= (mmu_section_table_addon[i].paddress + limit)) {
+				vaddr = mmu_section_table_addon[i].vaddress + (phys_addr - mmu_section_table_addon[i].paddress);
+				return vaddr;
+			}
 		}
 	}
 	if(ddr_size == 0x8000000)

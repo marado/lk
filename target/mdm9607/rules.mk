@@ -4,18 +4,18 @@ INCLUDES += -I$(LOCAL_DIR)/include -I$(LK_TOP_DIR)/platform/msm_shared
 
 PLATFORM := mdm9607
 
-MEMBASE := 0x82900000 # SDRAM
-MEMSIZE := 0x00100000 # 1MB
+MEMBASE := 0x82600000 # SDRAM
+MEMSIZE := 0x00400000 # 4MB
 
 SCRATCH_ADDR                            := 0 # keeping for successful compilation
 SCRATCH_ADDR_128                        := 0x86000000
 SCRATCH_REGION1_128                     := 0x86000000
-SCRATCH_REGION1_SIZE_128                := 0x01a00000  # 26MB
+SCRATCH_REGION1_SIZE_128                := 0x01900000  # 25MB
 SCRATCH_REGION2_128                     := 0x80000000
-SCRATCH_REGION2_SIZE_128                := 0x02900000  # 41M
+SCRATCH_REGION2_SIZE_128                := 0x02500000  # 37M
 
 KERNEL_REGION                           := 0x80000000
-KERNEL_REGION_SIZE                      := 0x02000000  # 32MB
+KERNEL_REGION_SIZE                      := 0x02500000  # 37MB
 
 SCRATCH_ADDR_256                        := 0x88000000
 SCRATCH_REGION_256                      := 0x88000000

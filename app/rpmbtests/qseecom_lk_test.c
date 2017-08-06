@@ -26,18 +26,17 @@
  * IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include <partition_parser.h>
-#include <qseecom_lk.h>
-#include <scm.h>
-
-//#include "qseecom_legacy.h"
-#include "qseecom_lk_api.h"
-#include <debug.h>
-#include <kernel/mutex.h>
-#include <malloc.h>
 #include <stdlib.h>
-#include <arch/defines.h>
 #include <string.h>
+#include <debug.h>
+#include <malloc.h>
+#include <partition_parser.h>
+#include <kernel/mutex.h>
+#include <arch/defines.h>
+#include <scm.h>
+#include <qseecom_lk.h>
+
+#include "qseecom_lk_api.h"
 
 /* commands supported from sample client */
 #define CLIENT_CMD0_GET_VERSION             0

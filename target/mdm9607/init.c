@@ -172,6 +172,7 @@ void target_init(void)
 {
 	uint32_t base_addr;
 	uint8_t slot;
+	int ret = 0;
 
 	dprintf(INFO, "target_init()\n");
 
@@ -205,6 +206,22 @@ void target_init(void)
 
 	if (target_use_signed_kernel())
 		target_crypto_init_params();
+
+	if (platform_is_mdm9206()) {
+		clock_ce_enable(CE1_INSTANCE);
+
+		ret = qseecom_init();
+		if (ret < 0) {
+			dprintf(CRITICAL, "Failed to initialize qseecom, error: %d\n", ret);
+			ASSERT(0);
+		}
+		/* Start Qseecom */
+		ret = qseecom_tz_init();
+		if (ret < 0) {
+			dprintf(CRITICAL, "Failed to start qseecom, error: %d\n", ret);
+			ASSERT(0);
+		}
+	}
 }
 
 /* Identify the current target */
@@ -329,6 +346,8 @@ void target_uninit(void)
 #if SMD_SUPPORT
 	rpm_smd_uninit();
 #endif
+	if (platform_is_mdm9206())
+		clock_ce_disable(CE1_INSTANCE);
 }
 
 void reboot_device(unsigned reboot_reason)

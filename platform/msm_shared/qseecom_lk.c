@@ -28,19 +28,24 @@
 
 #define pr_fmt(fmt) "QSEECOM: %s: " fmt, __func__
 
-#include <partition_parser.h>
-#include <qseecom_lk.h>
-#include <scm.h>
-#include <qseecomi_lk.h>
-#include "qseecom_lk_api.h"
-#include <debug.h>
-#include <kernel/mutex.h>
-#include <malloc.h>
 #include <stdlib.h>
-#include <arch/defines.h>
 #include <string.h>
-#include <platform/iomap.h>
+#include <malloc.h>
+#include <debug.h>
+#include <types.h>
+#include <target.h>
 #include <platform.h>
+#include <platform/iomap.h>
+#include <partition_parser.h>
+#include <kernel/mutex.h>
+#include <arch/defines.h>
+#include <dev/flash.h>
+#include <scm.h>
+#include <qseecom_lk.h>
+#include <qseecomi_lk.h>
+#include <mmc.h>
+
+#include "qseecom_lk_api.h"
 
 #define QSEOS_VERSION_14  0x14
 #define QSEEE_VERSION_00  0x400000
@@ -58,6 +63,7 @@
 #define QSEE_LOG_BUF_SIZE (4096)
 #define GENERIC_ERROR -1
 #define LISTENER_ALREADY_PRESENT_ERROR -2
+#define ROUND_TO_PAGE(x,y) (((x) + (y)) & (~(y)))
 
 #define TZ_CALL 6
 enum qseecom_client_handle_type {
@@ -212,7 +218,7 @@ static int allocate_extra_arg_buffer(uint32_t fn_id, struct scm_desc *desc)
 	dprintf(SPEW, "%s called\n", __func__);
 	arglen = desc->arginfo & 0xf;
 
-	dprintf(SPEW, "%s:fn_id:%u, desc->arginfo:%u desc->args[0]:%u desc->args[1]:%u desc->args[2]:%u desc->args[3]:%u desc->args[4]:%u\n",
+	dprintf(SPEW, "%s:fn_id:%x, desc->arginfo:%x desc->args[0]:%x desc->args[1]:%x desc->args[2]:%u desc->args[3]:%u desc->args[4]:%u\n",
 			__func__, fn_id, desc->arginfo, desc->args[0], desc->args[1], desc->args[2], desc->args[3], desc->args[4]);
 
 	arg.x0 = fn_id;
@@ -550,47 +556,127 @@ static int __qseecom_process_incomplete_cmd(struct qseecom_command_scm_resp *res
 	return ret;
 }
 
-static int __qseecom_load_app(const char *app_name, unsigned int *app_id)
+static int qseecom_read_from_nand(const char *app_name, void **buf, unsigned int *partition_size)
+{
+	const char *ptn_name = app_name;
+	struct ptable *ptable;
+	struct ptentry *ptn;
+	unsigned int offset = 0;
+	unsigned int page_size;
+	unsigned int size = 0;
+	int ret = 0;
+
+	page_size = flash_page_size();
+	ptable = flash_get_ptable();
+	if (ptable == NULL) {
+		dprintf(CRITICAL, "Partition table not found\n");
+		ret = GENERIC_ERROR;
+		goto err;
+	}
+	ptn = ptable_find(ptable, ptn_name);
+	if (ptn == NULL) {
+		dprintf(CRITICAL, "No '%s' partition found\n", ptn_name);
+		ret = GENERIC_ERROR;
+		goto err;
+	}
+	if (ptn->length && flash_num_pages_per_blk() && page_size) {
+		if ((ptn->length < ( UINT_MAX / flash_num_pages_per_blk())) &&
+			((ptn->length * flash_num_pages_per_blk()) < ( UINT_MAX / page_size))) {
+			size = ptn->length * flash_num_pages_per_blk() * page_size;
+			dprintf(SPEW, "%s() length = %u pages_per_blk = %u pagesize = %u size = %zd\n",
+					__func__, ptn->length, flash_num_pages_per_blk(), page_size, size);
+		} else {
+			dprintf(CRITICAL, "Integer overflow of flash parameters\n");
+			ret = GENERIC_ERROR;
+			goto err;
+		}
+	} else {
+		dprintf(CRITICAL, "Error in reading flash parameters\n");
+		ret = GENERIC_ERROR;
+		goto err;
+	}
+
+	size = ((ROUND_TO_PAGE(size, page_size - 1)) - page_size);
+	*buf = memalign(PAGE_SIZE, size);
+	if (!(*buf)) {
+		dprintf(CRITICAL, "%s: Aloc failed for %s image\n", __func__, app_name);
+		ret = GENERIC_ERROR;
+		goto err;
+	}
+	if (flash_read(ptn, offset, *buf, size)) {
+		dprintf(CRITICAL, "Reading from flash failed\n");
+		ret = GENERIC_ERROR;
+		goto err;
+	}
+	*partition_size = size;
+
+err:
+	if (ptable)
+		ptable = NULL;
+	if (ptn)
+		ptn = NULL;
+
+	return ret;
+}
+
+static int qseecom_read_from_emmc(const char *app_name, void **buf, unsigned int *partition_size)
 {
 	int index = INVALID_PTN;
 	unsigned long long ptn = 0;
-	unsigned long long size = 0;
+	unsigned int size = 0;
+	uint8_t lun = 0;
+
+	index = partition_get_index(app_name);
+	lun = partition_get_lun(index);
+	mmc_set_lun(lun);
+	size = partition_get_size(index);
+
+	*buf = memalign(PAGE_SIZE, ROUNDUP(size, PAGE_SIZE));
+	if (!(*buf)) {
+		dprintf(CRITICAL, "%s: Aloc failed for %s image\n", __func__, app_name);
+		return GENERIC_ERROR;
+	}
+	ptn = partition_get_offset(index);
+	if (!ptn) {
+		dprintf(CRITICAL, "ERROR: No %s found\n", app_name);
+		return GENERIC_ERROR;
+	}
+	if (mmc_read(ptn, (unsigned int *)*buf, size)) {
+		dprintf(CRITICAL, "ERROR: Cannot read %s image\n", app_name);
+		return GENERIC_ERROR;
+	}
+	*partition_size = size;
+
+	return 0;
+}
+
+static int __qseecom_load_app(const char *app_name, unsigned int *app_id)
+{
+	unsigned int size = 0;
 	void *buf = NULL;
 	void *req = NULL;
 	struct qseecom_load_app_ireq load_req = {0};
 	struct qseecom_command_scm_resp resp;
-
 	int ret = GENERIC_ERROR;
-	uint8_t lun = 0;
 
 	if (!app_name)
 		return GENERIC_ERROR;
 
-	dprintf(SPEW, "%s called\n", __func__);
-	index = partition_get_index(app_name);
-	lun = partition_get_lun(index);
-	mmc_set_lun(lun);
-
-	size = partition_get_size(index);
-
-	buf = memalign(PAGE_SIZE, ROUNDUP(size, PAGE_SIZE));
-	if (!buf) {
-		dprintf(CRITICAL, "%s: Aloc failed for %s image\n",
-				__func__, app_name);
-		ret = GENERIC_ERROR;
-		goto err;
+	if (target_is_emmc_boot()){
+		ret = qseecom_read_from_emmc(app_name, &buf, &size);
+		if (ret) {
+			dprintf(CRITICAL, "ERROR: Cannot read %s image from emmc\n", app_name);
+			ret = GENERIC_ERROR;
+			goto err;
+		}
 	}
-
-	ptn = partition_get_offset(index);
-	if(ptn == 0) {
-		dprintf(CRITICAL, "ERROR: No %s found\n", app_name);
-		ret = GENERIC_ERROR;
-		goto err;
-	}
-	if (mmc_read(ptn, (unsigned int *) buf, size)) {
-		dprintf(CRITICAL, "ERROR: Cannot read %s image\n", app_name);
-		ret = GENERIC_ERROR;
-		goto err;
+	else {
+		ret = qseecom_read_from_nand(app_name, &buf, &size);
+		if (ret) {
+			dprintf(CRITICAL, "ERROR: Cannot read %s image from nand\n", app_name);
+			ret = GENERIC_ERROR;
+			goto err;
+		}
 	}
 
 	/* Currently on 8994 only 32-bit phy addr is supported
@@ -621,41 +707,28 @@ err:
 
 static int qseecom_load_commonlib_image(char * app_name)
 {
-	int index = INVALID_PTN;
-	unsigned long long ptn = 0;
-	unsigned long long size = 0;
+	unsigned int size = 0;
 	void *buf = NULL;
 	void *req = NULL;
 	struct qseecom_load_app_ireq load_req = {0};
 	struct qseecom_command_scm_resp resp = {0};
 	int ret = GENERIC_ERROR;
-	uint8_t lun = 0;
 
-	dprintf(SPEW, "%s called\n", __func__);
-	index = partition_get_index(app_name);
-	lun = partition_get_lun(index);
-	mmc_set_lun(lun);
-
-	size = partition_get_size(index);
-
-	buf = memalign(PAGE_SIZE, ROUNDUP(size, PAGE_SIZE));
-	if (!buf) {
-		dprintf(CRITICAL, "%s: Aloc failed for %s image\n",
-				__func__, app_name);
-		ret = GENERIC_ERROR;
-		goto err;
+	if (target_is_emmc_boot()){
+		ret = qseecom_read_from_emmc(app_name, &buf, &size);
+		if (ret) {
+			dprintf(CRITICAL, "ERROR: Cannot read %s image from emmc\n", app_name);
+			ret = GENERIC_ERROR;
+			goto err;
+		}
 	}
-
-	ptn = partition_get_offset(index);
-	if(ptn == 0) {
-		dprintf(CRITICAL, "ERROR: No %s found\n", app_name);
-		ret = GENERIC_ERROR;
-		goto err;
-	}
-	if (mmc_read(ptn, (unsigned int *) buf, size)) {
-		dprintf(CRITICAL, "ERROR: Cannot read %s image\n", app_name);
-		ret = GENERIC_ERROR;
-		goto err;
+	else {
+		ret = qseecom_read_from_nand(app_name, &buf, &size);
+		if (ret) {
+			dprintf(CRITICAL, "ERROR: Cannot read %s image from nand\n", app_name);
+			ret = GENERIC_ERROR;
+			goto err;
+		}
 	}
 
 	/* Currently on 8994 only 32-bit phy addr is supported

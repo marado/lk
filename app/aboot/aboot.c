@@ -99,6 +99,7 @@ extern void platform_uninit(void);
 extern void target_uninit(void);
 extern int get_target_boot_params(const char *cmdline, const char *part,
 				  char **buf);
+extern int qseecom_test_cmd_handler(const char *arg);
 
 void *info_buf;
 void write_device_info_mmc(device_info *dev);
@@ -2923,6 +2924,7 @@ void cmd_flash_mmc_sparse_img(const char *arg, void *data, unsigned sz)
 	uint64_t chunk_data_sz;
 	uint32_t *fill_buf = NULL;
 	uint32_t fill_val;
+	uint32_t blk_sz_actual = 0;
 	sparse_header_t *sparse_header;
 	chunk_header_t *chunk_header;
 	uint32_t total_blocks = 0;
@@ -3067,7 +3069,15 @@ void cmd_flash_mmc_sparse_img(const char *arg, void *data, unsigned sz)
 				return;
 			}
 
-			fill_buf = (uint32_t *)memalign(CACHE_LINE, ROUNDUP(sparse_header->blk_sz, CACHE_LINE));
+			blk_sz_actual = ROUNDUP(sparse_header->blk_sz, CACHE_LINE);
+			/* Integer overflow detected */
+			if (blk_sz_actual < sparse_header->blk_sz)
+			{
+				fastboot_fail("Invalid block size");
+				return;
+			}
+
+			fill_buf = (uint32_t *)memalign(CACHE_LINE, blk_sz_actual);
 			if (!fill_buf)
 			{
 				fastboot_fail("Malloc failed for: CHUNK_TYPE_FILL");
@@ -3384,7 +3394,8 @@ void cmd_flash_nand(const char *arg, void *data, unsigned sz)
 	}
 
 	dprintf(INFO, "writing %d bytes to '%s'\n", sz, ptn->name);
-	if ((sz > UBI_MAGIC_SIZE) && (!memcmp((void *)data, UBI_MAGIC, UBI_MAGIC_SIZE))) {
+	if ((sz > UBI_EC_HDR_SIZE) &&
+		(!memcmp((void *)data, UBI_MAGIC, UBI_MAGIC_SIZE))) {
 		if (flash_ubi_img(ptn, data, sz)) {
 			fastboot_fail("flash write failure");
 			return;
@@ -3504,6 +3515,24 @@ void cmd_oem_select_display_panel(const char *arg, void *data, unsigned size)
 	write_device_info(&device);
 	fastboot_okay("");
 }
+
+#if QSEECOM_TEST_SUPPORT
+void cmd_oem_qseecom_test_cmd_handler(const char *arg, void *data, unsigned size)
+{
+	if (arg){
+		dprintf(INFO, "Validating qseecom app %s\n", arg);
+		qseecom_test_cmd_handler(arg);
+	} else {
+		dprintf(INFO, "Unsupported command\n");
+	}
+       fastboot_okay("");
+}
+#else
+void cmd_oem_qseecom_test_cmd_handler(const char *arg, void *data, unsigned size)
+{
+	return;
+}
+#endif
 
 void cmd_oem_unlock(const char *arg, void *data, unsigned sz)
 {
@@ -3922,6 +3951,7 @@ void aboot_fastboot_register_commands(void)
 						{"oem disable-charger-screen", cmd_oem_disable_charger_screen},
 						{"oem off-mode-charge", cmd_oem_off_mode_charger},
 						{"oem select-display-panel", cmd_oem_select_display_panel},
+						{"oem qseecom-test", cmd_oem_qseecom_test_cmd_handler},
 #if UNITTEST_FW_SUPPORT
 						{"oem run-tests", cmd_oem_runtests},
 #endif

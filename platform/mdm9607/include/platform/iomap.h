@@ -114,6 +114,11 @@
 #define USB_HS_SYSTEM_CMD_RCGR             (CLK_CTL_BASE + 0x41010)
 #define USB_HS_SYSTEM_CFG_RCGR             (CLK_CTL_BASE + 0x41014)
 
+/* QSEECOM: Secure app region notification */
+#define APP_REGION_ADDR                    0x87900000
+#define APP_REGION_SIZE                    0x280000
+#define RPMB_SND_RCV_BUF                   0x82500000
+#define RPMB_SND_RCV_BUF_SZ                0x1
 #define TCSR_TZ_WONCE               0x193D000
 #define TCSR_BOOT_MISC_DETECT       0x193D100
 #endif
