@@ -139,9 +139,9 @@ static struct mdtp_fbimage* mdtp_read_mmc_image(uint32_t offset, uint32_t width,
 		}
 
 		if (mmc_read(ptn+offset, (void*)base, data_len)) {
-				fbcon_clear();
-				dprintf(CRITICAL, "ERROR: mdtp image read failed\n");
-				return NULL;
+			fbcon_clear();
+			dprintf(CRITICAL, "ERROR: mdtp image read failed\n");
+			return NULL;
 		}
 
 		logo->width = width;
