@@ -460,6 +460,8 @@ int set_recovery_cookie()
 	return ret;
 }
 
+#if ENABLE_RECOVERY
+
 /*
  * booting_into_recovery - Check if we are going to boot into recovery kernel
  *
@@ -483,6 +485,7 @@ int booting_into_recovery(void)
 
 	return 1;
 }
+#endif
 
 static int read_misc(unsigned page_offset, void *buf, unsigned size)
 {
