@@ -242,6 +242,11 @@ __WEAK void target_crypto_init_params()
 {
 }
 
+__WEAK bool target_is_pmi_enabled(void)
+{
+	return 1;
+}
+
 /* Default CFG delay value */
 __WEAK uint32_t target_ddr_cfg_val()
 {
