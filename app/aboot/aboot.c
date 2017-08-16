@@ -1693,6 +1693,7 @@ int boot_linux_from_flash(void)
 
 	kernel_actual  = ROUND_TO_PAGE(hdr->kernel_size,  page_mask);
 	ramdisk_actual = ROUND_TO_PAGE(hdr->ramdisk_size, page_mask);
+	second_actual = ROUND_TO_PAGE(hdr->second_size, page_mask);
 
 	/* ensure commandline is terminated */
 	hdr->cmdline[BOOT_ARGS_SIZE-1] = 0;
@@ -1706,6 +1707,12 @@ int boot_linux_from_flash(void)
 	}
 
 #ifndef DEVICE_TREE
+	if (UINT_MAX < ((uint64_t)kernel_actual + (uint64_t)ramdisk_actual+ page_size)) {
+		dprintf(CRITICAL, "Integer overflow detected in bootimage header fields\n");
+		return -1;
+	}
+	imagesize_actual = (page_size + kernel_actual + ramdisk_actual);
+
 	if (check_aboot_addr_range_overlap(hdr->tags_addr, MAX_TAGS_SIZE))
 	{
 		dprintf(CRITICAL, "Tags addresses overlap with aboot addresses.\n");
@@ -1716,34 +1723,24 @@ int boot_linux_from_flash(void)
 #ifndef OSVERSION_IN_BOOTIMAGE
 	dt_size = hdr->dt_size;
 #endif
+	dt_actual = ROUND_TO_PAGE(dt_size, page_mask);
+	if (UINT_MAX < ((uint64_t)kernel_actual + (uint64_t)ramdisk_actual+ (uint64_t)dt_actual + page_size)) {
+		dprintf(CRITICAL, "Integer overflow detected in bootimage header fields\n");
+		return -1;
+	}
+
+	imagesize_actual = (page_size + kernel_actual + ramdisk_actual + dt_actual);
+
+	if (check_aboot_addr_range_overlap(hdr->tags_addr, dt_size))
+	{
+		dprintf(CRITICAL, "Device tree addresses overlap with aboot addresses.\n");
+		return -1;
+	}
 #endif
 
 	/* Authenticate Kernel */
 	if(target_use_signed_kernel() && (!device.is_unlocked))
 	{
-
-#if DEVICE_TREE
-		dt_actual = ROUND_TO_PAGE(dt_size, page_mask);
-		if (UINT_MAX < ((uint64_t)kernel_actual + (uint64_t)ramdisk_actual+ (uint64_t)dt_actual + page_size)) {
-			dprintf(CRITICAL, "Integer overflow detected in bootimage header fields\n");
-			return -1;
-		}
-
-		imagesize_actual = (page_size + kernel_actual + ramdisk_actual + dt_actual);
-
-		if (check_aboot_addr_range_overlap(hdr->tags_addr, dt_size))
-		{
-			dprintf(CRITICAL, "Device tree addresses overlap with aboot addresses.\n");
-			return -1;
-		}
-#else
-		if (UINT_MAX < ((uint64_t)kernel_actual + (uint64_t)ramdisk_actual+ page_size)) {
-			dprintf(CRITICAL, "Integer overflow detected in bootimage header fields\n");
-			return -1;
-		}
-		imagesize_actual = (page_size + kernel_actual + ramdisk_actual);
-#endif
-
 		dprintf(INFO, "Loading (%s) image (%d): start\n",
 			(!boot_into_recovery ? "boot" : "recovery"),imagesize_actual);
 		bs_set_timestamp(BS_KERNEL_LOAD_START);
@@ -1797,6 +1794,13 @@ int boot_linux_from_flash(void)
 				return -1;
 			}
 
+			/* Its Error if, dt_hdr_size (table->num_entries * dt_entry size + Dev_Tree Header)
+			goes beyound hdr->dt_size*/
+			if (dt_hdr_size > ROUND_TO_PAGE(dt_size, hdr->page_size)) {
+				dprintf(CRITICAL, "ERROR: Invalid Device Tree size \n");
+				return -1;
+			}
+
 			/* Find index of device tree within device tree table */
 			if(dev_tree_get_entry_info(table, &dt_entry) != 0){
 				dprintf(CRITICAL, "ERROR: Getting device tree address failed\n");
@@ -1837,17 +1841,12 @@ int boot_linux_from_flash(void)
 	}
 	else
 	{
-		offset = page_size;
-
-		kernel_actual = ROUND_TO_PAGE(hdr->kernel_size, page_mask);
-		ramdisk_actual = ROUND_TO_PAGE(hdr->ramdisk_size, page_mask);
-		second_actual = ROUND_TO_PAGE(hdr->second_size, page_mask);
-
 		dprintf(INFO, "Loading (%s) image (%d): start\n",
 				(!boot_into_recovery ? "boot" : "recovery"), kernel_actual + ramdisk_actual);
 
 		bs_set_timestamp(BS_KERNEL_LOAD_START);
 
+		offset = page_size;
 		if (UINT_MAX - offset < kernel_actual)
 		{
 			dprintf(CRITICAL, "ERROR: Integer overflow in boot image header %s\t%d\n",__func__,__LINE__);
@@ -1909,16 +1908,19 @@ int boot_linux_from_flash(void)
 				return -1;
 			}
 
-			table = (struct dt_table*) memalign(CACHE_LINE, dt_hdr_size);
-			if (!table)
-				return -1;
-
-			/* Read the entire device tree table into buffer */
-			if(flash_read(ptn, offset, (void *)table, dt_hdr_size)) {
-				dprintf(CRITICAL, "ERROR: Cannot read the Device Tree Table\n");
+			table = (void *) target_get_scratch_address();
+			/*Check the availability of RAM before reading boot image + max signature length from flash*/
+			if (target_get_max_flash_size() < dt_actual)
+			{
+				dprintf(CRITICAL, "ERROR: dt_image size is greater than DDR can hold\n");
 				return -1;
 			}
 
+			/* Read the entire device tree table into buffer */
+			if(flash_read(ptn, offset, (void *)table, dt_actual)) {
+				dprintf(CRITICAL, "ERROR: Cannot read the Device Tree Table\n");
+				return -1;
+			}
 
 			/* Find index of device tree within device tree table */
 			if(dev_tree_get_entry_info(table, &dt_entry) != 0){
@@ -1933,12 +1935,20 @@ int boot_linux_from_flash(void)
 				return -1;
 			}
 
-			/* Read device device tree in the "tags_add */
-			if(flash_read(ptn, offset + dt_entry.offset,
-						 (void *)hdr->tags_addr, dt_entry.size)) {
-				dprintf(CRITICAL, "ERROR: Cannot read device tree\n");
+			if(dt_entry.offset > (UINT_MAX - dt_entry.size)) {
+				dprintf(CRITICAL, "ERROR: Device tree contents are Invalid\n");
 				return -1;
 			}
+
+			/* Ensure we are not overshooting dt_size with the dt_entry selected */
+			if ((dt_entry.offset + dt_entry.size) > dt_size) {
+				dprintf(CRITICAL, "ERROR: Device tree contents are Invalid\n");
+				return -1;
+			}
+
+			best_match_dt_addr = (unsigned char *)table + dt_entry.offset;
+			dtb_size = dt_entry.size;
+			memmove((void *)hdr->tags_addr, (char *)best_match_dt_addr, dtb_size);
 		}
 #endif
 
@@ -3043,6 +3053,7 @@ void cmd_flash_mmc_sparse_img(const char *arg, void *data, unsigned sz)
 	uint64_t chunk_data_sz;
 	uint32_t *fill_buf = NULL;
 	uint32_t fill_val;
+	uint32_t blk_sz_actual = 0;
 	sparse_header_t *sparse_header;
 	chunk_header_t *chunk_header;
 	uint32_t total_blocks = 0;
@@ -3073,6 +3084,11 @@ void cmd_flash_mmc_sparse_img(const char *arg, void *data, unsigned sz)
 
 	/* Read and skip over sparse image header */
 	sparse_header = (sparse_header_t *) data;
+
+	if (!sparse_header->blk_sz || (sparse_header->blk_sz % 4)){
+		fastboot_fail("Invalid block size\n");
+		return;
+	}
 
 	if (((uint64_t)sparse_header->total_blks * (uint64_t)sparse_header->blk_sz) > size) {
 		fastboot_fail("size too large");
@@ -3130,11 +3146,6 @@ void cmd_flash_mmc_sparse_img(const char *arg, void *data, unsigned sz)
 			return;
 		}
 
-		if (!sparse_header->blk_sz ){
-			fastboot_fail("Invalid block size\n");
-			return;
-		}
-
 		chunk_data_sz = (uint64_t)sparse_header->blk_sz * chunk_header->chunk_sz;
 
 		/* Make sure that the chunk size calculated from sparse image does not
@@ -3187,7 +3198,15 @@ void cmd_flash_mmc_sparse_img(const char *arg, void *data, unsigned sz)
 				return;
 			}
 
-			fill_buf = (uint32_t *)memalign(CACHE_LINE, ROUNDUP(sparse_header->blk_sz, CACHE_LINE));
+			blk_sz_actual = ROUNDUP(sparse_header->blk_sz, CACHE_LINE);
+			/* Integer overflow detected */
+			if (blk_sz_actual < sparse_header->blk_sz)
+			{
+				fastboot_fail("Invalid block size");
+				return;
+			}
+
+			fill_buf = (uint32_t *)memalign(CACHE_LINE, blk_sz_actual);
 			if (!fill_buf)
 			{
 				fastboot_fail("Malloc failed for: CHUNK_TYPE_FILL");
@@ -3581,7 +3600,7 @@ void cmd_set_active(const char *arg, void *data, unsigned sz)
 	if (arg)
 	{
 		p = strtok_r((char *)arg, ":", &sp);
-		if (*p)
+		if (p)
 		{
 			current_active_slot = partition_find_active_slot();
 
@@ -3590,7 +3609,8 @@ void cmd_set_active(const char *arg, void *data, unsigned sz)
 			current_slot_suffix = strtok_r((char *)current_slot_suffix,
 							(char *)suffix_delimiter, &sp);
 
-			if (!strncmp(p, current_slot_suffix, sizeof(current_slot_suffix)))
+			if (current_slot_suffix &&
+				!strncmp(p, current_slot_suffix, strlen(current_slot_suffix)))
 			{
 				fastboot_okay("Slot already set active");
 				return;
@@ -3602,7 +3622,8 @@ void cmd_set_active(const char *arg, void *data, unsigned sz)
 					current_slot_suffix = SUFFIX_SLOT(i);
 					current_slot_suffix = strtok_r((char *)current_slot_suffix,
 									(char *)suffix_delimiter, &sp);
-					if (!strncmp(p, current_slot_suffix, sizeof(current_slot_suffix)))
+					if (current_slot_suffix &&
+						!strncmp(p, current_slot_suffix, strlen(current_slot_suffix)))
 					{
 						partition_switch_slots(current_active_slot, i);
 						publish_getvar_multislot_vars();
