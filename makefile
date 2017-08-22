@@ -70,6 +70,11 @@ endif
 ifeq ($(ENABLE_HARD_FPU),1)
   CFLAGS += -mfloat-abi=hard -mfpu=neon
 endif
+
+ifeq ($(ENABLE_EARLY_ETHERNET),1)
+  CFLAGS += -DENABLE_EARLY_ETHERNET=1
+endif
+
 # setup toolchain prefix
 TOOLCHAIN_PREFIX ?= arm-eabi-
 CFLAGS += -fstack-protector-all
@@ -106,6 +111,13 @@ SRCDEPS := $(CONFIGHEADER)
 ifeq ($(VERIFIED_BOOT),1)
   DEFINES += VERIFIED_BOOT=1
   DEFINES += _SIGNED_KERNEL=1
+  ifeq ($(DEFAULT_UNLOCK),true)
+    DEFINES += DEFAULT_UNLOCK=1
+  endif
+endif
+
+ifeq ($(VERIFIED_BOOT_LE),1)
+  DEFINES += VERIFIED_BOOT_LE=1
   ifeq ($(DEFAULT_UNLOCK),true)
     DEFINES += DEFAULT_UNLOCK=1
   endif
