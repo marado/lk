@@ -95,6 +95,10 @@
 
 #define PMIC_ARB_CHANNEL_NUM    0
 #define PMIC_ARB_OWNER_ID       0
+
+/* Run Early camera for 30 seconds i.e 900 frames incase of no gpio */
+#define EARLYCAM_NO_GPIO_FRAME_LIMIT 900
+
 static int early_camera_enabled = 1;
 
 enum
@@ -975,6 +979,9 @@ int animated_splash() {
 	uint32_t reg_value;
 	bool camera_on = FALSE;
 	bool camera_frame_on = false;
+#if EARLYCAMERA_NO_GPIO
+	uint32_t frame_count = 0;
+#endif
 
 	if (!buffers[0]) {
 		dprintf(CRITICAL, "Unexpected error in read\n");
@@ -1073,6 +1080,11 @@ int animated_splash() {
 			// assume all displays have the same fps
 			mdelay_optimal(sleep_time);
 		k++;
+#if EARLYCAMERA_NO_GPIO
+		frame_count++;
+		if (EARLYCAM_NO_GPIO_FRAME_LIMIT < frame_count)
+			break;
+#endif
 	}
 	if (early_camera_enabled == 1)
 		early_camera_stop();
