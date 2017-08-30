@@ -557,7 +557,7 @@ int get_target_boot_params(const char *cmdline, const char *part, char *buf,
 			return -1;
 		}
 
-		snprintf(buf, buflen, " ubi.mtd=rootfs");
+		snprintf(buf, buflen, " ubi.mtd=system ubi.mtd=userdata");
 	}
 
 	return 0;
