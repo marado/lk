@@ -94,6 +94,7 @@
 #include <display_menu.h>
 #include "fastboot_test.h"
 #include <target/target_camera.h>
+#include <target/target_audio.h>
 
 extern  bool target_use_signed_kernel(void);
 extern void platform_uninit(void);
@@ -227,7 +228,7 @@ static int auth_kernel_img = 0;
 #if VBOOT_MOTA
 static device_info device = {DEVICE_MAGIC, 0, 0, 0, 0, {0}, {0},{0}};
 #else
-static device_info device = {DEVICE_MAGIC, 0, 0, 0, 0, 0, {0},{0}, {0}, 1, 0};
+static device_info device = {DEVICE_MAGIC, 0, 0, 0, 0, 0, {0},{0}, {0}, 1, 0, 0};
 #endif
 static bool is_allow_unlock = 0;
 
@@ -285,6 +286,7 @@ char display_panel_buf[MAX_PANEL_BUF_SIZE];
 char panel_display_mode[MAX_RSP_SIZE];
 char is_early_domain_enabled[MAX_RSP_SIZE];
 char is_early_camera_enabled[MAX_RSP_SIZE];
+char is_early_audio_enabled[MAX_RSP_SIZE];
 
 #if CHECK_BAT_VOLTAGE
 char battery_voltage[MAX_RSP_SIZE];
@@ -2138,6 +2140,7 @@ void read_device_info(device_info *dev)
 			info->charger_screen_enabled = 0;
 			info->early_domain_enabled = 0;
 			info->early_camera_enabled = 0;
+			info->early_audio_enabled = 0;
 #if !VBOOT_MOTA
 			info->verity_mode = 1; //enforcing by default
 #endif
@@ -3484,6 +3487,22 @@ void cmd_oem_disable_early_camera(const char *arg, void *data, unsigned size)
        fastboot_okay("");
 }
 
+void cmd_oem_enable_early_audio(const char *arg, void *data, unsigned size)
+{
+       dprintf(INFO, "Enabling early audio\n");
+       device.early_audio_enabled = 1;
+       write_device_info(&device);
+       fastboot_okay("");
+}
+
+void cmd_oem_disable_early_audio(const char *arg, void *data, unsigned size)
+{
+       dprintf(INFO, "Disabling early audio\n");
+       device.early_audio_enabled = 0;
+       write_device_info(&device);
+       fastboot_okay("");
+}
+
 #else
 void cmd_oem_enable_early_domain(const char *arg, void *data, unsigned size)
 {
@@ -3498,6 +3517,14 @@ void cmd_oem_enable_early_camera(const char *arg, void *data, unsigned size)
 }
 
 void cmd_oem_disable_early_camera(const char *arg, void *data, unsigned size)
+{
+}
+
+void cmd_oem_enable_early_audio(const char *arg, void *data, unsigned size)
+{
+}
+
+void cmd_oem_disable_early_audio(const char *arg, void *data, unsigned size)
 {
 }
 
@@ -3577,6 +3604,8 @@ void cmd_oem_devinfo(const char *arg, void *data, unsigned sz)
 	snprintf(response, sizeof(response), "\tEarly Domain enabled: %s", (device.early_domain_enabled ? "true" : "false"));
 	fastboot_info(response);
 	snprintf(response, sizeof(response), "\tEarly Camera enabled: %s", (device.early_camera_enabled ? "true" : "false"));
+	fastboot_info(response);
+	snprintf(response, sizeof(response), "\tEarly Audio enabled: %s", (device.early_audio_enabled ? "true" : "false"));
 	fastboot_info(response);
 	fastboot_okay("");
 }
@@ -3938,6 +3967,8 @@ void aboot_fastboot_register_commands(void)
 						{"oem disable-early-domain", cmd_oem_disable_early_domain},
 						{"oem enable-early-camera", cmd_oem_enable_early_camera},
 						{"oem disable-early-camera", cmd_oem_disable_early_camera},
+						{"oem enable-early-audio", cmd_oem_enable_early_audio},
+						{"oem disable-early-audio", cmd_oem_disable_early_audio},
 						{"oem off-mode-charge", cmd_oem_off_mode_charger},
 						{"oem select-display-panel", cmd_oem_select_display_panel},
 #if UNITTEST_FW_SUPPORT
@@ -3983,6 +4014,10 @@ void aboot_fastboot_register_commands(void)
 		 device.early_camera_enabled);
 	fastboot_publish("early-camera-enabled",
 			 (const char *) is_early_camera_enabled);
+	snprintf(is_early_audio_enabled, MAX_RSP_SIZE, "%d",
+		 device.early_audio_enabled);
+	fastboot_publish("early-audio-enabled",
+			 (const char *) is_early_audio_enabled);
 	snprintf(panel_display_mode, MAX_RSP_SIZE, "%s",
 			device.display_panel);
 	fastboot_publish("display-panel",
@@ -4031,6 +4066,9 @@ void aboot_init(const struct app_descriptor *app)
 		if (device.early_camera_enabled) {
 			set_early_camera_enabled(TRUE);
 			target_early_camera_init();
+		}
+		if (device.early_audio_enabled) {
+			set_early_audio_enabled(TRUE);
 		}
 		enable_secondary_core();
 	}
