@@ -1,0 +1,903 @@
+/* Copyright (c) 2017, The Linux Foundation. All rights reserved.
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions are
+ * met:
+ *     * Redistributions of source code must retain the above copyright
+ *       notice, this list of conditions and the following disclaimer.
+ *     * Redistributions in binary form must reproduce the above
+ *       copyright notice, this list of conditions and the following
+ *       disclaimer in the documentation and/or other materials provided
+ *       with the distribution.
+ *     * Neither the name of The Linux Foundation nor the names of its
+ *       contributors may be used to endorse or promote products derived
+ *       from this software without specific prior written permission.
+ *
+ * THIS SOFTWARE IS PROVIDED "AS IS" AND ANY EXPRESS OR IMPLIED
+ * WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF
+ * MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NON-INFRINGEMENT
+ * ARE DISCLAIMED.  IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS
+ * BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
+ * CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
+ * SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR
+ * BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY,
+ * WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE
+ * OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN
+ * IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ *
+ */
+#ifndef _TARGET_AUDIO_H
+#define _TARGET_AUDIO_H
+
+#define LPASS_CLK_DISABLE            0x00000000
+#define LPASS_CLK_ENABLE             0x00000001
+
+#define GCC_LPASS_SWAY_CBCR_OFFSET                                      0x00047008
+#define GCC_LPASS_CORE_SMMU_AHB_CBCR_OFFSET                             0x00047010
+#define GCC_LPASS_SMMU_AON_AHB_CBCR_OFFSET                              0x00047014
+
+#define TLMM_GPIO_INTR_CFGn_OFFSET(n)                                   (0x1000*(n))
+
+#define LPASS_AUDIO_CORE_BCR_SLP_CBCR_OFFSET                            0x00006004
+#define LPASS_Q6SS_BCR_SLP_CBCR_OFFSET                                  0x00008004
+#define LPASS_AUDIO_CORE_GDSCR_OFFSET                                   0x00009000
+#define LPASS_AUDIO_CORE_GDSC_XO_CBCR_OFFSET                            0x00009004
+#define LPASS_Q6_SMMU_GDSCR_OFFSET                                      0x0000B000
+#define LPASS_AUDIO_WRAPPER_Q6_SMMU_GDSC_XO_CBCR_OFFSET                 0x0000B004
+#define LPASS_AUDIO_CORE_LPAIF_CODEC_SPKR_OSR_CBCR_OFFSET               0x0000D014
+#define LPASS_AUDIO_CORE_LPAIF_CODEC_SPKR_IBIT_CBCR_OFFSET              0x0000D018
+#define LPASS_AUDIO_CORE_LPAIF_CODEC_SPKR_EBIT_CBCR_OFFSET              0x0000D01C
+#define LPASS_AUDIO_CORE_LPAIF_PRI_IBIT_CBCR_OFFSET                     0x0000E018
+#define LPASS_AUDIO_CORE_LPAIF_PRI_EBIT_CBCR_OFFSET                     0x0000E01C
+#define LPASS_AUDIO_CORE_LPAIF_PRI_CLK_INV_OFFSET                       0x0000E020
+#define LPASS_AUDIO_CORE_LPAIF_SEC_IBIT_CBCR_OFFSET                     0x0000F018
+#define LPASS_AUDIO_CORE_LPAIF_SEC_EBIT_CBCR_OFFSET                     0x0000F01C
+#define LPASS_AUDIO_CORE_LPAIF_SEC_CLK_INV_OFFSET                       0x0000F020
+#define LPASS_AUDIO_CORE_LPAIF_TER_IBIT_CBCR_OFFSET                     0x00010018
+#define LPASS_AUDIO_CORE_LPAIF_TER_EBIT_CBCR_OFFSET                     0x0001001C
+#define LPASS_AUDIO_CORE_LPAIF_TER_CLK_INV_OFFSET                       0x00010020
+#define LPASS_AUDIO_CORE_LPAIF_QUAD_IBIT_CBCR_OFFSET                    0x00011018
+#define LPASS_AUDIO_CORE_LPAIF_QUAD_EBIT_CBCR_OFFSET                    0x0001101C
+#define LPASS_AUDIO_CORE_LPAIF_QUAD_CLK_INV_OFFSET                      0x00011020
+#define LPASS_AUDIO_WRAPPER_AON_CBCR_OFFSET                             0x00012014
+#define LPASS_AUDIO_CORE_AVSYNC_ATIME_CBCR_OFFSET                       0x00013014
+#define LPASS_AUDIO_CORE_RESAMPLER_CBCR_OFFSET                          0x00014014
+#define LPASS_AUDIO_CORE_AUD_SLIMBUS_CBCR_OFFSET                        0x00015014
+#define LPASS_AUDIO_CORE_AUD_SLIMBUS_CORE_CBCR_OFFSET                   0x00015018
+#define LPASS_AUDIO_CORE_QCA_SLIMBUS_CBCR_OFFSET                        0x00016014
+#define LPASS_AUDIO_CORE_QCA_SLIMBUS_CORE_CBCR_OFFSET                   0x00016018
+#define LPASS_AUDIO_CORE_LPAIF_PCM_DATA_OE_CBCR_OFFSET                  0x00017014
+#define LPASS_AUDIO_CORE_AVSYNC_STC_CBCR_OFFSET                         0x0001A000
+#define LPASS_AUDIO_CORE_LPM_CORE_CBCR_OFFSET                           0x0001C000
+#define LPASS_AUDIO_CORE_CORE_CBCR_OFFSET                               0x0001D000
+#define LPASS_AUDIO_WRAPPER_EXT_MCLK0_CBCR_OFFSET                       0x0001E014
+#define LPASS_AUDIO_WRAPPER_EXT_MCLK1_CBCR_OFFSET                       0x0001F014
+#define LPASS_AUDIO_WRAPPER_EXT_MCLK2_CBCR_OFFSET                       0x00020014
+#define LPASS_AUDIO_CORE_SYSNOC_MPORT_CORE_CBCR_OFFSET                  0x00021000
+#define LPASS_AUDIO_CORE_SYSNOC_SWAY_SNOC_CBCR_OFFSET                   0x00022000
+#define LPASS_AUDIO_WRAPPER_SYSNOC_SWAY_AON_CBCR_OFFSET                 0x00023000
+#define LPASS_Q6SS_AHBM_AON_CBCR_OFFSET                                 0x00024000
+#define LPASS_AUDIO_CORE_PERIPHERAL_SMMU_CLIENT_CORE_CBCR_OFFSET        0x00025000
+#define LPASS_AUDIO_CORE_QDSP_SWAY_AON_CBCR_OFFSET                      0x00026000
+#define LPASS_AUDIO_WRAPPER_SYSNOC_SWAY_SNOC_CBCR_OFFSET                0x00027000
+#define LPASS_AUDIO_CORE_PERIPHERAL_SMMU_CFG_CNOC_CBCR_OFFSET           0x00028000
+#define LPASS_AUDIO_WRAPPER_Q6_SMMU_CFG_CNOC_CBCR_OFFSET                0x00029000
+#define LPASS_Q6SS_Q6_AXIM_CBCR_OFFSET                                  0x0002B000
+#define LPASS_AUDIO_WRAPPER_Q6_SMMU_AXI_CBCR_OFFSET                     0x0002C000
+#define LPASS_Q6SS_Q6_CAMSS_DSP_STREAMING_0_CBCR_OFFSET                 0x0002D000
+#define LPASS_Q6SS_Q6_CAMSS_DSP_STREAMING_1_CBCR_OFFSET                 0x0002E000
+#define LPASS_AUDIO_WRAPPER_MPU_CFG_AON_CBCR_OFFSET                     0x0002F000
+#define LPASS_AUDIO_WRAPPER_Q6_AHBM_MPU_AON_CBCR_OFFSET                 0x00030000
+#define LPASS_Q6SS_AHBS_AON_CBCR_OFFSET                                 0x00031000
+#define LPASS_AUDIO_WRAPPER_QOS_AHBS_AON_CBCR_OFFSET                    0x00033014
+#define LPASS_AUDIO_WRAPPER_QOS_XO_LAT_COUNTER_CBCR_OFFSET              0x00033018
+#define LPASS_AUDIO_WRAPPER_QOS_DMONITOR_FIXED_LAT_COUNTER_CBCR_OFFSET  0x0003301C
+#define LPASS_AUDIO_WRAPPER_QOS_DANGER_FIXED_LAT_COUNTER_CBCR_OFFSET    0x00033020
+#define LPASS_AUDIO_WRAPPER_BUS_TIMEOUT_AON_CBCR_OFFSET                 0x00038000
+#define LPASS_DBG_CLK_OFFSET                                            0x00039000
+
+#define LPASS_FP_OFFSET_A_OFFSET                                        0x00001004
+#define LPASS_FP_EE_OWNER_AIF_LMID_OFFSET                               0x00002000
+#define LPASS_FP_EE_OWNER_AUD_SB_LMID_OFFSET                            0x00003000
+#define LPASS_FP_EE_OWNER_QCA_SB_LMID_OFFSET                            0x00004000
+#define LPASS_FP_EE_OWNER_DML_LMID_OFFSET                               0x00005000
+#define LPASS_FP_EE_OWNER_RSMP_LMID_OFFSET                              0x00006000
+#define LPASS_FP_EE_OWNER_HDMI_LMID_OFFSET                              0x00007000
+#define LPASS_AUDIO_CORE_LPAIF_PRI_MODE_MUXSEL_OFFSET                   0x0000A000
+#define LPASS_AUDIO_CORE_LPAIF_SEC_MODE_MUXSEL_OFFSET                   0x0000B000
+#define LPASS_AUDIO_CORE_LPAIF_TER_MODE_MUXSEL_OFFSET                   0x0000C000
+#define LPASS_AUDIO_CORE_LPAIF_QUAD_MODE_MUXSEL_OFFSET                  0x0000D000
+#define LPASS_AUDIO_WRAPPER_LCC_CSR_AON_CGCR_OFFSET                     0x00017000
+#define LPASS_AUDIO_WRAPPER_BUS_TIMEOUT_AON_CGCR_OFFSET                 0x00019000
+#define LPASS_AUDIO_WRAPPER_Q6AHB_AON_CGCR_OFFSET                       0x0001A000
+
+#define LPASS_AUDIO_CORE_QOS_CORE_CGCR_OFFSET                           0x0000B000
+#define LPASS_AUDIO_CORE_AVSYNC_CORE_CGCR_OFFSET                        0x0000C000
+#define LPASS_AUDIO_CORE_LPAIF_CSR_CORE_CGCR_OFFSET                     0x0000E000
+#define LPASS_AUDIO_CORE_RESAMPLER_CORE_CGCR_OFFSET                     0x0000F000
+#define LPASS_AUDIO_CORE_HDMITX_CORE_CGCR_OFFSET                        0x00012000
+#define LPASS_AUDIO_CORE_TLB_PRELOAD_CORE_CGCR_OFFSET                   0x00014000
+#define LPASS_AUDIO_CORE_ATIMER_CORE_CGCR_OFFSET                        0x00015000
+#define LPASS_AUDIO_CORE_SYSNOC_SWAY_CORE_CGCR_OFFSET                   0x00017000
+#define LPASS_AUDIO_CORE_QDSP_SWAY_CORE_CGCR_OFFSET                     0x00018000
+#define LPASS_AUDIO_CORE_BUS_TIMEOUT_CORE_CGCR_OFFSET                   0x0001A000
+#define LPASS_AUDIO_CORE_SYSNOC_MPORT_CORE_CGCR_OFFSET                  0x0001B000
+
+#define LPASS_LPAIF_BASE                                                0x09100000
+#define LPASS_LPAIF_PCM_CTLa(a)                                         (0x09100000+0x1500+0x1000*(a))
+#define   LPASS_LPAIF_PCM_CTLa_aMIN 0
+#define   LPASS_LPAIF_PCM_CTLa_aMAX 3
+#define   LPASS_LPAIF_PCM_CTLa_ELEM 4
+#define   LPASS_LPAIF_PCM_CTLa__RESET___M        0x80000000
+#define   LPASS_LPAIF_PCM_CTLa__RESET___S                     31
+#define   LPASS_LPAIF_PCM_CTLa__RESET__DISABLE               0x0
+#define   LPASS_LPAIF_PCM_CTLa__RESET__ENABLE                0x1
+#define   LPASS_LPAIF_PCM_CTLa__RESET_RX___M     0x10000000
+#define   LPASS_LPAIF_PCM_CTLa__RESET_RX___S                  28
+#define   LPASS_LPAIF_PCM_CTLa__RESET_RX__DISABLE             0x0
+#define   LPASS_LPAIF_PCM_CTLa__RESET_RX__ENABLE             0x1
+#define   LPASS_LPAIF_PCM_CTLa__RESET_TX___M     0x08000000
+#define   LPASS_LPAIF_PCM_CTLa__RESET_TX___S                  27
+#define   LPASS_LPAIF_PCM_CTLa__RESET_TX__DISABLE             0x0
+#define   LPASS_LPAIF_PCM_CTLa__RESET_TX__ENABLE             0x1
+#define   LPASS_LPAIF_PCM_CTLa__ENABLE_RX___M    0x04000000
+#define   LPASS_LPAIF_PCM_CTLa__ENABLE_RX___S                 26
+#define   LPASS_LPAIF_PCM_CTLa__ENABLE_RX__DISABLE             0x0
+#define   LPASS_LPAIF_PCM_CTLa__ENABLE_RX__ENABLE             0x1
+#define   LPASS_LPAIF_PCM_CTLa__ENABLE_TX___M    0x02000000
+#define   LPASS_LPAIF_PCM_CTLa__ENABLE_TX___S                 25
+#define   LPASS_LPAIF_PCM_CTLa__ENABLE_TX__DISABLE             0x0
+#define   LPASS_LPAIF_PCM_CTLa__ENABLE_TX__ENABLE             0x1
+#define   LPASS_LPAIF_PCM_CTLa__ENABLE___M       0x01000000
+#define   LPASS_LPAIF_PCM_CTLa__ENABLE___S                    24
+#define   LPASS_LPAIF_PCM_CTLa__ENABLE__DISABLE              0x0
+#define   LPASS_LPAIF_PCM_CTLa__ENABLE__ENABLE               0x1
+#define   LPASS_LPAIF_PCM_CTLa__ONE_SLOT_SYNC_EN___M 0x00080000
+#define   LPASS_LPAIF_PCM_CTLa__ONE_SLOT_SYNC_EN___S              19
+#define   LPASS_LPAIF_PCM_CTLa__ONE_SLOT_SYNC_EN__DISABLE             0x0
+#define   LPASS_LPAIF_PCM_CTLa__ONE_SLOT_SYNC_EN__ENABLE             0x1
+#define   LPASS_LPAIF_PCM_CTLa__CTRL_DATA_OE___M 0x00040000
+#define   LPASS_LPAIF_PCM_CTLa__CTRL_DATA_OE___S              18
+#define   LPASS_LPAIF_PCM_CTLa__RATE___M         0x00038000
+#define   LPASS_LPAIF_PCM_CTLa__RATE___S                      15
+#define   LPASS_LPAIF_PCM_CTLa__RATE__ENUM_8                 0x0
+#define   LPASS_LPAIF_PCM_CTLa__RATE__ENUM_16                0x1
+#define   LPASS_LPAIF_PCM_CTLa__RATE__ENUM_32                0x2
+#define   LPASS_LPAIF_PCM_CTLa__RATE__ENUM_64                0x3
+#define   LPASS_LPAIF_PCM_CTLa__RATE__ENUM_128               0x4
+#define   LPASS_LPAIF_PCM_CTLa__RATE__ENUM_256               0x5
+#define   LPASS_LPAIF_PCM_CTLa__LOOPBACK___M     0x00004000
+#define   LPASS_LPAIF_PCM_CTLa__LOOPBACK___S                  14
+#define   LPASS_LPAIF_PCM_CTLa__SYNC_SRC___M     0x00002000
+#define   LPASS_LPAIF_PCM_CTLa__SYNC_SRC___S                  13
+#define   LPASS_LPAIF_PCM_CTLa__SYNC_SRC__EXTERNAL             0x0
+#define   LPASS_LPAIF_PCM_CTLa__SYNC_SRC__INTERNAL             0x1
+#define   LPASS_LPAIF_PCM_CTLa__AUX_MODE___M     0x00001000
+#define   LPASS_LPAIF_PCM_CTLa__AUX_MODE___S                  12
+#define   LPASS_LPAIF_PCM_CTLa__AUX_MODE__PCM                0x0
+#define   LPASS_LPAIF_PCM_CTLa__AUX_MODE__AUX                0x1
+#define   LPASS_LPAIF_PCM_CTLa__RPCM_WIDTH___M   0x00000800
+#define   LPASS_LPAIF_PCM_CTLa__RPCM_WIDTH___S                11
+#define   LPASS_LPAIF_PCM_CTLa__RPCM_WIDTH__ENUM_8_BIT             0x0
+#define   LPASS_LPAIF_PCM_CTLa__RPCM_WIDTH__ENUM_16_BIT             0x1
+#define   LPASS_LPAIF_PCM_CTLa__TPCM_WIDTH___M   0x00000400
+#define   LPASS_LPAIF_PCM_CTLa__TPCM_WIDTH___S                10
+#define   LPASS_LPAIF_PCM_CTLa__TPCM_WIDTH__ENUM_8_BIT             0x0
+#define   LPASS_LPAIF_PCM_CTLa__TPCM_WIDTH__ENUM_16_BIT             0x1
+#define   LPASS_LPAIF_PCM_CTLa___M               0x9F0FFC00
+#define   LPASS_LPAIF_PCM_CTLa___S                            10
+
+#define LPASS_LPAIF_PCM_TDM_CTL_a(a)                               (0x09100000+0x1518+0x1000*(a))
+#define   LPASS_LPAIF_PCM_TDM_CTL_a_aMIN 0
+#define   LPASS_LPAIF_PCM_TDM_CTL_a_aMAX 3
+#define   LPASS_LPAIF_PCM_TDM_CTL_a_ELEM 4
+#define   LPASS_LPAIF_PCM_TDM_CTL_a__ENABLE_TDM___M 0x40000000
+#define   LPASS_LPAIF_PCM_TDM_CTL_a__ENABLE_TDM___S              30
+#define   LPASS_LPAIF_PCM_TDM_CTL_a__ENABLE_TDM__DISABLE             0x0
+#define   LPASS_LPAIF_PCM_TDM_CTL_a__ENABLE_TDM__ENABLE             0x1
+#define   LPASS_LPAIF_PCM_TDM_CTL_a__ENABLE_DIFF_SAMPLE_WIDTH___M 0x20000000
+#define   LPASS_LPAIF_PCM_TDM_CTL_a__ENABLE_DIFF_SAMPLE_WIDTH___S              29
+#define   LPASS_LPAIF_PCM_TDM_CTL_a__ENABLE_DIFF_SAMPLE_WIDTH__DISABLE             0x0
+#define   LPASS_LPAIF_PCM_TDM_CTL_a__ENABLE_DIFF_SAMPLE_WIDTH__ENABLE             0x1
+#define   LPASS_LPAIF_PCM_TDM_CTL_a__TDM_INV_TPCM_SYNC___M 0x10000000
+#define   LPASS_LPAIF_PCM_TDM_CTL_a__TDM_INV_TPCM_SYNC___S              28
+#define   LPASS_LPAIF_PCM_TDM_CTL_a__TDM_INV_RPCM_SYNC___M 0x08000000
+#define   LPASS_LPAIF_PCM_TDM_CTL_a__TDM_INV_RPCM_SYNC___S              27
+#define   LPASS_LPAIF_PCM_TDM_CTL_a__TDM_SYNC_DELAY___M 0x06000000
+#define   LPASS_LPAIF_PCM_TDM_CTL_a__TDM_SYNC_DELAY___S              25
+#define   LPASS_LPAIF_PCM_TDM_CTL_a__TDM_SYNC_DELAY__DELAY_2_CYCLE             0x0
+#define   LPASS_LPAIF_PCM_TDM_CTL_a__TDM_SYNC_DELAY__DELAY_1_CYCLE             0x1
+#define   LPASS_LPAIF_PCM_TDM_CTL_a__TDM_SYNC_DELAY__DELAY_0_CYCLE             0x2
+#define   LPASS_LPAIF_PCM_TDM_CTL_a__TDM_TPCM_WIDTH___M 0x0007C000
+#define   LPASS_LPAIF_PCM_TDM_CTL_a__TDM_TPCM_WIDTH___S              14
+#define   LPASS_LPAIF_PCM_TDM_CTL_a__TDM_RPCM_WIDTH___M 0x00003E00
+#define   LPASS_LPAIF_PCM_TDM_CTL_a__TDM_RPCM_WIDTH___S               9
+#define   LPASS_LPAIF_PCM_TDM_CTL_a__TDM_RATE___M 0x000001FF
+#define   LPASS_LPAIF_PCM_TDM_CTL_a__TDM_RATE___S               0
+#define   LPASS_LPAIF_PCM_TDM_CTL_a___M          0x7E07FFFF
+#define   LPASS_LPAIF_PCM_TDM_CTL_a___S                        0
+
+#define LPASS_LPAIF_PCM_TDM_SAMPLE_WIDTH_a(a)                      (0x0910151C+0x1000*(a))
+#define   LPASS_LPAIF_PCM_TDM_SAMPLE_WIDTH_a_aMIN 0
+#define   LPASS_LPAIF_PCM_TDM_SAMPLE_WIDTH_a_aMAX 3
+#define   LPASS_LPAIF_PCM_TDM_SAMPLE_WIDTH_a_ELEM 4
+#define   LPASS_LPAIF_PCM_TDM_SAMPLE_WIDTH_a__TDM_TPCM_SAMPLE_WIDTH___M 0x000003E0
+#define   LPASS_LPAIF_PCM_TDM_SAMPLE_WIDTH_a__TDM_TPCM_SAMPLE_WIDTH___S               5
+#define   LPASS_LPAIF_PCM_TDM_SAMPLE_WIDTH_a__TDM_RPCM_SAMPLE_WIDTH___M 0x0000001F
+#define   LPASS_LPAIF_PCM_TDM_SAMPLE_WIDTH_a__TDM_RPCM_SAMPLE_WIDTH___S               0
+#define   LPASS_LPAIF_PCM_TDM_SAMPLE_WIDTH_a___M 0x000003FF
+#define   LPASS_LPAIF_PCM_TDM_SAMPLE_WIDTH_a___S               0
+
+#define LPASS_LPAIF_PCM_RPCM_SLOT_NUM_a(a)                         (0x09101520+0x1000*(a))
+#define   LPASS_LPAIF_PCM_RPCM_SLOT_NUM_a___M    0xFFFFFFFF
+#define LPASS_LPAIF_PCM_TPCM_SLOT_NUM_a(a)                         (0x09101524+0x1000*(a))
+#define   LPASS_LPAIF_PCM_TPCM_SLOT_NUM_a___M    0xFFFFFFFF
+
+#define LPASS_LPAIF_IRQ_ENa(a)                                     (0x0910A000+0x1000*(a))
+#define   LPASS_LPAIF_IRQ_ENa_aMIN 0
+#define   LPASS_LPAIF_IRQ_ENa_aMAX 2
+#define   LPASS_LPAIF_IRQ_ENa_ELEM 3
+#define   LPASS_LPAIF_IRQ_ENa__SEC_RD_NO_RATE___M 0x80000000
+#define   LPASS_LPAIF_IRQ_ENa__SEC_RD_NO_RATE___S              31
+#define   LPASS_LPAIF_IRQ_ENa__SEC_RD_DIFF_RATE___M 0x40000000
+#define   LPASS_LPAIF_IRQ_ENa__SEC_RD_DIFF_RATE___S              30
+#define   LPASS_LPAIF_IRQ_ENa__PRI_RD_NO_RATE___M 0x20000000
+#define   LPASS_LPAIF_IRQ_ENa__PRI_RD_NO_RATE___S              29
+#define   LPASS_LPAIF_IRQ_ENa__PRI_RD_DIFF_RATE___M 0x10000000
+#define   LPASS_LPAIF_IRQ_ENa__PRI_RD_DIFF_RATE___S              28
+#define   LPASS_LPAIF_IRQ_ENa__FRM_REF___M       0x08000000
+#define   LPASS_LPAIF_IRQ_ENa__FRM_REF___S                    27
+#define   LPASS_LPAIF_IRQ_ENa__ERR_WRDMA_CH3___M 0x04000000
+#define   LPASS_LPAIF_IRQ_ENa__ERR_WRDMA_CH3___S              26
+#define   LPASS_LPAIF_IRQ_ENa__OVR_WRDMA_CH3___M 0x02000000
+#define   LPASS_LPAIF_IRQ_ENa__OVR_WRDMA_CH3___S              25
+#define   LPASS_LPAIF_IRQ_ENa__PER_WRDMA_CH3___M 0x01000000
+#define   LPASS_LPAIF_IRQ_ENa__PER_WRDMA_CH3___S              24
+#define   LPASS_LPAIF_IRQ_ENa__ERR_WRDMA_CH2___M 0x00800000
+#define   LPASS_LPAIF_IRQ_ENa__ERR_WRDMA_CH2___S              23
+#define   LPASS_LPAIF_IRQ_ENa__OVR_WRDMA_CH2___M 0x00400000
+#define   LPASS_LPAIF_IRQ_ENa__OVR_WRDMA_CH2___S              22
+#define   LPASS_LPAIF_IRQ_ENa__PER_WRDMA_CH2___M 0x00200000
+#define   LPASS_LPAIF_IRQ_ENa__PER_WRDMA_CH2___S              21
+#define   LPASS_LPAIF_IRQ_ENa__ERR_WRDMA_CH1___M 0x00100000
+#define   LPASS_LPAIF_IRQ_ENa__ERR_WRDMA_CH1___S              20
+#define   LPASS_LPAIF_IRQ_ENa__OVR_WRDMA_CH1___M 0x00080000
+#define   LPASS_LPAIF_IRQ_ENa__OVR_WRDMA_CH1___S              19
+#define   LPASS_LPAIF_IRQ_ENa__PER_WRDMA_CH1___M 0x00040000
+#define   LPASS_LPAIF_IRQ_ENa__PER_WRDMA_CH1___S              18
+#define   LPASS_LPAIF_IRQ_ENa__ERR_WRDMA_CH0___M 0x00020000
+#define   LPASS_LPAIF_IRQ_ENa__ERR_WRDMA_CH0___S              17
+#define   LPASS_LPAIF_IRQ_ENa__OVR_WRDMA_CH0___M 0x00010000
+#define   LPASS_LPAIF_IRQ_ENa__OVR_WRDMA_CH0___S              16
+#define   LPASS_LPAIF_IRQ_ENa__PER_WRDMA_CH0___M 0x00008000
+#define   LPASS_LPAIF_IRQ_ENa__PER_WRDMA_CH0___S              15
+#define   LPASS_LPAIF_IRQ_ENa__ERR_RDDMA_CH4___M 0x00004000
+#define   LPASS_LPAIF_IRQ_ENa__ERR_RDDMA_CH4___S              14
+#define   LPASS_LPAIF_IRQ_ENa__UNDR_RDDMA_CH4___M 0x00002000
+#define   LPASS_LPAIF_IRQ_ENa__UNDR_RDDMA_CH4___S              13
+#define   LPASS_LPAIF_IRQ_ENa__PER_RDDMA_CH4___M 0x00001000
+#define   LPASS_LPAIF_IRQ_ENa__PER_RDDMA_CH4___S              12
+#define   LPASS_LPAIF_IRQ_ENa__ERR_RDDMA_CH3___M 0x00000800
+#define   LPASS_LPAIF_IRQ_ENa__ERR_RDDMA_CH3___S              11
+#define   LPASS_LPAIF_IRQ_ENa__UNDR_RDDMA_CH3___M 0x00000400
+#define   LPASS_LPAIF_IRQ_ENa__UNDR_RDDMA_CH3___S              10
+#define   LPASS_LPAIF_IRQ_ENa__PER_RDDMA_CH3___M 0x00000200
+#define   LPASS_LPAIF_IRQ_ENa__PER_RDDMA_CH3___S               9
+#define   LPASS_LPAIF_IRQ_ENa__ERR_RDDMA_CH2___M 0x00000100
+#define   LPASS_LPAIF_IRQ_ENa__ERR_RDDMA_CH2___S               8
+#define   LPASS_LPAIF_IRQ_ENa__UNDR_RDDMA_CH2___M 0x00000080
+#define   LPASS_LPAIF_IRQ_ENa__UNDR_RDDMA_CH2___S               7
+#define   LPASS_LPAIF_IRQ_ENa__PER_RDDMA_CH2___M 0x00000040
+#define   LPASS_LPAIF_IRQ_ENa__PER_RDDMA_CH2___S               6
+#define   LPASS_LPAIF_IRQ_ENa__ERR_RDDMA_CH1___M 0x00000020
+#define   LPASS_LPAIF_IRQ_ENa__ERR_RDDMA_CH1___S               5
+#define   LPASS_LPAIF_IRQ_ENa__UNDR_RDDMA_CH1___M 0x00000010
+#define   LPASS_LPAIF_IRQ_ENa__UNDR_RDDMA_CH1___S               4
+#define   LPASS_LPAIF_IRQ_ENa__PER_RDDMA_CH1___M 0x00000008
+#define   LPASS_LPAIF_IRQ_ENa__PER_RDDMA_CH1___S               3
+#define   LPASS_LPAIF_IRQ_ENa__ERR_RDDMA_CH0___M 0x00000004
+#define   LPASS_LPAIF_IRQ_ENa__ERR_RDDMA_CH0___S               2
+#define   LPASS_LPAIF_IRQ_ENa__UNDR_RDDMA_CH0___M 0x00000002
+#define   LPASS_LPAIF_IRQ_ENa__UNDR_RDDMA_CH0___S               1
+#define   LPASS_LPAIF_IRQ_ENa__PER_RDDMA_CH0___M 0x00000001
+#define   LPASS_LPAIF_IRQ_ENa__PER_RDDMA_CH0___S               0
+#define   LPASS_LPAIF_IRQ_ENa___M                0xFFFFFFFF
+#define   LPASS_LPAIF_IRQ_ENa___S                              0
+
+#define LPASS_LPAIF_IRQ_STATa(a)                                   (0x0910A004+0x1000*(a))
+#define   LPASS_LPAIF_IRQ_STATa_aMIN 0
+#define   LPASS_LPAIF_IRQ_STATa_aMAX 2
+#define   LPASS_LPAIF_IRQ_STATa_ELEM 3
+#define   LPASS_LPAIF_IRQ_STATa__SEC_RD_NO_RATE___M 0x80000000
+#define   LPASS_LPAIF_IRQ_STATa__SEC_RD_NO_RATE___S              31
+#define   LPASS_LPAIF_IRQ_STATa__SEC_RD_DIFF_RATE___M 0x40000000
+#define   LPASS_LPAIF_IRQ_STATa__SEC_RD_DIFF_RATE___S              30
+#define   LPASS_LPAIF_IRQ_STATa__PRI_RD_NO_RATE___M 0x20000000
+#define   LPASS_LPAIF_IRQ_STATa__PRI_RD_NO_RATE___S              29
+#define   LPASS_LPAIF_IRQ_STATa__PRI_RD_DIFF_RATE___M 0x10000000
+#define   LPASS_LPAIF_IRQ_STATa__PRI_RD_DIFF_RATE___S              28
+#define   LPASS_LPAIF_IRQ_STATa__FRM_REF___M     0x08000000
+#define   LPASS_LPAIF_IRQ_STATa__FRM_REF___S                  27
+#define   LPASS_LPAIF_IRQ_STATa__ERR_WRDMA_CH3___M 0x04000000
+#define   LPASS_LPAIF_IRQ_STATa__ERR_WRDMA_CH3___S              26
+#define   LPASS_LPAIF_IRQ_STATa__OVR_WRDMA_CH3___M 0x02000000
+#define   LPASS_LPAIF_IRQ_STATa__OVR_WRDMA_CH3___S              25
+#define   LPASS_LPAIF_IRQ_STATa__PER_WRDMA_CH3___M 0x01000000
+#define   LPASS_LPAIF_IRQ_STATa__PER_WRDMA_CH3___S              24
+#define   LPASS_LPAIF_IRQ_STATa__ERR_WRDMA_CH2___M 0x00800000
+#define   LPASS_LPAIF_IRQ_STATa__ERR_WRDMA_CH2___S              23
+#define   LPASS_LPAIF_IRQ_STATa__OVR_WRDMA_CH2___M 0x00400000
+#define   LPASS_LPAIF_IRQ_STATa__OVR_WRDMA_CH2___S              22
+#define   LPASS_LPAIF_IRQ_STATa__PER_WRDMA_CH2___M 0x00200000
+#define   LPASS_LPAIF_IRQ_STATa__PER_WRDMA_CH2___S              21
+#define   LPASS_LPAIF_IRQ_STATa__ERR_WRDMA_CH1___M 0x00100000
+#define   LPASS_LPAIF_IRQ_STATa__ERR_WRDMA_CH1___S              20
+#define   LPASS_LPAIF_IRQ_STATa__OVR_WRDMA_CH1___M 0x00080000
+#define   LPASS_LPAIF_IRQ_STATa__OVR_WRDMA_CH1___S              19
+#define   LPASS_LPAIF_IRQ_STATa__PER_WRDMA_CH1___M 0x00040000
+#define   LPASS_LPAIF_IRQ_STATa__PER_WRDMA_CH1___S              18
+#define   LPASS_LPAIF_IRQ_STATa__ERR_WRDMA_CH0___M 0x00020000
+#define   LPASS_LPAIF_IRQ_STATa__ERR_WRDMA_CH0___S              17
+#define   LPASS_LPAIF_IRQ_STATa__OVR_WRDMA_CH0___M 0x00010000
+#define   LPASS_LPAIF_IRQ_STATa__OVR_WRDMA_CH0___S              16
+#define   LPASS_LPAIF_IRQ_STATa__PER_WRDMA_CH0___M 0x00008000
+#define   LPASS_LPAIF_IRQ_STATa__PER_WRDMA_CH0___S              15
+#define   LPASS_LPAIF_IRQ_STATa__ERR_RDDMA_CH4___M 0x00004000
+#define   LPASS_LPAIF_IRQ_STATa__ERR_RDDMA_CH4___S              14
+#define   LPASS_LPAIF_IRQ_STATa__UNDR_RDDMA_CH4___M 0x00002000
+#define   LPASS_LPAIF_IRQ_STATa__UNDR_RDDMA_CH4___S              13
+#define   LPASS_LPAIF_IRQ_STATa__PER_RDDMA_CH4___M 0x00001000
+#define   LPASS_LPAIF_IRQ_STATa__PER_RDDMA_CH4___S              12
+#define   LPASS_LPAIF_IRQ_STATa__ERR_RDDMA_CH3___M 0x00000800
+#define   LPASS_LPAIF_IRQ_STATa__ERR_RDDMA_CH3___S              11
+#define   LPASS_LPAIF_IRQ_STATa__UNDR_RDDMA_CH3___M 0x00000400
+#define   LPASS_LPAIF_IRQ_STATa__UNDR_RDDMA_CH3___S              10
+#define   LPASS_LPAIF_IRQ_STATa__PER_RDDMA_CH3___M 0x00000200
+#define   LPASS_LPAIF_IRQ_STATa__PER_RDDMA_CH3___S               9
+#define   LPASS_LPAIF_IRQ_STATa__ERR_RDDMA_CH2___M 0x00000100
+#define   LPASS_LPAIF_IRQ_STATa__ERR_RDDMA_CH2___S               8
+#define   LPASS_LPAIF_IRQ_STATa__UNDR_RDDMA_CH2___M 0x00000080
+#define   LPASS_LPAIF_IRQ_STATa__UNDR_RDDMA_CH2___S               7
+#define   LPASS_LPAIF_IRQ_STATa__PER_RDDMA_CH2___M 0x00000040
+#define   LPASS_LPAIF_IRQ_STATa__PER_RDDMA_CH2___S               6
+#define   LPASS_LPAIF_IRQ_STATa__ERR_RDDMA_CH1___M 0x00000020
+#define   LPASS_LPAIF_IRQ_STATa__ERR_RDDMA_CH1___S               5
+#define   LPASS_LPAIF_IRQ_STATa__UNDR_RDDMA_CH1___M 0x00000010
+#define   LPASS_LPAIF_IRQ_STATa__UNDR_RDDMA_CH1___S               4
+#define   LPASS_LPAIF_IRQ_STATa__PER_RDDMA_CH1___M 0x00000008
+#define   LPASS_LPAIF_IRQ_STATa__PER_RDDMA_CH1___S               3
+#define   LPASS_LPAIF_IRQ_STATa__ERR_RDDMA_CH0___M 0x00000004
+#define   LPASS_LPAIF_IRQ_STATa__ERR_RDDMA_CH0___S               2
+#define   LPASS_LPAIF_IRQ_STATa__UNDR_RDDMA_CH0___M 0x00000002
+#define   LPASS_LPAIF_IRQ_STATa__UNDR_RDDMA_CH0___S               1
+#define   LPASS_LPAIF_IRQ_STATa__PER_RDDMA_CH0___M 0x00000001
+#define   LPASS_LPAIF_IRQ_STATa__PER_RDDMA_CH0___S               0
+#define   LPASS_LPAIF_IRQ_STATa___M              0xFFFFFFFF
+#define   LPASS_LPAIF_IRQ_STATa___S                            0
+
+#define LPASS_LPAIF_IRQ_CLEARa(a)                                  (0x0910A00C+0x1000*(a))
+#define   LPASS_LPAIF_IRQ_CLEARa_aMIN 0
+#define   LPASS_LPAIF_IRQ_CLEARa_aMAX 2
+#define   LPASS_LPAIF_IRQ_CLEARa_ELEM 3
+#define   LPASS_LPAIF_IRQ_CLEARa__SEC_RD_NO_RATE___M 0x80000000
+#define   LPASS_LPAIF_IRQ_CLEARa__SEC_RD_NO_RATE___S              31
+#define   LPASS_LPAIF_IRQ_CLEARa__SEC_RD_DIFF_RATE___M 0x40000000
+#define   LPASS_LPAIF_IRQ_CLEARa__SEC_RD_DIFF_RATE___S              30
+#define   LPASS_LPAIF_IRQ_CLEARa__PRI_RD_NO_RATE___M 0x20000000
+#define   LPASS_LPAIF_IRQ_CLEARa__PRI_RD_NO_RATE___S              29
+#define   LPASS_LPAIF_IRQ_CLEARa__PRI_RD_DIFF_RATE___M 0x10000000
+#define   LPASS_LPAIF_IRQ_CLEARa__PRI_RD_DIFF_RATE___S              28
+#define   LPASS_LPAIF_IRQ_CLEARa__FRM_REF___M    0x08000000
+#define   LPASS_LPAIF_IRQ_CLEARa__FRM_REF___S                 27
+#define   LPASS_LPAIF_IRQ_CLEARa__ERR_WRDMA_CH3___M 0x04000000
+#define   LPASS_LPAIF_IRQ_CLEARa__ERR_WRDMA_CH3___S              26
+#define   LPASS_LPAIF_IRQ_CLEARa__OVR_WRDMA_CH3___M 0x02000000
+#define   LPASS_LPAIF_IRQ_CLEARa__OVR_WRDMA_CH3___S              25
+#define   LPASS_LPAIF_IRQ_CLEARa__PER_WRDMA_CH3___M 0x01000000
+#define   LPASS_LPAIF_IRQ_CLEARa__PER_WRDMA_CH3___S              24
+#define   LPASS_LPAIF_IRQ_CLEARa__ERR_WRDMA_CH2___M 0x00800000
+#define   LPASS_LPAIF_IRQ_CLEARa__ERR_WRDMA_CH2___S              23
+#define   LPASS_LPAIF_IRQ_CLEARa__OVR_WRDMA_CH2___M 0x00400000
+#define   LPASS_LPAIF_IRQ_CLEARa__OVR_WRDMA_CH2___S              22
+#define   LPASS_LPAIF_IRQ_CLEARa__PER_WRDMA_CH2___M 0x00200000
+#define   LPASS_LPAIF_IRQ_CLEARa__PER_WRDMA_CH2___S              21
+#define   LPASS_LPAIF_IRQ_CLEARa__ERR_WRDMA_CH1___M 0x00100000
+#define   LPASS_LPAIF_IRQ_CLEARa__ERR_WRDMA_CH1___S              20
+#define   LPASS_LPAIF_IRQ_CLEARa__OVR_WRDMA_CH1___M 0x00080000
+#define   LPASS_LPAIF_IRQ_CLEARa__OVR_WRDMA_CH1___S              19
+#define   LPASS_LPAIF_IRQ_CLEARa__PER_WRDMA_CH1___M 0x00040000
+#define   LPASS_LPAIF_IRQ_CLEARa__PER_WRDMA_CH1___S              18
+#define   LPASS_LPAIF_IRQ_CLEARa__ERR_WRDMA_CH0___M 0x00020000
+#define   LPASS_LPAIF_IRQ_CLEARa__ERR_WRDMA_CH0___S              17
+#define   LPASS_LPAIF_IRQ_CLEARa__OVR_WRDMA_CH0___M 0x00010000
+#define   LPASS_LPAIF_IRQ_CLEARa__OVR_WRDMA_CH0___S              16
+#define   LPASS_LPAIF_IRQ_CLEARa__PER_WRDMA_CH0___M 0x00008000
+#define   LPASS_LPAIF_IRQ_CLEARa__PER_WRDMA_CH0___S              15
+#define   LPASS_LPAIF_IRQ_CLEARa__ERR_RDDMA_CH4___M 0x00004000
+#define   LPASS_LPAIF_IRQ_CLEARa__ERR_RDDMA_CH4___S              14
+#define   LPASS_LPAIF_IRQ_CLEARa__UNDR_RDDMA_CH4___M 0x00002000
+#define   LPASS_LPAIF_IRQ_CLEARa__UNDR_RDDMA_CH4___S              13
+#define   LPASS_LPAIF_IRQ_CLEARa__PER_RDDMA_CH4___M 0x00001000
+#define   LPASS_LPAIF_IRQ_CLEARa__PER_RDDMA_CH4___S              12
+#define   LPASS_LPAIF_IRQ_CLEARa__ERR_RDDMA_CH3___M 0x00000800
+#define   LPASS_LPAIF_IRQ_CLEARa__ERR_RDDMA_CH3___S              11
+#define   LPASS_LPAIF_IRQ_CLEARa__UNDR_RDDMA_CH3___M 0x00000400
+#define   LPASS_LPAIF_IRQ_CLEARa__UNDR_RDDMA_CH3___S              10
+#define   LPASS_LPAIF_IRQ_CLEARa__PER_RDDMA_CH3___M 0x00000200
+#define   LPASS_LPAIF_IRQ_CLEARa__PER_RDDMA_CH3___S               9
+#define   LPASS_LPAIF_IRQ_CLEARa__ERR_RDDMA_CH2___M 0x00000100
+#define   LPASS_LPAIF_IRQ_CLEARa__ERR_RDDMA_CH2___S               8
+#define   LPASS_LPAIF_IRQ_CLEARa__UNDR_RDDMA_CH2___M 0x00000080
+#define   LPASS_LPAIF_IRQ_CLEARa__UNDR_RDDMA_CH2___S               7
+#define   LPASS_LPAIF_IRQ_CLEARa__PER_RDDMA_CH2___M 0x00000040
+#define   LPASS_LPAIF_IRQ_CLEARa__PER_RDDMA_CH2___S               6
+#define   LPASS_LPAIF_IRQ_CLEARa__ERR_RDDMA_CH1___M 0x00000020
+#define   LPASS_LPAIF_IRQ_CLEARa__ERR_RDDMA_CH1___S               5
+#define   LPASS_LPAIF_IRQ_CLEARa__UNDR_RDDMA_CH1___M 0x00000010
+#define   LPASS_LPAIF_IRQ_CLEARa__UNDR_RDDMA_CH1___S               4
+#define   LPASS_LPAIF_IRQ_CLEARa__PER_RDDMA_CH1___M 0x00000008
+#define   LPASS_LPAIF_IRQ_CLEARa__PER_RDDMA_CH1___S               3
+#define   LPASS_LPAIF_IRQ_CLEARa__ERR_RDDMA_CH0___M 0x00000004
+#define   LPASS_LPAIF_IRQ_CLEARa__ERR_RDDMA_CH0___S               2
+#define   LPASS_LPAIF_IRQ_CLEARa__UNDR_RDDMA_CH0___M 0x00000002
+#define   LPASS_LPAIF_IRQ_CLEARa__UNDR_RDDMA_CH0___S               1
+#define   LPASS_LPAIF_IRQ_CLEARa__PER_RDDMA_CH0___M 0x00000001
+#define   LPASS_LPAIF_IRQ_CLEARa__PER_RDDMA_CH0___S               0
+#define   LPASS_LPAIF_IRQ_CLEARa___M             0xFFFFFFFF
+#define   LPASS_LPAIF_IRQ_CLEARa___S                           0
+
+#define LPASS_LPAIF_RDDMA_CTLa(a)                                  (0x0910D000+0x1000*(a))
+#define   LPASS_LPAIF_RDDMA_CTLa_aMIN 0
+#define   LPASS_LPAIF_RDDMA_CTLa_aMAX 4
+#define   LPASS_LPAIF_RDDMA_CTLa_ELEM 5
+#define   LPASS_LPAIF_RDDMA_CTLa__RESET___M      0x80000000
+#define   LPASS_LPAIF_RDDMA_CTLa__RESET___S                   31
+#define   LPASS_LPAIF_RDDMA_CTLa__RESET__DISABLE             0x0
+#define   LPASS_LPAIF_RDDMA_CTLa__RESET__ENABLE              0x1
+#define   LPASS_LPAIF_RDDMA_CTLa__PADDING_NUM___M 0x0007C000
+#define   LPASS_LPAIF_RDDMA_CTLa__PADDING_NUM___S              14
+#define   LPASS_LPAIF_RDDMA_CTLa__PADDING_EN___M 0x00002000
+#define   LPASS_LPAIF_RDDMA_CTLa__PADDING_EN___S              13
+#define   LPASS_LPAIF_RDDMA_CTLa__PADDING_EN__DISABLE             0x0
+#define   LPASS_LPAIF_RDDMA_CTLa__PADDING_EN__ENABLE             0x1
+#define   LPASS_LPAIF_RDDMA_CTLa__DYNAMIC_CLOCK___M 0x00001000
+#define   LPASS_LPAIF_RDDMA_CTLa__DYNAMIC_CLOCK___S              12
+#define   LPASS_LPAIF_RDDMA_CTLa__DYNAMIC_CLOCK__OFF             0x0
+#define   LPASS_LPAIF_RDDMA_CTLa__DYNAMIC_CLOCK__ON             0x1
+#define   LPASS_LPAIF_RDDMA_CTLa__BURST_EN___M   0x00000800
+#define   LPASS_LPAIF_RDDMA_CTLa__BURST_EN___S                11
+#define   LPASS_LPAIF_RDDMA_CTLa__BURST_EN__SINGLE             0x0
+#define   LPASS_LPAIF_RDDMA_CTLa__BURST_EN__INCR4             0x1
+#define   LPASS_LPAIF_RDDMA_CTLa__WPSCNT___M     0x00000700
+#define   LPASS_LPAIF_RDDMA_CTLa__WPSCNT___S                   8
+#define   LPASS_LPAIF_RDDMA_CTLa__WPSCNT__ONE                0x0
+#define   LPASS_LPAIF_RDDMA_CTLa__WPSCNT__TWO                0x1
+#define   LPASS_LPAIF_RDDMA_CTLa__WPSCNT__THREE              0x2
+#define   LPASS_LPAIF_RDDMA_CTLa__WPSCNT__FOUR               0x3
+#define   LPASS_LPAIF_RDDMA_CTLa__WPSCNT__SIX                0x5
+#define   LPASS_LPAIF_RDDMA_CTLa__WPSCNT__EIGHT              0x7
+#define   LPASS_LPAIF_RDDMA_CTLa__AUDIO_INTF___M 0x000000F0
+#define   LPASS_LPAIF_RDDMA_CTLa__AUDIO_INTF___S               4
+#define   LPASS_LPAIF_RDDMA_CTLa__AUDIO_INTF__NONE             0x0
+#define   LPASS_LPAIF_RDDMA_CTLa__AUDIO_INTF__PRI_SRC             0x1
+#define   LPASS_LPAIF_RDDMA_CTLa__AUDIO_INTF__SEC_SRC             0x2
+#define   LPASS_LPAIF_RDDMA_CTLa__AUDIO_INTF__TER_SRC             0x3
+#define   LPASS_LPAIF_RDDMA_CTLa__AUDIO_INTF__QUA_SRC             0x4
+#define   LPASS_LPAIF_RDDMA_CTLa__AUDIO_INTF__SPKR_I2S             0x5
+#define   LPASS_LPAIF_RDDMA_CTLa__AUDIO_INTF__HDMI             0x6
+#define   LPASS_LPAIF_RDDMA_CTLa__FIFO_WATERMRK___M 0x0000000E
+#define   LPASS_LPAIF_RDDMA_CTLa__FIFO_WATERMRK___S               1
+#define   LPASS_LPAIF_RDDMA_CTLa__FIFO_WATERMRK__ENUM_1             0x0
+#define   LPASS_LPAIF_RDDMA_CTLa__FIFO_WATERMRK__ENUM_2             0x1
+#define   LPASS_LPAIF_RDDMA_CTLa__FIFO_WATERMRK__ENUM_3             0x2
+#define   LPASS_LPAIF_RDDMA_CTLa__FIFO_WATERMRK__ENUM_4             0x3
+#define   LPASS_LPAIF_RDDMA_CTLa__FIFO_WATERMRK__ENUM_5             0x4
+#define   LPASS_LPAIF_RDDMA_CTLa__FIFO_WATERMRK__ENUM_6             0x5
+#define   LPASS_LPAIF_RDDMA_CTLa__FIFO_WATERMRK__ENUM_7             0x6
+#define   LPASS_LPAIF_RDDMA_CTLa__FIFO_WATERMRK__ENUM_8             0x7
+#define   LPASS_LPAIF_RDDMA_CTLa__ENABLE___M     0x00000001
+#define   LPASS_LPAIF_RDDMA_CTLa__ENABLE___S                   0
+#define   LPASS_LPAIF_RDDMA_CTLa__ENABLE__OFF                0x0
+#define   LPASS_LPAIF_RDDMA_CTLa__ENABLE__ON                 0x1
+#define   LPASS_LPAIF_RDDMA_CTLa___M             0x8007FFFF
+#define   LPASS_LPAIF_RDDMA_CTLa___S                           0
+
+#define LPASS_LPAIF_RDDMA_BASEa(a)                                 (0x0910D004+0x1000*(a))
+#define   LPASS_LPAIF_RDDMA_BASEa_aMIN 0
+#define   LPASS_LPAIF_RDDMA_BASEa_aMAX 4
+#define   LPASS_LPAIF_RDDMA_BASEa_ELEM 5
+#define   LPASS_LPAIF_RDDMA_BASEa__BASE_ADDR___M 0xFFFFFFF0
+#define   LPASS_LPAIF_RDDMA_BASEa__BASE_ADDR___S               4
+#define   LPASS_LPAIF_RDDMA_BASEa___M            0xFFFFFFF0
+#define   LPASS_LPAIF_RDDMA_BASEa___S                          4
+
+#define LPASS_LPAIF_RDDMA_BUFF_LENa(a)                             (0x0910D008+0x1000*(a))
+#define   LPASS_LPAIF_RDDMA_BUFF_LENa_aMIN 0
+#define   LPASS_LPAIF_RDDMA_BUFF_LENa_aMAX 4
+#define   LPASS_LPAIF_RDDMA_BUFF_LENa_ELEM 5
+#define   LPASS_LPAIF_RDDMA_BUFF_LENa__LENGTH___M 0x000FFFFC
+#define   LPASS_LPAIF_RDDMA_BUFF_LENa__LENGTH___S               2
+#define   LPASS_LPAIF_RDDMA_BUFF_LENa___M        0x000FFFFC
+#define   LPASS_LPAIF_RDDMA_BUFF_LENa___S                      2
+
+#define LPASS_LPAIF_RDDMA_CURR_ADDRa(a)                             (0x0910D00C+0x1000*(a))
+#define   LPASS_LPAIF_RDDMA_CURR_ADDRa_aMIN 0
+#define   LPASS_LPAIF_RDDMA_CURR_ADDRa_aMAX 4
+#define   LPASS_LPAIF_RDDMA_CURR_ADDRa_ELEM 5
+#define   LPASS_LPAIF_RDDMA_CURR_ADDRa__ADDR___M 0xFFFFFFFF
+#define   LPASS_LPAIF_RDDMA_CURR_ADDRa__ADDR___S               0
+#define   LPASS_LPAIF_RDDMA_CURR_ADDRa___M       0xFFFFFFFF
+#define   LPASS_LPAIF_RDDMA_CURR_ADDRa___S                     0
+
+#define LPASS_LPAIF_RDDMA_PER_LENa(a)                              (0x0910D010+0x1000*(a))
+#define   LPASS_LPAIF_RDDMA_PER_LENa_aMIN 0
+#define   LPASS_LPAIF_RDDMA_PER_LENa_aMAX 4
+#define   LPASS_LPAIF_RDDMA_PER_LENa_ELEM 5
+#define   LPASS_LPAIF_RDDMA_PER_LENa__LENGTH___M 0x000FFFFF
+#define   LPASS_LPAIF_RDDMA_PER_LENa__LENGTH___S               0
+#define   LPASS_LPAIF_RDDMA_PER_LENa___M         0x000FFFFF
+#define   LPASS_LPAIF_RDDMA_PER_LENa___S                       0
+
+#define LPASS_LPAIF_RDDMA_STC_LSBa(a)                              (0x0910D028+0x1000*(a))
+#define   LPASS_LPAIF_RDDMA_STC_LSBa_aMIN 0
+#define   LPASS_LPAIF_RDDMA_STC_LSBa_aMAX 4
+#define   LPASS_LPAIF_RDDMA_STC_LSBa_ELEM 5
+
+#define LPASS_LPAIF_WRDMA_CTLa(a)                                  (0x09113000+0x1000*(a))
+#define   LPASS_LPAIF_WRDMA_CTLa_aMIN 0
+#define   LPASS_LPAIF_WRDMA_CTLa_aMAX 3
+#define   LPASS_LPAIF_WRDMA_CTLa_ELEM 4
+#define   LPASS_LPAIF_WRDMA_CTLa__RESET___M      0x80000000
+#define   LPASS_LPAIF_WRDMA_CTLa__RESET___S                   31
+#define   LPASS_LPAIF_WRDMA_CTLa__RESET__DISABLE             0x0
+#define   LPASS_LPAIF_WRDMA_CTLa__RESET__ENABLE              0x1
+#define   LPASS_LPAIF_WRDMA_CTLa__DYNAMIC_CLOCK___M 0x00001000
+#define   LPASS_LPAIF_WRDMA_CTLa__DYNAMIC_CLOCK___S              12
+#define   LPASS_LPAIF_WRDMA_CTLa__DYNAMIC_CLOCK__OFF             0x0
+#define   LPASS_LPAIF_WRDMA_CTLa__DYNAMIC_CLOCK__ON             0x1
+#define   LPASS_LPAIF_WRDMA_CTLa__BURST_EN___M   0x00000800
+#define   LPASS_LPAIF_WRDMA_CTLa__BURST_EN___S                11
+#define   LPASS_LPAIF_WRDMA_CTLa__BURST_EN__SINGLE             0x0
+#define   LPASS_LPAIF_WRDMA_CTLa__BURST_EN__INCR4             0x1
+#define   LPASS_LPAIF_WRDMA_CTLa__WPSCNT___M     0x00000700
+#define   LPASS_LPAIF_WRDMA_CTLa__WPSCNT___S                   8
+#define   LPASS_LPAIF_WRDMA_CTLa__WPSCNT__ONE                0x0
+#define   LPASS_LPAIF_WRDMA_CTLa__WPSCNT__TWO                0x1
+#define   LPASS_LPAIF_WRDMA_CTLa__WPSCNT__THREE              0x2
+#define   LPASS_LPAIF_WRDMA_CTLa__WPSCNT__FOUR               0x3
+#define   LPASS_LPAIF_WRDMA_CTLa__WPSCNT__SIX                0x5
+#define   LPASS_LPAIF_WRDMA_CTLa__WPSCNT__EIGHT              0x7
+#define   LPASS_LPAIF_WRDMA_CTLa__AUDIO_INTF___M 0x000000F0
+#define   LPASS_LPAIF_WRDMA_CTLa__AUDIO_INTF___S               4
+#define   LPASS_LPAIF_WRDMA_CTLa__AUDIO_INTF__NONE             0x0
+#define   LPASS_LPAIF_WRDMA_CTLa__AUDIO_INTF__PRI_SRC             0x1
+#define   LPASS_LPAIF_WRDMA_CTLa__AUDIO_INTF__SEC_SRC             0x2
+#define   LPASS_LPAIF_WRDMA_CTLa__AUDIO_INTF__TER_SRC             0x3
+#define   LPASS_LPAIF_WRDMA_CTLa__AUDIO_INTF__QUA_SRC             0x4
+#define   LPASS_LPAIF_WRDMA_CTLa__AUDIO_INTF__MIXOUT             0x6
+#define   LPASS_LPAIF_WRDMA_CTLa__AUDIO_INTF__LOOPBACK_CH0             0x9
+#define   LPASS_LPAIF_WRDMA_CTLa__AUDIO_INTF__LOOPBACK_CH1             0xA
+#define   LPASS_LPAIF_WRDMA_CTLa__AUDIO_INTF__LOOPBACK_CH2             0xB
+#define   LPASS_LPAIF_WRDMA_CTLa__AUDIO_INTF__LOOPBACK_CH3             0xC
+#define   LPASS_LPAIF_WRDMA_CTLa__AUDIO_INTF__LOOPBACK_CH4             0xD
+#define   LPASS_LPAIF_WRDMA_CTLa__FIFO_WATERMRK___M 0x0000000E
+#define   LPASS_LPAIF_WRDMA_CTLa__FIFO_WATERMRK___S               1
+#define   LPASS_LPAIF_WRDMA_CTLa__FIFO_WATERMRK__ENUM_1             0x0
+#define   LPASS_LPAIF_WRDMA_CTLa__FIFO_WATERMRK__ENUM_2             0x1
+#define   LPASS_LPAIF_WRDMA_CTLa__FIFO_WATERMRK__ENUM_3             0x2
+#define   LPASS_LPAIF_WRDMA_CTLa__FIFO_WATERMRK__ENUM_4             0x3
+#define   LPASS_LPAIF_WRDMA_CTLa__FIFO_WATERMRK__ENUM_5             0x4
+#define   LPASS_LPAIF_WRDMA_CTLa__FIFO_WATERMRK__ENUM_6             0x5
+#define   LPASS_LPAIF_WRDMA_CTLa__FIFO_WATERMRK__ENUM_7             0x6
+#define   LPASS_LPAIF_WRDMA_CTLa__FIFO_WATERMRK__ENUM_8             0x7
+#define   LPASS_LPAIF_WRDMA_CTLa__ENABLE___M     0x00000001
+#define   LPASS_LPAIF_WRDMA_CTLa__ENABLE___S                   0
+#define   LPASS_LPAIF_WRDMA_CTLa__ENABLE__OFF                0x0
+#define   LPASS_LPAIF_WRDMA_CTLa__ENABLE__ON                 0x1
+#define   LPASS_LPAIF_WRDMA_CTLa___M             0x80001FFF
+#define   LPASS_LPAIF_WRDMA_CTLa___S                           0
+
+#define LPASS_LPAIF_WRDMA_BASEa(a)                                 (0x09113004+0x1000*(a))
+#define   LPASS_LPAIF_WRDMA_BASEa_aMIN 0
+#define   LPASS_LPAIF_WRDMA_BASEa_aMAX 3
+#define   LPASS_LPAIF_WRDMA_BASEa_ELEM 4
+#define   LPASS_LPAIF_WRDMA_BASEa__BASE_ADDR___M 0xFFFFFFF0
+#define   LPASS_LPAIF_WRDMA_BASEa__BASE_ADDR___S               4
+#define   LPASS_LPAIF_WRDMA_BASEa___M            0xFFFFFFF0
+#define   LPASS_LPAIF_WRDMA_BASEa___S                          4
+
+#define LPASS_LPAIF_WRDMA_BUFF_LENa(a)                             (0x09113008+0x1000*(a))
+#define   LPASS_LPAIF_WRDMA_BUFF_LENa_aMIN 0
+#define   LPASS_LPAIF_WRDMA_BUFF_LENa_aMAX 3
+#define   LPASS_LPAIF_WRDMA_BUFF_LENa_ELEM 4
+#define   LPASS_LPAIF_WRDMA_BUFF_LENa__LENGTH___M 0x000FFFFC
+#define   LPASS_LPAIF_WRDMA_BUFF_LENa__LENGTH___S               2
+#define   LPASS_LPAIF_WRDMA_BUFF_LENa___M        0x000FFFFC
+#define   LPASS_LPAIF_WRDMA_BUFF_LENa___S                      2
+
+#define LPASS_LPAIF_WRDMA_PER_LENa(a)                              (0x09113010+0x1000*(a))
+#define   LPASS_LPAIF_WRDMA_PER_LENa_aMIN 0
+#define   LPASS_LPAIF_WRDMA_PER_LENa_aMAX 3
+#define   LPASS_LPAIF_WRDMA_PER_LENa_ELEM 4
+#define   LPASS_LPAIF_WRDMA_PER_LENa__LENGTH___M 0x000FFFFF
+#define   LPASS_LPAIF_WRDMA_PER_LENa__LENGTH___S               0
+#define   LPASS_LPAIF_WRDMA_PER_LENa___M         0x000FFFFF
+#define   LPASS_LPAIF_WRDMA_PER_LENa___S                       0
+
+#define LPASS_LPAIF_WRDMA_STC_LSBa(a)                              (0x09113028+0x1000*(a))
+#define   LPASS_LPAIF_WRDMA_STC_LSBa_aMIN 0
+#define   LPASS_LPAIF_WRDMA_STC_LSBa_aMAX 3
+#define   LPASS_LPAIF_WRDMA_STC_LSBa_ELEM 4
+
+#define LPASS_LPAIF_PCM_I2S_SELa(a)                                (0x0911A000+0x1000*(a))
+#define   LPASS_LPAIF_PCM_I2S_SELa_aMIN 0
+#define   LPASS_LPAIF_PCM_I2S_SELa_aMAX 3
+#define   LPASS_LPAIF_PCM_I2S_SELa_ELEM 4
+#define   LPASS_LPAIF_PCM_I2S_SELa__SEL___M      0x00000001
+#define   LPASS_LPAIF_PCM_I2S_SELa__SEL___S                    0
+#define   LPASS_LPAIF_PCM_I2S_SELa__SEL__I2S_SRC             0x0
+#define   LPASS_LPAIF_PCM_I2S_SELa__SEL__PCM_SRC             0x1
+#define   LPASS_LPAIF_PCM_I2S_SELa___M           0x00000001
+#define   LPASS_LPAIF_PCM_I2S_SELa___S                         0
+
+#define EARLY_AUDIO_MEM_ADDR                                       0xB5FFF000
+#define EARLY_AUDIO_MEM_SIZE                                       0x003FFFC0
+
+struct hw_reg_array {
+	unsigned int reg_addr;
+	unsigned int reg_data;
+};
+
+/**
+* The following type must be used whenever the LPAIF IRQ output index
+* is to be represented.
+*/
+enum
+{
+	LPASS_HW_LPAIF_IRQ_OUTPUT_APPS = 0,
+	LPASS_HW_LPAIF_IRQ_OUTPUT_MODEM,
+	LPASS_HW_LPAIF_IRQ_OUTPUT_ADSP
+};
+
+/**
+* The following type must be used whenever a Read DMA Channel is to be represented.
+*/
+enum
+{
+	LPASS_HW_RDDMA_CHANNEL_0 = 0,
+	LPASS_HW_RDDMA_CHANNEL_1 = 1,
+	LPASS_HW_RDDMA_CHANNEL_2 = 2,
+	LPASS_HW_RDDMA_CHANNEL_3 = 3,
+	LPASS_HW_RDDMA_CHANNEL_4 = 4,
+	LPASS_HW_RDDMA_CHANNEL_MAX
+};
+
+/**
+* The following type must be used whenever a Write DMA Channel is to be represented.
+*/
+enum
+{
+	LPASS_HW_WRDMA_CHANNEL_0 = 0,
+	LPASS_HW_WRDMA_CHANNEL_1 = 1,
+	LPASS_HW_WRDMA_CHANNEL_2 = 2,
+	LPASS_HW_WRDMA_CHANNEL_3 = 3,
+	LPASS_HW_WRDMA_CHANNEL_MAX
+};
+
+/**
+* The following type must be used whenever a DMA Type is to be represented.
+*/
+enum
+{
+	LPASS_HW_DMA_TYPE0 = 0,    //LPAIF DMA
+	LPASS_HW_DMA_TYPE1,        //LPASS HDMI tx 2.0
+	LPASS_HW_DMA_MAX_TYPES
+};
+
+/**
+* The following type must be used whenever a DMA Direction is to be represented.
+*/
+enum
+{
+	LPASS_HW_DMA_SINK,
+	LPASS_HW_DMA_SOURCE,
+};
+
+/**
+* The following type must be used whenever the TDM interface is to be represented.
+*/
+typedef enum tdm_interface
+{
+	TDM_PRIMARY      =    0,
+	TDM_SECONDARY    =    1,
+	TDM_TERTIARY     =    2,
+	TDM_QUATERNARY   =    3,
+	TDM_INTERFACE_MAX   = 0x7FFFFFFF
+} tdm_interface_t;
+
+/**
+* The following type must be used whenever a TDM direction is to be represented.
+*/
+enum
+{
+	TDM_DIR_INVALID = -1,
+	TDM_SINK = 0 ,
+	TDM_SOURCE
+};
+
+/**
+ * MSM can be in the master or slave mode. In the I2S interface, this will
+ * determine which word select clk (internal or external) is used. In TDM
+ * interface, it will determine the src for the sync signal
+ */
+enum
+{
+	TDM_MSM_MODE_INVALID =-1,
+	TDM_MSM_MODE_SLAVE = 0,
+	TDM_MSM_MODE_MASTER,
+	TDM_MSM_MODE_MAX = 0x7FFFFFFF
+};
+
+/**
+ * TDM codec can be in either aux or pcm modes. PCM mode is also known as short
+ * sync mode & AUX mode is also known as long sync mode
+ */
+typedef enum tdm_sync_info
+{
+	TDM_SHORT_SYNC_TYPE = 0,
+	TDM_LONG_SYNC_TYPE,
+	TDM_SLOT_SYNC_TYPE,
+} tdm_sync_info_t;
+
+/**
+ * TDM long sync can be inverted.
+ */
+typedef enum tdm_long_sync_info
+{
+	TDM_LONG_SYNC_NORMAL = 0,
+	TDM_LONG_SYNC_INVERT
+} tdm_long_sync_info_t;
+
+/**
+ * TDM data delay relative to sync.
+ * This is hardware value.
+ */
+typedef enum tdm_data_sync_delay_info
+{
+	TDM_DATA_DELAY_0_CYCLE = 2,
+	TDM_DATA_DELAY_1_CYCLE = 1,
+	TDM_DATA_DELAY_2_CYCLE = 0
+} tdm_data_sync_delay_info_t;
+
+/**
+ * TDM codec can support multiple masters case by setting DATA_OE to tri-state
+ * data out signal. When clear, PCM block must be the only master.
+ */
+enum
+{
+	TDM_NO_CTRL_DATA_OE = -1,
+	TDM_CTRL_DATA_OE_DISABLE = 0,
+	TDM_CTRL_DATA_OE_ENABLE = 1,
+};
+
+/**
+* The following states must be used whenever a client checks for the Early
+* Audio playback progress
+*/
+enum
+{
+	EARLY_AUDIO_PLAYBACK_NOT_COMPLETE = 0,
+	EARLY_AUDIO_PLAYBACK_FINISHED,
+};
+
+/**
+ * The following structure is used for the TDM interface
+ */
+typedef struct
+{
+	/** TDM Physical Address */
+	uint32_t tdm_phys_addr;
+	/** TDM Virtual Address */
+	uint32_t tdm_virt_addr;
+	/** Master/slave mode */
+	uint32_t sync_src;
+	/** short/long sync type */
+	uint32_t sync_type;
+	/** num of active channel: max is 8 */
+	uint32_t num_channels;
+	/** num of bits in a sample */
+	uint32_t bit_width;
+	/** num of bits in a slot */
+	uint32_t slot_width;
+	/** num of slots in a frame */
+	uint32_t nslots_per_frame;
+	/** Invert sync: Only for long sync mode */
+	uint32_t sync_invert;
+	/** data delay w.r.t. sync */
+	uint32_t sync_data_delay;
+	/** OE setup */
+	uint32_t ctrl_data_oe;
+	/** which channel to enable */
+	uint32_t slot_mask;
+} lpass_hw_tdm_config_t;
+
+typedef struct
+{
+	/** DMA Register Physical Address */
+	uint32 dma_reg_size;
+	/** DMA Interrupt Physical Address */
+	uint32 dma_int_reg_addr;
+	/** DMA Register Virtual Address */
+	uint32 dma_int_virt_addr;
+	/** Read DMA Register Physical Address */
+	uint32 rddma_reg_addr;
+	/** Read DMA Register Virtual Address */
+	uint32 rddma_virt_addr;
+	/** Write DMA Register Physical Address */
+	uint32 wrdma_reg_addr;
+	/** Write DMA Register Virtual Address */
+	uint32 wrdma_virt_addr;
+	/** STC Read DMA Register Physical Address */
+	uint32 stc_rddma_reg_addr;
+	/** STC Read DMA Register Virtual Address */
+	uint32 stc_rddma_virt_addr;
+	/** STC Write DMA Register Physical Address */
+	uint32 stc_wrdma_reg_addr;
+	/** STC Write DMA Register Virtual Address */
+	uint32 stc_wrdma_virt_addr;
+	/** DMA Interrupt IRQ index */
+	uint32 int_irq_no;
+	/** DMA Buffer Start Address */
+	uint32_t *buffer_start_addr;
+	/** DMA Buffer 2nd Period Address */
+	uint32_t *buffer_2nd_period_addr;
+	/** DMA Buffer Length in 4-Byte Words */
+	uint32_t buf_len_in_words;
+	/** DMA Period Length in 4-Byte Words */
+	uint32_t period_len_in_words;
+	/** DMA Buffer Length in Bytes */
+	uint32_t buf_len_in_bytes;
+	/** DMA Period Length in Bytes */
+	uint32_t period_len_in_bytes;
+	/** DMA 4-byte words per audio sample */
+	uint32_t wps_count;
+	/** DMA Watermark level for FIFO */
+	uint32_t watermark;
+	/** DMA Burst Size */
+	uint32_t burst_size;
+	/** DMA interface selection control */
+	uint32_t ifconfig_dma_control;
+} lpass_hw_afe_dma_config_t;
+
+typedef struct {
+	tdm_interface_t tdm_port;
+	uint32_t sampling_rate;
+	uint32_t bit_width;
+	uint32_t num_channels;
+	uint32_t pcm_size;
+	uint8_t reserved[512-24];
+} early_audio_pcm_header_t;
+
+typedef struct
+{
+	uint32_t index;
+	unsigned long long offset;
+	int32_t blocksize;
+	early_audio_pcm_header_t pcm_header;
+	uint8_t* partition_ptr;
+	uint32_t num_periods;
+	uint32_t dma_prog_cnt;
+	uint32_t bytes_to_be_read;
+	uint32_t bytes_written;
+	int32_t bytes_in_dma;
+} early_audio_mmc_partition_t;
+
+int early_audio_get_sleep_time_ms(void);
+int early_audio_check_dma_playback(void);
+int early_audio_start(void);
+int early_audio_init(void);
+int early_audio_end(void);
+
+void set_early_audio_enabled(bool enabled);
+
+#endif
