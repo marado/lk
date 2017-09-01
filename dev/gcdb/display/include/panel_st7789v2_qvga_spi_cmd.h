@@ -195,7 +195,7 @@ static uint8_t st7789v2_signature_addr = 0x04;
 static uint8_t st7789v2_signature_len = 3;
 
 static uint8_t st7789v2_signature[] = {
-	0x00, 0x93, 0x05
+	0x85, 0x85, 0x52
 };
 
 #endif /* PANEL_ST7789v2_QVGA_SPI_CMD_H */

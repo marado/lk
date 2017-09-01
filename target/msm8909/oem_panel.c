@@ -54,7 +54,7 @@
 #include "include/panel_gc9305_qvga_spi_cmd.h"
 #include "include/panel_st7789v2_qvga_spi_cmd.h"
 
-#define DISPLAY_MAX_PANEL_DETECTION 0
+#define DISPLAY_MAX_PANEL_DETECTION 2
 #define ILI9806E_FWVGA_VIDEO_PANEL_POST_INIT_DELAY 68
 
 enum {
@@ -557,6 +557,13 @@ int oem_panel_select(const char *panel_name, struct panel_struct *panelstruct,
 						/* QRD8905 Nand SKU */
 						switch (auto_pan_loop) {
 							case 0:
+								dprintf(CRITICAL, "ST7789v2_QVGA_SPI_CMD_PANEL\n");
+								panel_id = ST7789v2_QVGA_SPI_CMD_PANEL;
+								break;
+							case 1:
+								dprintf(CRITICAL, "GC9305_QVGA_SPI_CMD_PANEL\n");
+								panel_id = GC9305_QVGA_SPI_CMD_PANEL;
+								break;
 							default:
 								dprintf(CRITICAL, "ST7789v2_QVGA_SPI_CMD_PANEL\n");
 								panel_id = ST7789v2_QVGA_SPI_CMD_PANEL;
