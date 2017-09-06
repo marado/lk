@@ -139,8 +139,6 @@ void target_early_init(void)
 		// set GPIO_84 to HIGH when enter LK
 		gpio_set(84, 2);
 	}
-
-	qca6174_init(); //Enable qca6174 SDC4
 }
 
 void shutdown_device(void)
