@@ -431,7 +431,7 @@ void fastboot_okay(const char *info)
 static void getvar_all()
 {
 	struct fastboot_var *var;
-	char getvar_all[64];
+	char getvar_all[256];
 
 	for (var = varlist; var; var = var->next)
 	{
