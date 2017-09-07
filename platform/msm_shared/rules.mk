@@ -1,7 +1,7 @@
 LOCAL_DIR := $(GET_LOCAL_DIR)
 
 INCLUDES += \
-			-I$(LOCAL_DIR)/include -I$(LK_TOP_DIR)/dev/panel/msm
+			-I$(LOCAL_DIR)/include -I$(LK_TOP_DIR)/dev/panel/msm -I$(LK_TOP_DIR)/app/aboot
 
 DEFINES += $(TARGET_XRES)
 DEFINES += $(TARGET_YRES)
@@ -13,6 +13,7 @@ OBJS += \
 	$(LOCAL_DIR)/jtag_hook.o \
 	$(LOCAL_DIR)/jtag.o \
 	$(LOCAL_DIR)/partition_parser.o \
+	$(LOCAL_DIR)/ab_partition_parser.o \
 	$(LOCAL_DIR)/hsusb.o \
 	$(LOCAL_DIR)/boot_stats.o \
 	$(LOCAL_DIR)/qgic_common.o \
