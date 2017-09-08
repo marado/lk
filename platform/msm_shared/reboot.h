@@ -44,6 +44,8 @@
 #define DM_VERITY_KEYSCLEAR  0x7766550A
 #endif
 
+#include <sys/types.h>
+
 #define RTC_TRG           4
 #define PON_SOFT_RB_SPARE 0x88F
 
