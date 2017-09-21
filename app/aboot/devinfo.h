@@ -67,6 +67,7 @@ struct device_info
 	char radio_version[MAX_VERSION_LEN];
 	bool verity_mode; // 1 = enforcing, 0 = logging
 	bool early_camera_enabled;
+	bool early_audio_enabled;
 };
 #endif
 #endif
