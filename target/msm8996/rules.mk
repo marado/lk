@@ -63,7 +63,8 @@ OBJS += \
 ifeq ($(ENABLE_EARLYDOMAIN_SUPPORT),1)
 OBJS += \
     $(LOCAL_DIR)/target_camera.o \
-    $(LOCAL_DIR)/target_camera_config.o
+    $(LOCAL_DIR)/target_camera_config.o \
+    $(LOCAL_DIR)/target_audio.o
 endif
 
 ifeq ($(ENABLE_GLINK_SUPPORT),1)

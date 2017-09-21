@@ -1,4 +1,4 @@
-/* Copyright (c) 2014-2016 The Linux Foundation. All rights reserved.
+/* Copyright (c) 2014-2017 The Linux Foundation. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -79,6 +79,7 @@
 #include <msm_panel.h>
 #include <target/display.h>
 #include <target/target_camera.h>
+#include <target/target_audio.h>
 
 #define ANIMATED_SPLAH_PARTITION "splash"
 #define ANIMATED_SPLASH_BUFFER   0x836a5580
@@ -100,6 +101,7 @@
 #define EARLYCAM_NO_GPIO_FRAME_LIMIT 900
 
 static int early_camera_enabled = 1;
+static int early_audio_enabled = 1;
 
 enum
 {
@@ -1026,6 +1028,14 @@ int animated_splash() {
 	}
 
 	while (1) {
+		if(early_audio_enabled == 1) {
+			if (early_audio_check_dma_playback())
+			{
+				early_audio_end();
+				early_audio_enabled = 0;
+			}
+		}
+
 		camera_on = is_reverse_camera_on();
 
 		reg_value = readl_relaxed((void *)MDSS_SCRATCH_REG_1);
@@ -1121,6 +1131,16 @@ void earlydomain_services()
 		dprintf(CRITICAL, "earlydomain_services: Early Camera starting\n");
 	}
 
+	/* starting early audio */
+	if (early_audio_init() == -1) {
+		early_audio_enabled = 0;
+		dprintf(CRITICAL, "earlydomain_services: Early Audio exit start failed\n");
+	} else {
+		// Write the first playback period
+		early_audio_check_dma_playback();
+		dprintf(CRITICAL, "earlydomain_services: Early Audio started\n");
+	}
+
 	/*Create Animated splash thread
 	if target supports it*/
 	if (target_animated_splash_screen())
@@ -1135,10 +1155,17 @@ void earlydomain_services()
 		}
 	}
 
+	if (early_audio_enabled == 1)
+	{
+		while(!early_audio_check_dma_playback())
+		{
+			mdelay_optimal(early_audio_get_sleep_time_ms());
+		}
+		early_audio_end();
+		early_audio_enabled = 0;
+	}
 	// Notify Kernel that LK is shutdown
 	writel(0xDEADBEEF, MDSS_SCRATCH_REG_1);
-
-  /* starting early domain services */
 }
 
 #else
