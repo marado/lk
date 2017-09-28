@@ -472,18 +472,37 @@ int set_recovery_cookie()
 int booting_into_recovery(void)
 {
 	int ret;
-	struct recovery_message msg;
+	struct recovery_message *msg;
+	uint32_t block_size = 0;
 
-	memset(&msg, 0, sizeof(msg));
-	if (target_is_emmc_boot())
-		ret = emmc_get_recovery_msg(&msg);
+	if (target_is_emmc_boot()) {
+		block_size = mmc_get_device_blocksize();
+		msg = (struct recovery_message *)memalign(CACHE_LINE, block_size);
+		ASSERT(msg);
+		memset(msg, 0, sizeof(*msg));
+		ret = emmc_get_recovery_msg(msg);
+	} else {
+		msg = (struct recovery_message *)malloc(sizeof(*msg));
+		ASSERT(msg);
+		memset(msg, 0, sizeof(*msg));
+		ret = get_recovery_message(msg);
+	}
+
+	if (ret) {
+		ret = 0;
+		goto out;
+	}
+
+	msg->command[sizeof(msg->command)-1] = '\0'; // Ensure termination
+	if (strcmp("boot-recovery", msg->command))
+		ret = 0;
 	else
-		ret = get_recovery_message(&msg);
+		ret = 1;
 
-	if (ret || strcmp("boot-recovery", msg.command))
-		return 0;
-
-	return 1;
+out:
+	if (msg)
+		free(msg);
+	return ret;
 }
 #endif
 
