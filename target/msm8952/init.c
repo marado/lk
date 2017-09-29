@@ -1,4 +1,4 @@
-/* Copyright (c) 2015, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2015-2016, The Linux Foundation. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -78,10 +78,13 @@
 #define TLMM_VOL_UP_BTN_GPIO    85
 #define TLMM_VOL_UP_BTN_GPIO_8956 113
 #define TLMM_VOL_UP_BTN_GPIO_8937 91
+#define TLMM_VOL_DOWN_BTN_GPIO    128
 
 #define FASTBOOT_MODE           0x77665500
 #define RECOVERY_MODE           0x77665502
 #define PON_SOFT_RB_SPARE       0x88F
+
+#define EXT4_CMDLINE  " rootfstype=ext4 root=/dev/mmcblk0p"
 
 #define CE1_INSTANCE            1
 #define CE_EE                   1
@@ -91,6 +94,9 @@
 #define CE_READ_PIPE_LOCK_GRP   0
 #define CE_WRITE_PIPE_LOCK_GRP  0
 #define CE_ARRAY_SIZE           20
+#define SUB_TYPE_SKUT           0x0A
+#define SMBCHG_USB_RT_STS 0x21310
+#define USBIN_UV_RT_STS BIT(0)
 
 struct mmc_device *dev;
 
@@ -185,7 +191,7 @@ int target_volume_up()
 
 	if(platform_is_msm8956())
 		vol_up_gpio = TLMM_VOL_UP_BTN_GPIO_8956;
-	else if(platform_is_msm8937())
+	else if(platform_is_msm8937() || platform_is_msm8917())
 		vol_up_gpio = TLMM_VOL_UP_BTN_GPIO_8937;
 	else
 		vol_up_gpio = TLMM_VOL_UP_BTN_GPIO;
@@ -209,14 +215,39 @@ int target_volume_up()
 /* Return 1 if vol_down pressed */
 uint32_t target_volume_down()
 {
-	/* Volume down button tied in with PMIC RESIN. */
-	return pm8x41_resin_status();
+	static  bool vol_down_key_init = false;
+
+	if ((board_hardware_id() == HW_PLATFORM_QRD) &&
+			(board_hardware_subtype() == SUB_TYPE_SKUT)) {
+		uint32_t status = 0;
+
+		if (!vol_down_key_init) {
+			gpio_tlmm_config(TLMM_VOL_DOWN_BTN_GPIO, 0, GPIO_INPUT, GPIO_PULL_UP,
+				 GPIO_2MA, GPIO_ENABLE);
+			/* Wait for the gpio config to take effect - debounce time */
+			thread_sleep(10);
+			vol_down_key_init = true;
+		}
+
+		/* Get status of GPIO */
+		status = gpio_status(TLMM_VOL_DOWN_BTN_GPIO);
+
+		/* Active low signal. */
+		return !status;
+	} else {
+		/* Volume down button tied in with PMIC RESIN. */
+		return pm8x41_resin_status();
+	}
 }
 
 uint32_t target_is_pwrkey_pon_reason()
 {
 	uint8_t pon_reason = pm8950_get_pon_reason();
+	bool usb_present_sts = !(USBIN_UV_RT_STS &
+				pm8x41_reg_read(SMBCHG_USB_RT_STS));
 	if (pm8x41_get_is_cold_boot() && ((pon_reason == KPDPWR_N) || (pon_reason == (KPDPWR_N|PON1))))
+		return 1;
+	else if ((pon_reason == PON1) && (!usb_present_sts))
 		return 1;
 	else
 		return 0;
@@ -254,15 +285,28 @@ void shutdown_device()
 
 void target_init(void)
 {
-#if VERIFIED_BOOT
-#if !VBOOT_MOTA
-	int ret = 0;
-#endif
-#endif
-
 	dprintf(INFO, "target_init()\n");
 
 	spmi_init(PMIC_ARB_CHANNEL_NUM, PMIC_ARB_OWNER_ID);
+
+	if(target_is_pmi_enabled())
+	{
+		if(platform_is_msm8937() || platform_is_msm8917())
+		{
+			uint8_t pmi_rev = 0;
+			uint32_t pmi_type = 0;
+
+			pmi_type = board_pmic_target(1) & 0xffff;
+			if(pmi_type == PMIC_IS_PMI8950)
+			{
+				/* read pmic spare register for rev */
+				pmi_rev = pmi8950_get_pmi_subtype();
+				if(pmi_rev)
+					board_pmi_target_set(1,pmi_rev);
+			}
+		}
+	}
+
 
 	target_keystatus();
 
@@ -274,54 +318,53 @@ void target_init(void)
 	}
 
 #if LONG_PRESS_POWER_ON
-	shutdown_detect();
+	if(target_is_pmi_enabled())
+		shutdown_detect();
 #endif
 
 #if PON_VIB_SUPPORT
 	/* turn on vibrator to indicate that phone is booting up to end user */
-	vib_timed_turn_on(VIBRATE_TIME);
+	if(target_is_pmi_enabled())
+		vib_timed_turn_on(VIBRATE_TIME);
 #endif
 
 	if (target_use_signed_kernel())
 		target_crypto_init_params();
 
 #if VERIFIED_BOOT
-#if !VBOOT_MOTA
-	clock_ce_enable(CE1_INSTANCE);
-
-	/* Initialize Qseecom */
-	ret = qseecom_init();
-
-	if (ret < 0)
+	if (VB_V2 == target_get_vb_version())
 	{
-		dprintf(CRITICAL, "Failed to initialize qseecom, error: %d\n", ret);
-		ASSERT(0);
-	}
+		clock_ce_enable(CE1_INSTANCE);
 
-	/* Start Qseecom */
-	ret = qseecom_tz_init();
+		/* Initialize Qseecom */
+		if (qseecom_init() < 0)
+		{
+			dprintf(CRITICAL, "Failed to initialize qseecom\n");
+			ASSERT(0);
+		}
 
-	if (ret < 0)
-	{
-		dprintf(CRITICAL, "Failed to start qseecom, error: %d\n", ret);
-		ASSERT(0);
-	}
+		/* Start Qseecom */
+		if (qseecom_tz_init() < 0)
+		{
+			dprintf(CRITICAL, "Failed to start qseecom\n");
+			ASSERT(0);
+		}
 
-	if (rpmb_init() < 0)
-	{
-		dprintf(CRITICAL, "RPMB init failed\n");
-		ASSERT(0);
-	}
+		if (rpmb_init() < 0)
+		{
+			dprintf(CRITICAL, "RPMB init failed\n");
+			ASSERT(0);
+		}
 
-	/*
-	 * Load the sec app for first time
-	 */
-	if (load_sec_app() < 0)
-	{
-		dprintf(CRITICAL, "Failed to load App for verified\n");
-		ASSERT(0);
+		/*
+		 * Load the sec app for first time
+	 	*/
+		if (load_sec_app() < 0)
+		{
+			dprintf(CRITICAL, "Failed to load App for verified\n");
+			ASSERT(0);
+		}
 	}
-#endif
 #endif
 
 #if SMD_SUPPORT
@@ -361,12 +404,18 @@ void target_baseband_detect(struct board_data *board)
 	case MSM8956:
 	case MSM8976:
 	case MSM8937:
+	case MSM8940:
+	case MSM8917:
+	case MSM8920:
+	case MSM8217:
+	case MSM8617:
 		board->baseband = BASEBAND_MSM;
 		break;
 	case APQ8052:
 	case APQ8056:
 	case APQ8076:
 	case APQ8037:
+	case APQ8017:
 		board->baseband = BASEBAND_APQ;
 		break;
 	default:
@@ -406,7 +455,7 @@ unsigned check_hard_reboot_mode(void)
 	return hard_restart_reason;
 }
 
-int set_download_mode(enum dload_mode mode)
+int set_download_mode(enum reboot_reason mode)
 {
 	int ret = 0;
 	ret = scm_dload_mode(mode);
@@ -426,23 +475,28 @@ void reboot_device(unsigned reboot_reason)
 	uint8_t reset_type = 0;
 	uint32_t ret = 0;
 
-	/* Need to clear the SW_RESET_ENTRY register and
-	 * write to the BOOT_MISC_REG for known reset cases
-	 */
-	if(reboot_reason != DLOAD)
-		scm_dload_mode(NORMAL_MODE);
+	/* Set cookie for dload mode */
+	if(set_download_mode(reboot_reason)) {
+		dprintf(CRITICAL, "HALT: set_download_mode not supported\n");
+		return;
+	}
 
 	writel(reboot_reason, RESTART_REASON_ADDR);
 
 	/* For Reboot-bootloader and Dload cases do a warm reset
 	 * For Reboot cases do a hard reset
 	 */
-	if((reboot_reason == FASTBOOT_MODE) || (reboot_reason == DLOAD) || (reboot_reason == RECOVERY_MODE))
+	if((reboot_reason == FASTBOOT_MODE) || (reboot_reason == NORMAL_DLOAD) ||
+		(reboot_reason == EMERGENCY_DLOAD) || (reboot_reason == RECOVERY_MODE))
 		reset_type = PON_PSHOLD_WARM_RESET;
 	else
 		reset_type = PON_PSHOLD_HARD_RESET;
 
-	pm8994_reset_configure(reset_type);
+	if(target_is_pmi_enabled())
+		pm8994_reset_configure(reset_type);
+	else
+		pm8x41_reset_configure(reset_type);
+
 
 	ret = scm_halt_pmic_arbiter();
 	if (ret)
@@ -473,14 +527,16 @@ uint32_t is_user_force_reset(void)
 }
 #endif
 
-#define SMBCHG_USB_RT_STS 0x21310
-#define USBIN_UV_RT_STS BIT(0)
 unsigned target_pause_for_battery_charge(void)
 {
 	uint8_t pon_reason = pm8x41_get_pon_reason();
 	uint8_t is_cold_boot = pm8x41_get_is_cold_boot();
-	bool usb_present_sts = !(USBIN_UV_RT_STS &
-				pm8x41_reg_read(SMBCHG_USB_RT_STS));
+	bool usb_present_sts = 1;	/* don't care by default */
+
+	if(target_is_pmi_enabled())
+		usb_present_sts = (!(USBIN_UV_RT_STS &
+						 pm8x41_reg_read(SMBCHG_USB_RT_STS)));
+
 	dprintf(INFO, "%s : pon_reason is:0x%x cold_boot:%d usb_sts:%d\n", __func__,
 		pon_reason, is_cold_boot, usb_present_sts);
 	/* In case of fastboot reboot,adb reboot or if we see the power key
@@ -499,33 +555,41 @@ unsigned target_pause_for_battery_charge(void)
 
 void target_uninit(void)
 {
+#if PON_VIB_SUPPORT
+	if(target_is_pmi_enabled())
+		turn_off_vib_early();
+#endif
 	mmc_put_card_to_sleep(dev);
 	sdhci_mode_disable(&dev->host);
 	if (crypto_initialized())
+	{
 		crypto_eng_cleanup();
+		clock_ce_disable(CE1_INSTANCE);
+	}
 
 	if (target_is_ssd_enabled())
 		clock_ce_disable(CE1_INSTANCE);
 
 #if VERIFIED_BOOT
-#if !VBOOT_MOTA
-	if (is_sec_app_loaded())
+	if (VB_V2 == target_get_vb_version())
 	{
-		if (send_milestone_call_to_tz() < 0)
+		if (is_sec_app_loaded())
 		{
-			dprintf(CRITICAL, "Failed to unload App for rpmb\n");
+			if (send_milestone_call_to_tz() < 0)
+			{
+				dprintf(CRITICAL, "Failed to unload App for rpmb\n");
+				ASSERT(0);
+			}
+		}
+
+		if (rpmb_uninit() < 0)
+		{
+			dprintf(CRITICAL, "RPMB uninit failed\n");
 			ASSERT(0);
 		}
-	}
 
-	if (rpmb_uninit() < 0)
-	{
-		dprintf(CRITICAL, "RPMB uninit failed\n");
-		ASSERT(0);
+		clock_ce_disable(CE1_INSTANCE);
 	}
-
-	clock_ce_disable(CE1_INSTANCE);
-#endif
 #endif
 
 #if SMD_SUPPORT
@@ -686,6 +750,53 @@ void target_crypto_init_params()
 
 	crypto_init_params(&ce_params);
 }
+
+bool target_is_pmi_enabled(void)
+{
+	if(platform_is_msm8917() &&
+	   (board_hardware_subtype() ==	HW_PLATFORM_SUBTYPE_SAP_NOPMI))
+		return 0;
+	else
+		return 1;
+}
+
+#if _APPEND_CMDLINE
+int get_target_boot_params(const char *cmdline, const char *part, char **buf)
+{
+	int system_ptn_index = -1;
+	uint32_t buflen;
+	int ret = -1;
+
+	if (!cmdline || !part ) {
+		dprintf(CRITICAL, "WARN: Invalid input param\n");
+		return -1;
+	}
+
+	if (!strstr(cmdline, "root=/dev/ram")) /* This check is to handle kdev boot */
+	{
+		if (target_is_emmc_boot()) {
+			buflen = strlen(EXT4_CMDLINE) + sizeof(int) +1;
+			*buf = (char *)malloc(buflen);
+			if(!(*buf)) {
+				dprintf(CRITICAL,"Unable to allocate memory for boot params\n");
+				return -1;
+			}
+			/* Below is for emmc boot */
+			system_ptn_index = partition_get_index(part) + 1; /* Adding +1 as offsets for eMMC start at 1 and NAND at 0 */
+			if (system_ptn_index < 0) {
+				dprintf(CRITICAL,
+						"WARN: Cannot get partition index for %s\n", part);
+				free(*buf);
+				return -1;
+			}
+			snprintf(*buf, buflen, EXT4_CMDLINE"%d", system_ptn_index);
+			ret = 0;
+		}
+	}
+	/*in success case buf will be freed in the calling function of this*/
+	return ret;
+}
+#endif
 
 uint32_t target_get_pmic()
 {

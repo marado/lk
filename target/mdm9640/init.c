@@ -1,4 +1,4 @@
-/* Copyright (c) 2014-2015, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2014-2017, The Linux Foundation. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -55,6 +55,8 @@
 #include <uart_dm.h>
 #include <boot_device.h>
 #include <qmp_phy.h>
+#include <crypto5_wrapper.h>
+#include <rpm-glink.h>
 
 extern void smem_ptable_init(void);
 extern void smem_add_modem_partitions(struct ptable *flash_ptable);
@@ -86,6 +88,16 @@ static struct ptable flash_ptable;
 
 #define EXT4_CMDLINE  " rootwait rootfstype=ext4 root=/dev/mmcblk0p"
 #define UBI_CMDLINE " rootfstype=ubifs rootflags=bulk_read"
+
+#define CE1_INSTANCE            1
+#define CE_EE                   1
+#define CE_FIFO_SIZE            64
+#define CE_READ_PIPE            3
+#define CE_WRITE_PIPE           2
+#define CE_READ_PIPE_LOCK_GRP   0
+#define CE_WRITE_PIPE_LOCK_GRP  0
+#define CE_ARRAY_SIZE           20
+#define SUB_TYPE_SKUT           0x0A
 
 struct qpic_nand_init_config config;
 
@@ -131,6 +143,24 @@ int target_is_emmc_boot(void)
 	return platform_boot_dev_isemmc();
 }
 
+#if ENABLE_EARLY_ETHERNET
+void toggle_neutrino(void)
+{
+	struct pm8x41_gpio gpio = {
+	.direction = PM_GPIO_DIR_OUT,
+	.function = PM_GPIO_FUNC_HIGH,
+	.vin_sel = 1,   /* VIN_1 */
+	.output_buffer = PM_GPIO_OUT_CMOS,
+	.out_strength = PM_GPIO_OUT_DRIVE_LOW,
+	};
+
+	pm8x41_gpio_config(4, &gpio);
+	pm8x41_gpio_set(4, 1);
+	mdelay(10);
+	pm8x41_gpio_set(4, 0);
+}
+#endif
+
 /* init */
 void target_init(void)
 {
@@ -139,7 +169,20 @@ void target_init(void)
 	pmic_info_populate();
 
 	spmi_init(PMIC_ARB_CHANNEL_NUM, PMIC_ARB_OWNER_ID);
+	if(!platform_is_sdx20())
+	{
+		rpm_smd_init();
+	}
+	else
+	{
+		/* Initialize Glink */
+		rpm_glink_init();
+	}
 
+#if ENABLE_EARLY_ETHERNET
+	/*enable pmic gpio 4*/
+	toggle_neutrino();
+#endif
 	if (platform_boot_dev_isemmc()) {
 		target_sdc_init();
 		if (partition_read_table()) {
@@ -172,23 +215,54 @@ void target_init(void)
 		update_ptable_names();
 		flash_set_ptable(&flash_ptable);
 	}
+
+	if (target_use_signed_kernel())
+		target_crypto_init_params();
 }
 
-/* reboot */
+static int scm_clear_boot_partition_select()
+{
+	int ret = 0;
+
+	ret = scm_call_atomic2(SCM_SVC_BOOT, WDOG_DEBUG_DISABLE, 1, 0);
+	if (ret)
+		dprintf(CRITICAL, "Failed to disable the wdog debug \n");
+
+	return ret;
+}
+
+/* Trigger reboot */
 void reboot_device(unsigned reboot_reason)
 {
+	uint8_t reset_type = 0;
+
+	if (platform_is_mdm9650() || platform_is_sdx20())
+	{
+		/* Clear the boot partition select cookie to indicate
+		 * its a normal reset and avoid going to download mode */
+		scm_clear_boot_partition_select();
+	}
+
 	/* Write the reboot reason */
 	writel(reboot_reason, RESTART_REASON_ADDR);
 
-	/* Configure PMIC for warm reset */
-	/* PM 8019 v1 aligns with PM8941 v2.
-	 * This call should be based on the pmic version
-	 * when PM8019 v2 is available.
-	 */
-	if (reboot_reason)
-		pm8x41_v2_reset_configure(PON_PSHOLD_WARM_RESET);
+	if(reboot_reason)
+		reset_type = PON_PSHOLD_WARM_RESET;
 	else
-		pm8x41_v2_reset_configure(PON_PSHOLD_HARD_RESET);
+		reset_type = PON_PSHOLD_HARD_RESET;
+
+	if (platform_is_mdm9650() || platform_is_sdx20())
+	{
+		/* PMD9655 is the PMIC used for MDM9650 */
+		pm8x41_reset_configure(reset_type);
+	} else {
+		/* Configure PMIC for warm reset */
+		/* PM 8019 v1 aligns with PM8941 v2.
+		 * This call should be based on the pmic version
+		 * when PM8019 v2 is available.
+		 */
+		pm8x41_v2_reset_configure(reset_type);
+	}
 
 	/* Drop PS_HOLD for MSM */
 	writel(0x00, MPM2_MPM_PS_HOLD);
@@ -345,13 +419,16 @@ void target_sdc_init()
 
 	config.slot = 1;
 	config.bus_width = DATA_BUS_WIDTH_8BIT;
-	config.max_clk_rate = MMC_CLK_171MHZ;
 	config.sdhc_base    = MSM_SDC1_SDHCI_BASE;
 	config.pwrctl_base  = MSM_SDC1_BASE;
 	config.pwr_irq      = SDCC1_PWRCTL_IRQ;
 	config.hs400_support = 0;
 	config.hs200_support = 0;
 	config.use_io_switch = 1;
+	if (platform_is_sdx20())
+		config.max_clk_rate = MMC_CLK_200MHZ;
+	else
+		config.max_clk_rate = MMC_CLK_171MHZ;
 
 	if (!(dev = mmc_init(&config))) {
 		dprintf(CRITICAL, "mmc init failed!");
@@ -372,15 +449,55 @@ void target_uninit(void)
 		mmc_put_card_to_sleep(dev);
 		sdhci_mode_disable(&dev->host);
 	}
+
+	if (crypto_initialized())
+		crypto_eng_cleanup();
+
+	if(!platform_is_sdx20())
+	{
+		rpm_smd_uninit();
+	}
+	else
+	{
+		/* Tear down glink channels */
+		rpm_glink_uninit();
+	}
+}
+void target_mux_configure(void)
+{
+	uint32_t val;
+	//USB30_GENERAL_CFG_PIPE_UTMI_CLK_DIS
+	val = readl(USB30_GENERAL_CFG_PIPE);
+	val = val | 0x100;
+	writel(val, USB30_GENERAL_CFG_PIPE);
+	udelay(100);
+
+	//USB30_GENERAL_CFG_PIPE_UTMI_CLK_SEL
+	val = readl(USB30_GENERAL_CFG_PIPE);
+	val = val | 0x1;
+	writel(val, USB30_GENERAL_CFG_PIPE);
+	udelay(100);
+
+	//USB30_GENERAL_CFG_PIPE3_PHYSTATUS_SW
+	val = readl(USB30_GENERAL_CFG_PIPE);
+	val = val | 0x8;
+	writel(val, USB30_GENERAL_CFG_PIPE);
+	udelay(100);
+
+	//USB30_GENERAL_CFG_PIPE_UTMI_CLK_ENABLE
+	val = readl(USB30_GENERAL_CFG_PIPE);
+	val = val & 0xfffffeff;
+	writel(val, USB30_GENERAL_CFG_PIPE);
+	udelay(100);
 }
 
 void target_usb_phy_reset(void)
 {
-	/* Reset sequence for californium is different from 9x40, use the reset sequence
+	/* Reset sequence for 9650 is different from 9x40, use the reset sequence
 	 * from clock driver
 	 */
-	if (platform_is_mdmcalifornium())
-		clock_reset_usb_phy();
+	if (platform_is_mdm9650() || platform_is_sdx20())
+		clock_reset_usb_phy(); // This is the reset function for USB3
 	else
 		usb30_qmp_phy_reset();
 
@@ -395,7 +512,12 @@ target_usb_iface_t* target_usb30_init()
 	ASSERT(t_usb_iface);
 
 	t_usb_iface->mux_config = NULL;
-	t_usb_iface->phy_init   = usb30_qmp_phy_init;
+	if (platform_is_sdx20()){
+		t_usb_iface->mux_config = target_mux_configure;
+		t_usb_iface->phy_init   = NULL;
+	}
+	else
+		t_usb_iface->phy_init   = usb30_qmp_phy_init;
 	t_usb_iface->phy_reset  = target_usb_phy_reset;
 	t_usb_iface->clock_init = clock_usb30_init;
 	t_usb_iface->vbus_override = 1;
@@ -405,7 +527,7 @@ target_usb_iface_t* target_usb30_init()
 
 uint32_t target_override_pll()
 {
-	if (platform_is_mdmcalifornium())
+	if (platform_is_mdm9650() || platform_is_sdx20())
 		return 0;
 	else
 		return 1;
@@ -416,7 +538,7 @@ uint32_t target_get_hlos_subtype()
 	return board_hlos_subtype();
 }
 
-/* QMP settings are different from californium when compared to v2.0/v1.0 hardware.
+/* QMP settings are different from 9650 when compared to v2.0/v1.0 hardware.
  * Use the QMP settings from target code to keep the common driver clean
  */
 struct qmp_reg qmp_settings[] =
@@ -512,7 +634,7 @@ struct qmp_reg qmp_settings[] =
 
 struct qmp_reg *target_get_qmp_settings()
 {
-	if (platform_is_mdmcalifornium())
+	if (platform_is_mdm9650() || platform_is_sdx20())
 		return qmp_settings;
 	else
 		return NULL;
@@ -520,8 +642,43 @@ struct qmp_reg *target_get_qmp_settings()
 
 int target_get_qmp_regsize()
 {
-	if (platform_is_mdmcalifornium())
+	if (platform_is_mdm9650() || platform_is_sdx20())
 		return ARRAY_SIZE(qmp_settings);
 	else
 		return 0;
+}
+
+crypto_engine_type board_ce_type(void)
+{
+	return CRYPTO_ENGINE_TYPE_HW;
+}
+
+/* Set up params for h/w CE. */
+void target_crypto_init_params()
+{
+	struct crypto_init_params ce_params;
+
+	/* Set up base addresses and instance. */
+	ce_params.crypto_instance  = CE1_INSTANCE;
+	ce_params.crypto_base      = MSM_CE1_BASE;
+	ce_params.bam_base         = MSM_CE1_BAM_BASE;
+
+	/* Set up BAM config. */
+	ce_params.bam_ee               = CE_EE;
+	ce_params.pipes.read_pipe      = CE_READ_PIPE;
+	ce_params.pipes.write_pipe     = CE_WRITE_PIPE;
+	ce_params.pipes.read_pipe_grp  = CE_READ_PIPE_LOCK_GRP;
+	ce_params.pipes.write_pipe_grp = CE_WRITE_PIPE_LOCK_GRP;
+
+	/* Assign buffer sizes. */
+	ce_params.num_ce           = CE_ARRAY_SIZE;
+	ce_params.read_fifo_size   = CE_FIFO_SIZE;
+	ce_params.write_fifo_size  = CE_FIFO_SIZE;
+
+	/* BAM is initialized by TZ for this platform.
+	* Do not do it again as the initialization address space
+	* is locked.
+	*/
+	ce_params.do_bam_init      = 0;
+	crypto_init_params(&ce_params);
 }

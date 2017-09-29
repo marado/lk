@@ -1,4 +1,4 @@
-/* Copyright (c) 2014-2017 The Linux Foundation. All rights reserved.
+/* Copyright (c) 2014-2016 The Linux Foundation. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -44,6 +44,7 @@
 #include <regulator.h>
 #include <dev/keys.h>
 #include <pm8x41.h>
+#include <pm8x41_hw.h>
 #include <crypto5_wrapper.h>
 #include <clock.h>
 #include <partition_parser.h>
@@ -102,6 +103,12 @@
 
 static int early_camera_enabled = 1;
 static int early_audio_enabled = 1;
+#define SMBCHG_USB_RT_STS 0x21310
+#define SMBCHG_DC_RT_STS 0x21410
+#define USBIN_UV_RT_STS BIT(0)
+#define USBIN_OV_RT_STS BIT(1)
+#define DCIN_UV_RT_STS  BIT(0)
+#define DCIN_OV_RT_STS  BIT(1)
 
 enum
 {
@@ -114,7 +121,8 @@ enum
 	FUSION_I2S_CDP = 2,
 } cdp_subtype;
 
-static void set_sdc_power_ctrl(void);
+static uint8_t flash_memory_slot = 0;
+static void set_sdc_power_ctrl();
 static uint32_t mmc_pwrctl_base[] =
 	{ MSM_SDC1_BASE, MSM_SDC2_BASE };
 
@@ -217,7 +225,9 @@ void target_uninit(void)
 		mmc_put_card_to_sleep(dev);
 	}
 
-	if (is_sec_app_loaded())
+#if VERIFIED_BOOT
+	if (target_get_vb_version() == VB_V2 &&
+		is_sec_app_loaded())
 	{
 		if (send_milestone_call_to_tz() < 0)
 		{
@@ -225,6 +235,7 @@ void target_uninit(void)
 			ASSERT(0);
 		}
 	}
+#endif
 
 #if ENABLE_WBC
 	if (board_hardware_id() == HW_PLATFORM_MTP)
@@ -241,35 +252,60 @@ void target_uninit(void)
 	/* Tear down glink channels */
 	rpm_glink_uninit();
 
-	if (rpmb_uninit() < 0)
+#if VERIFIED_BOOT
+	if (target_get_vb_version() == VB_V2)
 	{
-		dprintf(CRITICAL, "RPMB uninit failed\n");
-		ASSERT(0);
+		if (rpmb_uninit() < 0)
+		{
+			dprintf(CRITICAL, "RPMB uninit failed\n");
+			ASSERT(0);
+		}
 	}
+#endif
 
 }
 
 static void set_sdc_power_ctrl()
 {
+	uint32_t reg = 0;
+	uint8_t clk = 0;
+	uint8_t cmd = 0;
+	uint8_t dat = 0;
+
+	if (flash_memory_slot == 0x1)
+	{
+		clk = TLMM_CUR_VAL_10MA;
+		cmd = TLMM_CUR_VAL_8MA;
+		dat = TLMM_CUR_VAL_8MA;
+		reg = SDC1_HDRV_PULL_CTL;
+	}
+	else if (flash_memory_slot == 0x2)
+	{
+		clk = TLMM_CUR_VAL_16MA;
+		cmd = TLMM_CUR_VAL_10MA;
+		dat = TLMM_CUR_VAL_10MA;
+		reg = SDC2_HDRV_PULL_CTL;
+	}
+
 	/* Drive strength configs for sdc pins */
 	struct tlmm_cfgs sdc1_hdrv_cfg[] =
 	{
-		{ SDC1_CLK_HDRV_CTL_OFF,  TLMM_CUR_VAL_16MA, TLMM_HDRV_MASK, SDC1_HDRV_PULL_CTL },
-		{ SDC1_CMD_HDRV_CTL_OFF,  TLMM_CUR_VAL_10MA, TLMM_HDRV_MASK, SDC1_HDRV_PULL_CTL },
-		{ SDC1_DATA_HDRV_CTL_OFF, TLMM_CUR_VAL_10MA, TLMM_HDRV_MASK, SDC1_HDRV_PULL_CTL },
+		{ SDC1_CLK_HDRV_CTL_OFF,  clk, TLMM_HDRV_MASK, reg },
+		{ SDC1_CMD_HDRV_CTL_OFF,  cmd, TLMM_HDRV_MASK, reg },
+		{ SDC1_DATA_HDRV_CTL_OFF, dat, TLMM_HDRV_MASK, reg },
 	};
 
 	/* Pull configs for sdc pins */
 	struct tlmm_cfgs sdc1_pull_cfg[] =
 	{
-		{ SDC1_CLK_PULL_CTL_OFF,  TLMM_NO_PULL, TLMM_PULL_MASK, SDC1_HDRV_PULL_CTL },
-		{ SDC1_CMD_PULL_CTL_OFF,  TLMM_PULL_UP, TLMM_PULL_MASK, SDC1_HDRV_PULL_CTL },
-		{ SDC1_DATA_PULL_CTL_OFF, TLMM_PULL_UP, TLMM_PULL_MASK, SDC1_HDRV_PULL_CTL },
+		{ SDC1_CLK_PULL_CTL_OFF,  TLMM_NO_PULL, TLMM_PULL_MASK, reg },
+		{ SDC1_CMD_PULL_CTL_OFF,  TLMM_PULL_UP, TLMM_PULL_MASK, reg },
+		{ SDC1_DATA_PULL_CTL_OFF, TLMM_PULL_UP, TLMM_PULL_MASK, reg },
 	};
 
 	struct tlmm_cfgs sdc1_rclk_cfg[] =
 	{
-		{ SDC1_RCLK_PULL_CTL_OFF, TLMM_PULL_DOWN, TLMM_PULL_MASK, SDC1_HDRV_PULL_CTL },
+		{ SDC1_RCLK_PULL_CTL_OFF, TLMM_PULL_DOWN, TLMM_PULL_MASK, reg },
 	};
 
 	/* Set the drive strength & pull control values */
@@ -281,8 +317,18 @@ static void set_sdc_power_ctrl()
 uint32_t target_is_pwrkey_pon_reason()
 {
 	uint8_t pon_reason = pm8950_get_pon_reason();
+
 	if (pm8x41_get_is_cold_boot() && ((pon_reason == KPDPWR_N) || (pon_reason == (KPDPWR_N|PON1))))
 		return 1;
+	else if (pon_reason == PON1)
+	{
+		/* DC charger is present or USB charger is present */
+		if (((USBIN_UV_RT_STS | USBIN_OV_RT_STS) & pm8x41_reg_read(SMBCHG_USB_RT_STS)) == 0 ||
+			((DCIN_UV_RT_STS | DCIN_OV_RT_STS) & pm8x41_reg_read(SMBCHG_DC_RT_STS)) == 0)
+			return 0;
+		else
+			return 1;
+	}
 	else
 		return 0;
 }
@@ -292,27 +338,32 @@ void target_sdc_init()
 {
 	struct mmc_config_data config = {0};
 
-	/* Set drive strength & pull ctrl values */
-	set_sdc_power_ctrl();
-
 	config.bus_width = DATA_BUS_WIDTH_8BIT;
 	config.max_clk_rate = MMC_CLK_192MHZ;
 	config.hs400_support = 1;
 
 	/* Try slot 1*/
+	flash_memory_slot = 1;
 	config.slot = 1;
 	config.sdhc_base = mmc_sdhci_base[config.slot - 1];
 	config.pwrctl_base = mmc_pwrctl_base[config.slot - 1];
 	config.pwr_irq     = mmc_sdc_pwrctl_irq[config.slot - 1];
 
+	/* Set drive strength & pull ctrl values */
+	set_sdc_power_ctrl();
+
 	if (!(dev = mmc_init(&config)))
 	{
 		/* Try slot 2 */
+		flash_memory_slot = 2;
 		config.slot = 2;
 		config.max_clk_rate = MMC_CLK_200MHZ;
 		config.sdhc_base = mmc_sdhci_base[config.slot - 1];
 		config.pwrctl_base = mmc_pwrctl_base[config.slot - 1];
 		config.pwr_irq     = mmc_sdc_pwrctl_irq[config.slot - 1];
+
+		/* Set drive strength & pull ctrl values */
+		set_sdc_power_ctrl();
 
 		if (!(dev = mmc_init(&config)))
 		{
@@ -351,7 +402,6 @@ void toggle_neutrino(void) {
 
 void target_init(void)
 {
-	int ret = 0;
 	dprintf(INFO, "target_init()\n");
 
 	pmic_info_populate();
@@ -416,45 +466,46 @@ void target_init(void)
 	}
 #endif
 
-	/* Initialize Qseecom */
-	ret = qseecom_init();
-
-	if (ret < 0)
+#if VERIFIED_BOOT
+	if (VB_V2 == target_get_vb_version())
 	{
-		dprintf(CRITICAL, "Failed to initialize qseecom, error: %d\n", ret);
-		ASSERT(0);
-	}
-
-	/* Start Qseecom */
-	ret = qseecom_tz_init();
-
-	if (ret < 0)
-	{
-		dprintf(CRITICAL, "Failed to start qseecom, error: %d\n", ret);
-		ASSERT(0);
-	}
-
-	if (rpmb_init() < 0)
-	{
-		dprintf(CRITICAL, "RPMB init failed\n");
-		ASSERT(0);
-	}
-
-	/*
-	 * Load the sec app for first time
-	 */
-	if (load_sec_app() < 0)
-	{
-		dprintf(CRITICAL, "Failed to load App for verified\n");
-#if ENABLE_RECOVERY
-		if (!use_backup) {
-			if (!set_recovery_cookie())
-				reboot_device(0);
+		/* Initialize Qseecom */
+		if (qseecom_init() < 0)
+		{
+			dprintf(CRITICAL, "Failed to initialize qseecom\n");
+			ASSERT(0);
 		}
-		dprintf(CRITICAL, "Failed to set the cookie in misc partition\n");
+
+		/* Start Qseecom */
+		if (qseecom_tz_init() < 0)
+		{
+			dprintf(CRITICAL, "Failed to start qseecom\n");
+			ASSERT(0);
+		}
+
+		if (rpmb_init() < 0)
+		{
+			dprintf(CRITICAL, "RPMB init failed\n");
+			ASSERT(0);
+		}
+
+		/*
+		 * Load the sec app for first time
+		 */
+		if (load_sec_app() < 0)
+		{
+			dprintf(CRITICAL, "Failed to load App for verified\n");
+#if ENABLE_RECOVERY
+			if (!use_backup) {
+				if (!set_recovery_cookie())
+					reboot_device(0);
+			}
+			dprintf(CRITICAL, "Failed to set the cookie in misc partition\n");
 #endif
-		ASSERT(0);
+			ASSERT(0);
+		}
 	}
+#endif
 }
 
 unsigned board_machtype(void)
@@ -593,6 +644,11 @@ void target_usb_phy_reset()
 	qusb2_phy_reset();
 }
 
+void target_usb_phy_sec_reset()
+{
+	qusb2_phy_reset();
+}
+
 target_usb_iface_t* target_usb30_init()
 {
 	target_usb_iface_t *t_usb_iface;
@@ -600,9 +656,20 @@ target_usb_iface_t* target_usb30_init()
 	t_usb_iface = calloc(1, sizeof(target_usb_iface_t));
 	ASSERT(t_usb_iface);
 
-	t_usb_iface->phy_init   = usb30_qmp_phy_init;
-	t_usb_iface->phy_reset  = target_usb_phy_reset;
-	t_usb_iface->clock_init = clock_usb30_init;
+
+	/* for SBC we use secondary port */
+	if (board_hardware_id() == HW_PLATFORM_SBC)
+	{
+		/* secondary port have no QMP phy,use only QUSB2 phy that have only reset */
+		t_usb_iface->phy_init   = NULL;
+		t_usb_iface->phy_reset  = target_usb_phy_sec_reset;
+		t_usb_iface->clock_init = clock_usb20_init;
+	} else {
+		t_usb_iface->phy_init   = usb30_qmp_phy_init;
+		t_usb_iface->phy_reset  = target_usb_phy_reset;
+		t_usb_iface->clock_init = clock_usb30_init;
+	}
+
 	t_usb_iface->vbus_override = 1;
 
 	return t_usb_iface;
@@ -729,7 +796,7 @@ bool target_charging_in_progress()
 }
 #endif /*ENABLE_WBC*/
 
-int set_download_mode(enum dload_mode mode)
+int set_download_mode(enum reboot_reason mode)
 {
 	int ret = 0;
 	ret = scm_dload_mode(mode);
@@ -746,7 +813,6 @@ uint32_t target_get_pmic()
 {
 	return PMIC_IS_PMI8996;
 }
-
 
 #if EARLYDOMAIN_SUPPORT
 
@@ -1179,3 +1245,77 @@ void earlydomain_exit() {}
 
 #endif /* EARLYDOMAIN_SUPPORT */
 
+int target_update_cmdline(char *cmdline)
+{
+	uint32_t platform_id = board_platform_id();
+	int len = 0;
+	if (platform_id == APQ8096SG || platform_id == MSM8996SG)
+	{
+		strlcpy(cmdline, " fpsimd.fpsimd_settings=0", TARGET_MAX_CMDLNBUF);
+		len = strlen (cmdline);
+
+		/* App settings are not required for other than v1.0 SoC */
+		if (board_soc_version() > 0x10000) {
+			strlcpy(cmdline + len, " app_setting.use_app_setting=0", TARGET_MAX_CMDLNBUF - len);
+			len = strlen (cmdline);
+		}
+	}
+
+	return len;
+}
+
+#if _APPEND_CMDLINE
+int get_target_boot_params(const char *cmdline, const char *part, char **buf)
+{
+	int system_ptn_index = -1;
+	unsigned int lun = 0;
+	char lun_char_base = 'a', lun_char_limit = 'h';
+
+	/*allocate buflen for largest possible string*/
+	uint32_t buflen = strlen(" root=/dev/mmcblock0p") + sizeof(int) + 1; /*1 character for null termination*/
+
+	if (!cmdline || !part ) {
+		dprintf(CRITICAL, "WARN: Invalid input param\n");
+		return -1;
+	}
+
+	system_ptn_index = partition_get_index(part);
+	if (system_ptn_index == -1)
+	{
+		dprintf(CRITICAL,"Unable to find partition %s\n",part);
+		return -1;
+	}
+
+	*buf = (char *)malloc(buflen);
+	if(!(*buf)) {
+		dprintf(CRITICAL,"Unable to allocate memory for boot params\n");
+		return -1;
+	}
+
+	/*
+	 * check if cmdline contains "root="/"" at the beginning of buffer or
+	 * " root="/"ubi.mtd" in the middle of buffer.
+	 */
+	if ((strncmp(cmdline," root=",strlen(" root=")) == 0) ||
+		strstr(cmdline, " root="))
+		dprintf(DEBUG, "DEBUG: cmdline has root=\n");
+	else
+	{
+		if (platform_boot_dev_isemmc()) {
+			snprintf(*buf, buflen, " root=/dev/mmcblock0p%d",
+					system_ptn_index + 1);
+		} else {
+			lun = partition_get_lun(system_ptn_index);
+			if ((lun_char_base + lun) > lun_char_limit) {
+				dprintf(CRITICAL, "lun value exceeds limit\n");
+				return -1;
+			}
+			snprintf(*buf, buflen, " root=/dev/sd%c%d",
+					lun_char_base + lun,
+					partition_get_index_in_lun(part, lun));
+		}
+	}
+	/*in success case buf will be freed in the calling function of this*/
+	return 0;
+}
+#endif

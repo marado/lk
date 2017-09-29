@@ -1,4 +1,4 @@
-/* Copyright (c) 2014-2015, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2014-2017, The Linux Foundation. All rights reserved.
 
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -44,10 +44,26 @@ void qusb2_phy_reset(void);
 #define QUSB2PHY_PORT_TUNE2         (QUSB2_PHY_BASE + 0x00000084)
 #define QUSB2PHY_PORT_TUNE3         (QUSB2_PHY_BASE + 0x00000088)
 #define QUSB2PHY_PORT_TUNE4         (QUSB2_PHY_BASE + 0x0000008C)
+#define QUSB2PHY_PORT_TUNE5         (QUSB2_PHY_BASE + 0x00000090)
 #define QUSB2PHY_PORT_TEST2         (QUSB2_PHY_BASE + 0x0000009C)
 #define QUSB2PHY_PLL_PWR_CTL        (QUSB2_PHY_BASE + 0x00000018)
 #define QUSB2PHY_PLL_AUTOPGM_CTL1   (QUSB2_PHY_BASE + 0x0000001C)
 #define QUSB2PHY_PLL_STATUS         (QUSB2_PHY_BASE + 0x00000038)
 
+
+/* QUSB2 PHY SDX20 */
+#define QUSB2PHY_PLL_ANALOG_CONTROLS_TWO_SDX20		(QUSB2_PHY_BASE + 0x4)
+#define QUSB2PHY_PLL_DIGITAL_TIMERS_TWO_SDX20		(QUSB2_PHY_BASE + 0xb4)
+#define QUSB2PHY_PLL_CLOCK_INVERTERS_SDX20			(QUSB2_PHY_BASE + 0x18c)
+#define QUSB2PHY_PLL_CMODE_SDX20						(QUSB2_PHY_BASE + 0x02c)
+#define QUSB2PHY_PLL_LOCK_DELAY_SDX20					(QUSB2_PHY_BASE + 0x90)
+#define QUSB2PHY_TUNE1_SDX20							(QUSB2_PHY_BASE + 0x23c)
+#define QUSB2PHY_TUNE2_SDX20							(QUSB2_PHY_BASE + 0x240)
+#define QUSB2PHY_IMP_CTRL1_SDX20						(QUSB2_PHY_BASE + 0x21c)
+#define QUSB2PHY_PWR_CTRL1_SDX20						(QUSB2_PHY_BASE + 0x210)
+#define QUSB2PHY_DEBUG_CTRL2_SDX20				(QUSB2_PHY_BASE + 0x278)
+#define QUSB2PHY_DEBUG_STAT5_SDX20					(QUSB2_PHY_BASE + 0x298)
+
+#define USB30_GENERAL_CFG_PIPE 0x08af8808
 
 #endif

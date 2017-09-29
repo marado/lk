@@ -1,4 +1,4 @@
-/* Copyright (c) 2015, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2015-2016, The Linux Foundation. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -66,9 +66,20 @@ static mmu_section_t mmu_section_table[] = {
 	{    MSM_IOMAP_BASE,        MSM_IOMAP_BASE,          MSM_IOMAP_SIZE,         IOMAP_MEMORY},
 	{    APPS_SS_BASE,          APPS_SS_BASE,            APPS_SS_SIZE,           IOMAP_MEMORY},
 	{    MSM_SHARED_IMEM_BASE,  MSM_SHARED_IMEM_BASE,    1,                      COMMON_MEMORY},
-	{    SCRATCH_ADDR,          SCRATCH_ADDR,            512,                    SCRATCH_MEMORY},
-	{    MIPI_FB_ADDR,          MIPI_FB_ADDR,            42,                     COMMON_MEMORY},
+	{    SCRATCH_ADDR,          SCRATCH_ADDR,            SCRATCH_SIZE,           SCRATCH_MEMORY},
+	{    MIPI_FB_ADDR,          MIPI_FB_ADDR,            20,                     COMMON_MEMORY},
 	{    RPMB_SND_RCV_BUF,      RPMB_SND_RCV_BUF,        RPMB_SND_RCV_BUF_SZ,    IOMAP_MEMORY},
+};
+
+static mmu_section_t mmu_section_table_512[] = {
+/*           Physical addr,         Virtual addr,            Size (in MB),     Flags */
+	{    MEMBASE,               MEMBASE,                 (MEMSIZE / MB),         LK_MEMORY},
+	{    MSM_IOMAP_BASE,        MSM_IOMAP_BASE,          MSM_IOMAP_SIZE,         IOMAP_MEMORY},
+	{    APPS_SS_BASE,          APPS_SS_BASE,            APPS_SS_SIZE,           IOMAP_MEMORY},
+	{    MSM_SHARED_IMEM_BASE,  MSM_SHARED_IMEM_BASE,    1,                      COMMON_MEMORY},
+	{    SCRATCH_ADDR_512,      SCRATCH_ADDR_512,        SCRATCH_SIZE_512,       SCRATCH_MEMORY},
+	{    MIPI_FB_ADDR,          MIPI_FB_ADDR,            20,                     COMMON_MEMORY},
+	{    RPMB_SND_RCV_BUF_512,  RPMB_SND_RCV_BUF_512,    RPMB_SND_RCV_BUF_SZ,    IOMAP_MEMORY},
 };
 
 void platform_early_init(void)
@@ -111,9 +122,10 @@ void platform_init_mmu_mappings(void)
 {
 	uint32_t i;
 	uint32_t sections;
-	uint32_t table_size = ARRAY_SIZE(mmu_section_table);
+	uint32_t table_size;
 	uint32_t ddr_start = get_ddr_start();
 	uint32_t smem_addr = platform_get_smem_base_addr();
+	mmu_section_t *table_addr;
 
 	/*Mapping the ddr start address for loading the kernel about 90 MB*/
 	sections = 90;
@@ -128,19 +140,32 @@ void platform_init_mmu_mappings(void)
 
 	/* Configure the MMU page entries for memory read from the
 	   mmu_section_table */
+	if(smem_get_ddr_size() > 0x20000000)
+	{
+		table_addr = mmu_section_table;
+		table_size = ARRAY_SIZE(mmu_section_table);
+	}
+	else
+	{
+		table_addr = mmu_section_table_512;
+		table_size = ARRAY_SIZE(mmu_section_table_512);
+	}
+
 	for (i = 0; i < table_size; i++)
 	{
-		sections = mmu_section_table[i].num_of_sections;
+		sections = table_addr->num_of_sections;
 
 		while (sections--)
 		{
-			arm_mmu_map_section(mmu_section_table[i].paddress +
+			arm_mmu_map_section(table_addr->paddress +
 								sections * MB,
-								mmu_section_table[i].vaddress +
+								table_addr->vaddress +
 								sections * MB,
-								mmu_section_table[i].flags);
+								table_addr->flags);
 		}
+		table_addr++;
 	}
+
 }
 
 addr_t platform_get_virt_to_phys_mapping(addr_t virt_addr)
@@ -177,6 +202,27 @@ uint32_t platform_get_max_periph()
 	return 256;
 }
 
+int platform_is_msm8917()
+{
+	uint32_t platform = board_platform_id();
+	uint32_t ret = 0;
+
+	switch(platform)
+	{
+		case MSM8917:
+		case MSM8920:
+		case MSM8217:
+		case MSM8617:
+		case APQ8017:
+			ret = 1;
+			break;
+		default:
+			ret = 0;
+	};
+
+	return ret;
+}
+
 int platform_is_msm8937()
 {
 	uint32_t platform = board_platform_id();
@@ -185,12 +231,31 @@ int platform_is_msm8937()
 	switch(platform)
 	{
 		case MSM8937:
+		case MSM8940:
 		case APQ8037:
 			ret = 1;
 			break;
 		default:
 			ret = 0;
 		};
+
+	return ret;
+}
+
+int platform_is_msm8952()
+{
+	uint32_t platform = board_platform_id();
+	uint32_t ret = 0;
+
+	switch(platform)
+	{
+	case MSM8952:
+	case APQ8052:
+		ret = 1;
+		break;
+	default:
+		ret = 0;
+	};
 
 	return ret;
 }
@@ -213,6 +278,30 @@ int platform_is_msm8956()
 	};
 
 	return ret;
+}
+
+uint32_t platform_get_tz_app_add()
+{
+	if(platform_is_msm8937() || platform_is_msm8917())
+		return APP_REGION_ADDR_8937;
+	else
+		return APP_REGION_ADDR_8952;
+}
+
+uint32_t platform_get_tz_app_size()
+{
+	if(platform_is_msm8937() || platform_is_msm8917())
+		return APP_REGION_SIZE_8937;
+	else
+		return APP_REGION_SIZE_8952;
+}
+
+uint32_t platform_get_apcs_ipc_base()
+{
+	if(platform_is_msm8917())
+		return APCS_ALIAS1_IPC_INTERRUPT_1;
+	else
+		return APCS_ALIAS0_IPC_INTERRUPT_2;
 }
 
 uint32_t platform_is_msm8976_v_1_1()

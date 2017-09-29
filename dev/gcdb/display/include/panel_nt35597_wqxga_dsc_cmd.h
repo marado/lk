@@ -1,4 +1,4 @@
-/* Copyright (c) 2015, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2015-2016, The Linux Foundation. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -319,7 +319,7 @@ static struct backlight nt35597_wqxga_dsc_cmd_backlight = {
 };
 
 static struct labibb_desc nt35597_wqxga_dsc_cmd_labibb = {
-	0, 1, 5500000, 5500000, 5500000, 5500000, 3, 3, 1
+	0, 1, 5500000, 5500000, 5500000, 5500000, 3, 3, 1, 0
 };
 
 /*---------------------------------------------------------------------------*/
@@ -333,7 +333,7 @@ static const struct dfps_panel_info nt35597_wqxga_dsc_cmd_dfps = {
 /* DSC									     */
 /*---------------------------------------------------------------------------*/
 struct dsc_parameters nt35597_wqxga_dsc_cmd_params0 = {
-	1, 0, 0, 16, 720, 8, 8, 2, 1
+	1, 1, 0, 16, 720, 8, 8, 2, 1, 0
 };
 
 /* 1LM + 1 DSC_ENC */

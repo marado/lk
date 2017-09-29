@@ -176,6 +176,8 @@ bool boot_verify_validate_keystore(unsigned char * user_addr, unsigned sz);
 /* Function to send root of trust to trust zone */
 bool send_rot_command(uint32_t is_unlocked);
 void send_rot_command_minimal();
+/* function to set the os version and patch level. */
+void set_os_version(unsigned char* img_addr);
 unsigned char* get_boot_fingerprint(unsigned int* buf_size);
 bool boot_verify_compare_sha256(unsigned char *image_ptr,
 		unsigned int image_size, unsigned char *signature_ptr, RSA *rsa);

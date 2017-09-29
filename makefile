@@ -76,6 +76,17 @@ ifeq ($(TARGET_BUILD_VARIANT),user)
   CFLAGS += -DDISABLE_FASTBOOT_CMDS=1
 endif
 
+ifeq ($(APPEND_CMDLINE),1)
+  CFLAGS += -D_APPEND_CMDLINE=1
+endif
+ifeq ($(ENABLE_HARD_FPU),1)
+  CFLAGS += -mfloat-abi=hard -mfpu=neon
+endif
+
+ifeq ($(ENABLE_EARLY_ETHERNET),1)
+  CFLAGS += -DENABLE_EARLY_ETHERNET=1
+endif
+
 # setup toolchain prefix
 TOOLCHAIN_PREFIX ?= arm-eabi-
 CFLAGS += -fstack-protector-all
@@ -120,8 +131,29 @@ ifeq ($(VERIFIED_BOOT),1)
   endif
 endif
 
+ifeq ($(VERIFIED_BOOT_LE),1)
+  DEFINES += VERIFIED_BOOT_LE=1
+  ifeq ($(DEFAULT_UNLOCK),true)
+    DEFINES += DEFAULT_UNLOCK=1
+  endif
+endif
+
+ifeq ($(OSVERSION_IN_BOOTIMAGE),1)
+ DEFINES += OSVERSION_IN_BOOTIMAGE=1
+endif
+
+ifeq ($(ENABLE_VB_ATTEST),1)
+ DEFINES += ENABLE_VB_ATTEST=1
+endif
+
 ifeq ($(USER_BUILD_VARIANT),true)
   DEFINES += USER_BUILD_VARIANT=1
+endif
+
+ifeq ($(USE_LE_SYSTEMD),true)
+  DEFINES += USE_LE_SYSTEMD=1
+else
+  DEFINES += USE_LE_SYSTEMD=0
 endif
 
 # these need to be filled out by the project/target/platform rules.mk files
@@ -161,7 +193,7 @@ ALLOBJS := \
 
 # add some automatic configuration defines
 DEFINES += \
-	BOARD=$(PROJECT) \
+	BOARD=$(BOARD_NAME) \
 	PROJECT_$(PROJECT)=1 \
 	TARGET_$(TARGET)=1 \
 	PLATFORM_$(PLATFORM)=1 \

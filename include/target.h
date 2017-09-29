@@ -26,6 +26,15 @@
 #define __TARGET_H
 #include <qmp_phy.h>
 
+#define TARGET_MAX_CMDLNBUF 64
+
+/* Enum for target VB version detection */
+enum
+{
+	VB_V1 = 1,
+	VB_V2 = 2,
+};
+
 /* Target helper functions exposed to USB driver */
 typedef struct {
 	void (*mux_config) ();
@@ -69,6 +78,7 @@ uint32_t target_get_boot_device();
 
 const char * target_usb_controller();
 void target_usb_phy_reset(void);
+void target_usb_phy_sec_reset(void);
 void target_usb_phy_mux_configure(void);
 target_usb_iface_t * target_usb30_init();
 bool target_is_cdp_qvga();
@@ -93,9 +103,11 @@ void pmic_reset_configure(uint8_t reset_type);
 
 struct qmp_reg *target_get_qmp_settings();
 int target_get_qmp_regsize();
+uint32_t target_ddr_cfg_reg();
 
+bool target_is_pmi_enabled(void);
 #if PON_VIB_SUPPORT
-uint32_t get_vibration_type();
+void get_vibration_type();
 #endif
 
 #if CHECK_BAT_VOLTAGE
@@ -108,4 +120,6 @@ bool target_battery_is_present();
 uint32_t target_get_pmic();
 void earlydomain();
 int target_is_yuv_format(uint32_t format);
+int target_update_cmdline(char *cmdline);
+int target_get_vb_version();
 #endif

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2013-2015, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2013-2017, The Linux Foundation. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are met:
@@ -36,6 +36,26 @@
 #include <platform/iomap.h>
 #include <platform/timer.h>
 #include <platform.h>
+#include <rpm-smd.h>
+#include <regulator.h>
+
+#define RPM_CE_CLK_TYPE    0x6563
+#define CE1_CLK_ID         0x0
+#define RPM_SMD_KEY_RATE   0x007A484B
+
+uint32_t CE1_CLK[][8]=
+{
+    {
+        RPM_CE_CLK_TYPE, CE1_CLK_ID,
+        KEY_SOFTWARE_ENABLE, 4, GENERIC_DISABLE,
+        RPM_SMD_KEY_RATE, 4, 0,
+    },
+    {
+        RPM_CE_CLK_TYPE, CE1_CLK_ID,
+        KEY_SOFTWARE_ENABLE, 4, GENERIC_ENABLE,
+        RPM_SMD_KEY_RATE, 4, 171430, /* clk rate in KHZ */
+    },
+};
 
 void clock_config_uart_dm(uint8_t id)
 {
@@ -86,15 +106,20 @@ void clock_usb30_init(void)
 
 	clock_usb30_gdsc_enable();
 
-	ret = clk_get_set_enable("usb30_master_clk", 125000000, 1);
+	if (platform_is_sdx20())
+		ret = clk_get_set_enable("usb30_master_clk_sdx20", 200000000, 1);
+	else
+		ret = clk_get_set_enable("usb30_master_clk", 125000000, 1);
 	if(ret)
 	{
 		dprintf(CRITICAL, "failed to set usb30_master_clk. ret = %d\n", ret);
 		ASSERT(0);
 	}
 
-	if (platform_is_mdmcalifornium())
-		ret = clk_get_set_enable("usb30_pipe_clk_mdmcalifornium", 0, 1);
+	if (platform_is_mdm9650())
+		ret = clk_get_set_enable("usb30_pipe_clk_mdm9650", 0, 1);
+	else if (platform_is_sdx20())
+		ret = clk_get_set_enable("usb30_pipe_clk_sdx20", 0, 1);
 	else
 		ret = clk_get_set_enable("usb30_pipe_clk", 19200000, 1);
 
@@ -111,7 +136,10 @@ void clock_usb30_init(void)
 		ASSERT(0);
 	}
 
-	ret = clk_get_set_enable("usb30_mock_utmi_clk", 60000000, true);
+	if (platform_is_sdx20())
+		ret = clk_get_set_enable("usb30_mock_utmi_clk_sdx20", 19200000, 1);
+	else
+		ret = clk_get_set_enable("usb30_mock_utmi_clk", 60000000, true);
 	if(ret)
 	{
 		dprintf(CRITICAL, "failed to set usb30_mock_utmi_clk ret = %d\n", ret);
@@ -155,7 +183,10 @@ void clock_config_mmc(uint32_t interface, uint32_t freq)
 	int ret = 0;
 	char clk_name[64];
 
-	snprintf(clk_name, sizeof(clk_name), "sdc%u_core_clk", interface);
+	if(platform_is_sdx20())
+		snprintf(clk_name, sizeof(clk_name), "sdc%u_core_clk_sdx20", interface);
+	else
+		snprintf(clk_name, sizeof(clk_name), "sdc%u_core_clk", interface);
 
 	if(freq == MMC_CLK_400KHZ)
 	{
@@ -190,7 +221,7 @@ void clock_bumpup_pipe3_clk()
 {
 	int ret =0;
 
-	if (platform_is_mdmcalifornium())
+	if (platform_is_mdm9650())
 		ret = clk_get_set_enable("usb30_pipe_clk", 0, true);
 	else
 		ret = clk_get_set_enable("usb30_pipe_clk", 125000000, true);
@@ -202,6 +233,9 @@ void clock_bumpup_pipe3_clk()
 	}
 }
 
+/*
+ * This is the clock reset function for USB3
+ */
 void clock_reset_usb_phy()
 {
 	int ret;
@@ -217,8 +251,14 @@ void clock_reset_usb_phy()
 	phy_reset_clk = clk_get("usb30_phy_reset");
 	ASSERT(phy_reset_clk);
 
-	pipe_reset_clk = clk_get("usb30_pipe_clk");
-	ASSERT(pipe_reset_clk);
+	if(platform_is_sdx20()){
+		pipe_reset_clk = clk_get("usb30_pipe_clk_sdx20");
+		ASSERT(pipe_reset_clk);
+	}
+	else{
+		pipe_reset_clk = clk_get("usb30_pipe_clk");
+		ASSERT(pipe_reset_clk);
+	}
 
 	/* ASSERT */
 	ret = clk_reset(master_clk, CLK_RESET_ASSERT);
@@ -269,4 +309,133 @@ deassert_master_clk:
 		return;
 	}
 
+}
+
+void clock_ce_enable(uint8_t instance)
+{
+	int ret;
+	char clk_name[64];
+
+	if (platform_is_mdm9650())
+	{
+		if (instance == 1)
+			rpm_send_data(&CE1_CLK[GENERIC_ENABLE][0], 24, RPM_REQUEST_TYPE);
+		else
+		{
+			dprintf(CRITICAL, "Unsupported CE instance\n");
+			ASSERT(0);
+		}
+		return;
+	}
+
+	snprintf(clk_name, sizeof(clk_name), "ce%u_src_clk", instance);
+	ret = clk_get_set_enable(clk_name, 160000000, 1);
+	if(ret)
+	{
+		dprintf(CRITICAL, "failed to set ce%u_src_clk ret = %d\n", instance, ret);
+		ASSERT(0);
+	}
+
+	snprintf(clk_name, sizeof(clk_name), "ce%u_core_clk", instance);
+	ret = clk_get_set_enable(clk_name, 0, 1);
+	if(ret)
+	{
+		dprintf(CRITICAL, "failed to set ce%u_core_clk ret = %d\n", instance, ret);
+		ASSERT(0);
+	}
+
+	snprintf(clk_name, sizeof(clk_name), "ce%u_ahb_clk", instance);
+	ret = clk_get_set_enable(clk_name, 0, 1);
+	if(ret)
+	{
+		dprintf(CRITICAL, "failed to set ce%u_ahb_clk ret = %d\n", instance, ret);
+		ASSERT(0);
+	}
+
+	snprintf(clk_name, sizeof(clk_name), "ce%u_axi_clk", instance);
+	ret = clk_get_set_enable(clk_name, 0, 1);
+	if(ret)
+	{
+		dprintf(CRITICAL, "failed to set ce%u_axi_clk ret = %d\n", instance, ret);
+		ASSERT(0);
+	}
+
+	/* Wait for 48 * #pipes cycles.
+	* This is necessary as immediately after an access control reset (boot up)
+	* or a debug re-enable, the Crypto core sequentially clears its internal
+	* pipe key storage memory. If pipe key initialization writes are attempted
+	* during this time, they may be overwritten by the internal clearing logic.
+	*/
+	udelay(1);
+}
+
+void clock_ce_disable(uint8_t instance)
+{
+	struct clk *ahb_clk;
+	struct clk *cclk;
+	struct clk *axi_clk;
+	struct clk *src_clk;
+	char clk_name[64];
+
+	if (platform_is_mdm9650())
+	{
+		if (instance == 1)
+		rpm_send_data(&CE1_CLK[GENERIC_DISABLE][0], 24, RPM_REQUEST_TYPE);
+		else
+		{
+			dprintf(CRITICAL, "Unsupported CE instance\n");
+			ASSERT(0);
+		}
+		return;
+	}
+
+	snprintf(clk_name, sizeof(clk_name), "ce%u_src_clk", instance);
+	src_clk = clk_get(clk_name);
+
+	snprintf(clk_name, sizeof(clk_name), "ce%u_ahb_clk", instance);
+	ahb_clk = clk_get(clk_name);
+
+	snprintf(clk_name, sizeof(clk_name), "ce%u_axi_clk", instance);
+	axi_clk = clk_get(clk_name);
+
+	snprintf(clk_name, sizeof(clk_name), "ce%u_core_clk", instance);
+	cclk    = clk_get(clk_name);
+
+	clk_disable(ahb_clk);
+	clk_disable(axi_clk);
+	clk_disable(cclk);
+	clk_disable(src_clk);
+
+	/* Some delay for the clocks to stabalize. */
+	udelay(1);
+}
+/* Function to asynchronously reset CE.
+ * Function assumes that all the CE clocks are off.
+ */
+static void ce_async_reset(uint8_t instance)
+{
+	/* Start the block reset for CE */
+	writel(1, GCC_CRYPTO_BCR);
+
+	udelay(2);
+
+	/* Take CE block out of reset */
+	writel(0, GCC_CRYPTO_BCR);
+
+	udelay(2);
+}
+
+void clock_config_ce(uint8_t instance)
+{
+	/* Need to enable the clock before disabling since the clk_disable()
+	 * has a check to default to nop when the clk_enable() is not called
+	 * on that particular clock.
+	 */
+	clock_ce_enable(instance);
+
+	clock_ce_disable(instance);
+
+	ce_async_reset(instance);
+
+	clock_ce_enable(instance);
 }

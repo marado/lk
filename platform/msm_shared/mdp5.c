@@ -40,6 +40,7 @@
 #include <clock.h>
 #include <scm.h>
 #include <target.h>
+#include <arch/defines.h>
 
 #define MDSS_MDP_MAX_PREFILL_FETCH	25
 
@@ -59,14 +60,20 @@ int mdp_get_revision()
 
 static inline bool is_software_pixel_ext_config_needed()
 {
-	return MDSS_IS_MAJOR_MINOR_MATCHING(readl(MDP_HW_REV),
-		MDSS_MDP_HW_REV_107);
+	return (MDSS_IS_MAJOR_MINOR_MATCHING(readl(MDP_HW_REV),
+		MDSS_MDP_HW_REV_107) || MDSS_IS_MAJOR_MINOR_MATCHING(readl(MDP_HW_REV),
+		MDSS_MDP_HW_REV_114) || MDSS_IS_MAJOR_MINOR_MATCHING(readl(MDP_HW_REV),
+		MDSS_MDP_HW_REV_116) || MDSS_IS_MAJOR_MINOR_MATCHING(readl(MDP_HW_REV),
+		MDSS_MDP_HW_REV_115));
 }
 
 static inline bool has_fixed_size_smp()
 {
-	return MDSS_IS_MAJOR_MINOR_MATCHING(readl(MDP_HW_REV),
-		MDSS_MDP_HW_REV_107);
+	return (MDSS_IS_MAJOR_MINOR_MATCHING(readl(MDP_HW_REV),
+		MDSS_MDP_HW_REV_107) || MDSS_IS_MAJOR_MINOR_MATCHING(readl(MDP_HW_REV),
+		MDSS_MDP_HW_REV_114) || MDSS_IS_MAJOR_MINOR_MATCHING(readl(MDP_HW_REV),
+		MDSS_MDP_HW_REV_116) || MDSS_IS_MAJOR_MINOR_MATCHING(readl(MDP_HW_REV),
+		MDSS_MDP_HW_REV_115));
 }
 
 uint32_t mdss_mdp_intf_offset()
@@ -77,7 +84,10 @@ uint32_t mdss_mdp_intf_offset()
 	if ((mdss_mdp_rev == MDSS_MDP_HW_REV_106) ||
 		(mdss_mdp_rev == MDSS_MDP_HW_REV_108) ||
 		(mdss_mdp_rev == MDSS_MDP_HW_REV_111) ||
-		(mdss_mdp_rev == MDSS_MDP_HW_REV_112))
+		(mdss_mdp_rev == MDSS_MDP_HW_REV_112) ||
+		(mdss_mdp_rev == MDSS_MDP_HW_REV_114) ||
+		(mdss_mdp_rev == MDSS_MDP_HW_REV_116) ||
+		(mdss_mdp_rev == MDSS_MDP_HW_REV_115))
 		mdss_mdp_intf_off = 0x59100;
 	else if (mdss_mdp_rev >= MDSS_MDP_HW_REV_102)
 		mdss_mdp_intf_off = 0;
@@ -111,7 +121,10 @@ static uint32_t mdss_mdp_vbif_qos_remap_get_offset()
 	uint32_t mdss_mdp_rev = readl(MDP_HW_REV);
 
 	if ((mdss_mdp_rev == MDSS_MDP_HW_REV_110) ||
-		(mdss_mdp_rev == MDSS_MDP_HW_REV_111))
+		(mdss_mdp_rev == MDSS_MDP_HW_REV_111) ||
+		(mdss_mdp_rev == MDSS_MDP_HW_REV_114) ||
+		(mdss_mdp_rev == MDSS_MDP_HW_REV_115) ||
+		(mdss_mdp_rev == MDSS_MDP_HW_REV_116))
 		return 0xB0020;
 	else if (MDSS_IS_MAJOR_MINOR_MATCHING(mdss_mdp_rev, MDSS_MDP_HW_REV_107))
 		return 0xB0000;
@@ -286,6 +299,9 @@ static void mdss_mdp_set_flush(struct msm_panel_info *pinfo,
 		(mdss_mdp_rev == MDSS_MDP_HW_REV_109) ||
 		MDSS_IS_MAJOR_MINOR_MATCHING(mdss_mdp_rev,
 			MDSS_MDP_HW_REV_107) ||
+		(mdss_mdp_rev == MDSS_MDP_HW_REV_114) ||
+		(mdss_mdp_rev == MDSS_MDP_HW_REV_116) ||
+		(mdss_mdp_rev == MDSS_MDP_HW_REV_115) ||
 		(mdss_mdp_rev == MDSS_MDP_HW_REV_110)) {
 		if (pinfo->dest == DISPLAY_2) {
 			//clear the default mixer and DSPP
@@ -1341,11 +1357,18 @@ int mdp_dsi_video_config(struct msm_panel_info *pinfo,
 
 		if (pinfo->lcdc.dual_pipe && !pinfo->mipi.dual_dsi &&
 		    !pinfo->lcdc.split_display && (pinfo->num_dsc_enc == 2)) {
-
 			dsc->mdp_dsc_config(pinfo, MDP_PP_0_BASE,
 				MDP_DSC_0_BASE, true, true);
 			dsc->mdp_dsc_config(pinfo, MDP_PP_1_BASE,
 				MDP_DSC_1_BASE, true, true);
+
+		} else if (pinfo->lcdc.dual_pipe && pinfo->mipi.dual_dsi &&
+		    pinfo->lcdc.split_display && (pinfo->num_dsc_enc == 1)) {
+			dsc->mdp_dsc_config(pinfo, MDP_PP_0_BASE,
+				MDP_DSC_0_BASE, false, false);
+			dsc->mdp_dsc_config(pinfo, MDP_PP_1_BASE,
+				MDP_DSC_1_BASE, false, false);
+
 		} else {
 			dsc->mdp_dsc_config(pinfo, MDP_PP_0_BASE,
 				MDP_DSC_0_BASE, false, false);
@@ -1536,7 +1559,8 @@ int mdp_dsi_cmd_config(struct msm_panel_info *pinfo,
 
 	mdp_select_pipe_type(pinfo, &left_pipe, &right_pipe);
 	mdss_vbif_setup();
-	mdss_smp_setup(pinfo, left_pipe, right_pipe);
+	if (!has_fixed_size_smp())
+		mdss_smp_setup(pinfo, left_pipe, right_pipe);
 	mdss_qos_remapper_setup();
 	mdss_vbif_qos_remapper_setup(pinfo);
 
@@ -1668,6 +1692,46 @@ int mdp_dsi_cmd_off()
 	return NO_ERROR;
 }
 
+static void mdp_set_cmd_autorefresh_mode(struct msm_panel_info *pinfo)
+{
+	uint32_t total_lines = 0, vclks_line = 0, cfg = 0;
+
+	if (!pinfo || (pinfo->type != MIPI_CMD_PANEL) ||
+				!pinfo->autorefresh_enable)
+		return;
+
+	total_lines = pinfo->lcdc.v_front_porch +
+			pinfo->lcdc.v_back_porch +
+			pinfo->lcdc.v_pulse_width +
+			pinfo->border_top + pinfo->border_bottom +
+			pinfo->yres;
+	total_lines *= pinfo->mipi.frame_rate;
+
+	vclks_line = (total_lines) ? 19200000 / total_lines : 0;
+	vclks_line = vclks_line * pinfo->mipi.frame_rate * 100 / 6000;
+
+	cfg = BIT(19) | vclks_line;
+
+	/* Configure tearcheck VSYNC param */
+	writel(cfg, MDP_REG_PP_0_SYNC_CONFIG_VSYNC);
+	if (pinfo->lcdc.dst_split)
+		writel(cfg, MDP_REG_PP_SLAVE_SYNC_CONFIG_VSYNC);
+	if (pinfo->lcdc.dual_pipe)
+		writel(cfg, MDP_REG_PP_1_SYNC_CONFIG_VSYNC);
+	dsb();
+
+	/* Enable autorefresh mode */
+	writel((BIT(31) | pinfo->autorefresh_framenum),
+			MDP_REG_PP_0_AUTOREFRESH_CONFIG);
+	if (pinfo->lcdc.dst_split)
+		writel((BIT(31) | pinfo->autorefresh_framenum),
+			MDP_REG_PP_SLAVE_AUTOREFRESH_CONFIG);
+	if (pinfo->lcdc.dual_pipe)
+		writel((BIT(31) | pinfo->autorefresh_framenum),
+			MDP_REG_PP_1_AUTOREFRESH_CONFIG);
+	dsb();
+}
+
 int mdp_dma_on(struct msm_panel_info *pinfo)
 {
 	uint32_t ctl0_reg_val, ctl1_reg_val;
@@ -1676,8 +1740,11 @@ int mdp_dma_on(struct msm_panel_info *pinfo)
 	if (pinfo->lcdc.dual_pipe && !pinfo->lcdc.dst_split)
 		writel(ctl1_reg_val, MDP_CTL_1_BASE + CTL_FLUSH);
 
+        if (pinfo->autorefresh_enable)
+		mdp_set_cmd_autorefresh_mode(pinfo);
 	writel(0x01, MDP_CTL_0_BASE + CTL_START);
-	return NO_ERROR;
+
+        return NO_ERROR;
 }
 
 int mdp_edp_on(struct msm_panel_info *pinfo)

@@ -1,4 +1,4 @@
-/* Copyright (c) 2010-2015, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2010-2016, The Linux Foundation. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -317,6 +317,22 @@ static int mdss_dsi_cmd_bta_sw_trigger(uint32_t ctl_base)
 	return err;
 }
 
+static void mdss_dsi_force_clk_lane_hs(struct mipi_panel_info *mipi,
+		uint32_t dual_dsi)
+{
+	uint32_t tmp;
+
+	if (dual_dsi) {
+		tmp = readl(mipi->sctl_base + LANE_CTL);
+		tmp |= BIT(28);
+		writel(tmp, mipi->sctl_base + LANE_CTL);
+	}
+
+	tmp = readl(mipi->ctl_base + LANE_CTL);
+	tmp |= BIT(28);
+	writel(tmp, mipi->ctl_base + LANE_CTL);
+}
+
 int mdss_dsi_host_init(struct mipi_panel_info *mipi, uint32_t
 		dual_dsi, uint32_t broadcast)
 {
@@ -382,14 +398,6 @@ int mdss_dsi_host_init(struct mipi_panel_info *mipi, uint32_t
 		writel(lane_swap_dsi1, mipi->sctl_base + LANE_SWAP_CTL);
 		writel(timing_ctl, mipi->sctl_base + TIMING_CTL);
 
-		if (mipi->force_clk_lane_hs) {
-			uint32_t tmp;
-
-			tmp = readl(mipi->sctl_base + LANE_CTL);
-			tmp |= BIT(28);
-			writel(tmp, mipi->sctl_base + LANE_CTL);
-		}
-
 		if ((mipi->mode == DSI_CMD_MODE) &&
 				(readl(mipi->sctl_base) >= DSI_HW_REV_103)) {
 			uint32_t tmp;
@@ -397,6 +405,10 @@ int mdss_dsi_host_init(struct mipi_panel_info *mipi, uint32_t
 			tmp |= BIT(16); /* enable burst mode */
 			writel(tmp, mipi->sctl_base + 0x01b8);
 		}
+
+		writel(((mipi->rx_eot_ignore & 0x1) << 4) |
+			(mipi->tx_eot_append & 0x1),
+			mipi->sctl_base + EOT_PACKET_CTRL);
 	}
 
 	writel(0x0001, mipi->ctl_base + SOFT_RESET);
@@ -414,14 +426,6 @@ int mdss_dsi_host_init(struct mipi_panel_info *mipi, uint32_t
 	writel(lane_swap, mipi->ctl_base + LANE_SWAP_CTL);
 	writel(timing_ctl, mipi->ctl_base + TIMING_CTL);
 
-	if (mipi->force_clk_lane_hs) {
-		uint32_t tmp;
-
-		tmp = readl(mipi->ctl_base + LANE_CTL);
-		tmp |= BIT(28);
-		writel(tmp, mipi->ctl_base + LANE_CTL);
-	}
-
 	if ((mipi->mode == DSI_CMD_MODE) &&
 			(readl(mipi->ctl_base) >= DSI_HW_REV_103)) {
 		uint32_t tmp;
@@ -430,8 +434,8 @@ int mdss_dsi_host_init(struct mipi_panel_info *mipi, uint32_t
 		writel(tmp, mipi->ctl_base + 0x01b8);
 	}
 
-	if ((mipi->mode == DSI_VIDEO_MODE) && mipi->tx_eot_append)
-		writel(0x1, mipi->ctl_base + EOT_PACKET_CTRL);
+	writel(((mipi->rx_eot_ignore & 0x1) << 4) | (mipi->tx_eot_append & 0x1),
+		mipi->ctl_base + EOT_PACKET_CTRL);
 
 #endif
 
@@ -596,8 +600,6 @@ int mdss_dsi_video_mode_config(struct msm_panel_info *pinfo,
 				mdp_get_revision() != MDP_REV_305)
 		writel(0x1, ctl_base + TIMING_FLUSH);
 
-	writel(0x0, ctl_base + EOT_PACKET_CTRL);
-
 	writel(0x00000100, ctl_base + MISR_VIDEO_CTRL);
 
 	if (mdp_get_revision() >= MDP_REV_41 || mdp_get_revision() == MDP_REV_305) {
@@ -676,6 +678,9 @@ int mdss_dsi_config(struct msm_fb_panel_data *panel)
 			goto error;
 		}
 	}
+
+	if (mipi->force_clk_lane_hs)
+		mdss_dsi_force_clk_lane_hs(mipi, mipi->dual_dsi);
 
 	if (!mipi->cmds_post_tg) {
 		ret = mdss_dsi_panel_initialize(mipi, mipi->broadcast);
@@ -799,7 +804,6 @@ int mdss_dsi_cmd_mode_config(struct msm_panel_info *pinfo,
 	       ctl_base + CTRL);
 	writel(0x14000000, ctl_base + COMMAND_MODE_DMA_CTRL);
 	writel(0x10000000, ctl_base + MISR_CMD_CTRL);
-	writel(0x1, ctl_base + EOT_PACKET_CTRL);
 #endif
 	return 0;
 }

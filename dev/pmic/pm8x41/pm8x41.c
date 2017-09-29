@@ -1,4 +1,4 @@
-/* Copyright (c) 2012-2015, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2012-2015, 2017, The Linux Foundation. All rights reserved.
 
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -185,6 +185,10 @@ int pm8x41_gpio_config(uint8_t gpio, struct pm8x41_gpio *config)
 		val = config->out_strength | (config->output_buffer << 4);
 		REG_WRITE(gpio_base + GPIO_DIG_OUT_CTL, val);
 	}
+
+	/* Output source sel and output invert */
+	val = config->inv_int_pol << 7;
+	REG_WRITE(gpio_base + GPIO_DIG_OUT_SRC_CTL, val);
 
 	/* Enable the GPIO */
 	val  = REG_READ(gpio_base + GPIO_EN_CTL);
@@ -563,6 +567,13 @@ void pm8x41_lpg_write_sid(uint8_t sid, uint8_t chan, uint8_t off, uint8_t val)
 	dprintf(SPEW, "%s: lpg=%d base=%x\n", __func__, chan, lpg_base);
 
 	REG_WRITE(lpg_base + off, val);
+}
+
+uint8_t pmi8950_get_pmi_subtype()
+{
+	uint8_t subtype;
+	spmi_reg_read((PMI8950_SLAVE_ID >> 16), REVID_REV_ID_SPARE_0, &subtype, 0);
+	return subtype;
 }
 
 uint8_t pm8x41_get_pmic_rev()

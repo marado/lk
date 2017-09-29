@@ -191,7 +191,7 @@ warm_boot_tag:
 	 * dynamically allocated stack, so we don't need it for very long
 	 */
 abort_stack:
-	.skip 1024
+	.skip 2048
 abort_stack_top:
 
 #if EARLYDOMAIN_SUPPORT

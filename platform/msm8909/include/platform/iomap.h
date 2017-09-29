@@ -1,4 +1,4 @@
-/* Copyright (c) 2014-2015, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2014-2015, 2017, The Linux Foundation. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -78,6 +78,9 @@
 #define MSM_USB_BASE                (PERIPH_SS_BASE + 0x000D9000)
 
 #define CLK_CTL_BASE                0x1800000
+
+#define PMI_SECOND_SLAVE_OFFSET 0x1
+#define PMI_SECOND_SLAVE_ADDR_BASE (PMI_SECOND_SLAVE_OFFSET << 16)
 
 #define SPMI_BASE                   0x02000000
 #define SPMI_GENI_BASE              (SPMI_BASE + 0xA000)
@@ -179,6 +182,18 @@
 #define USB_HS_SYSTEM_CFG_RCGR      (CLK_CTL_BASE + 0x41014)
 
 
+/* RPMB send receive buffer needs to be mapped
+ * as device memory, define the start address
+ * and size in MB
+ */
+#define RPMB_SND_RCV_BUF            0x90000000
+#define RPMB_SND_RCV_BUF_SZ         0x1
+
+/* QSEECOM: Secure app region notification */
+#define APP_REGION_ADDR 0x87b00000
+#define APP_REGION_SIZE 0x100000
+
+
 /* MDSS */
 #define MIPI_DSI_BASE               (0x1AC8000)
 #define MIPI_DSI0_BASE              MIPI_DSI_BASE
@@ -206,6 +221,7 @@
 #define MDP_DMA_P_WATERMARK_2       REG_MDP(0x9009C)
 #define MDP_PANIC_ROBUST_CTRL       REG_MDP(0x900A0)
 #define MDP_PANIC_LUT0              REG_MDP(0x900A4)
+#define MDP_PANIC_LUT1              REG_MDP(0x900A8)
 #define MDP_ROBUST_LUT              REG_MDP(0x900AC)
 
 #define MDP_DSI_VIDEO_EN                 REG_MDP(0xF0000)

@@ -1,7 +1,7 @@
 /*
  * Copyright (c) 2008, Google Inc.
  * All rights reserved.
- * Copyright (c) 2009-2015, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2009-2016, The Linux Foundation. All rights reserved.
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
  * are met:
@@ -66,18 +66,20 @@ static struct bam_instance bam;
 static uint8_t *bbtbl;
 
 static uint8_t* rdwr_buf;
+static uint32_t val;
 
 static struct flash_id supported_flash[] = {
 	/* Flash ID  Flash ID2 ID Mask     ID Mask2  Density(MB)    Wid Pgsz    Blksz              oobsz   8-bit ECCf */
 	{0x1590AC2C, 0x56,     0xFFFFFFFF, 0xFF,     0x20000000,    0,  2048,   0x00020000,        0x40,   0},
 	{0x1590AC2C, 0x57,     0xFFFFFFFF, 0xFF,     0x20000000,    0,  2048,   0x00020000,        0x40,   1},
-	{0x1590AA2C, 0x06,     0xFFFFFFFF, 0x0,      0x10000000,    0,  2048,   0x00020000,        0xE0,   1},
+	{0x1590AA2C, 0x06,     0xFFFFFFFF, 0x0,      0x10000000,    0,  2048,   0x00020000,        0xE0,   0},
 	{0x2690AC2C, 0x54,     0xFFFFFFFF, 0x0,      0x20000000,    0,  4096,   0x00040000,        0xE0,   1},
 	{0x1590ACAD, 0,        0xFFFFFFFF, 0x0,      0x20000000,    0,  2048,   0x00020000,        0x80,   0},
 	{0x9590DC2C, 0x56,     0xFFFFFFFF, 0x0,      0x10000000,    0,  2048,   0x00020000,        0x40,   0},
 	{0x1590aa98, 0x76,     0xFFFFFFFF, 0x0,      0x10000000,    0,  2048,   0x00020000,        0x80,   1},
 	{0x2690A32C, 0x64,     0xFFFFFFFF, 0x0,      0x20000000,    0,  4096,   0x00040000,        0xE0,   1},
 	{0x2690AC98, 0x81676,  0xFFFFFFFF, 0x0,      0x20000000,    0,  4096,   0x00040000,        0xE0,   1},
+	{0x1580a1c2, 0x02,     0xFFFFFFFF, 0xFF,     0x08000000,    0,  2048,   0x00020000,        0x40,   0},
 	/* Note: Width flag is 0 for 8 bit Flash and 1 for 16 bit flash   */
 };
 
@@ -110,7 +112,7 @@ static uint32_t
 qpic_nand_read_reg(uint32_t reg_addr,
 				   uint8_t flags)
 {
-	uint32_t val;
+	val = 0;
 	struct cmd_element *cmd_list_read_ptr = ce_read_array;
 
 	bam_add_cmd_element(cmd_list_read_ptr, reg_addr, (uint32_t)PA((addr_t)&val), CE_READ_TYPE);
@@ -122,7 +124,9 @@ qpic_nand_read_reg(uint32_t reg_addr,
 					 BAM_CE_SIZE,
 					 BAM_DESC_CMD_FLAG| BAM_DESC_INT_FLAG | flags);
 
+	arch_clean_invalidate_cache_range((addr_t)&val, sizeof(uint32_t));
 	qpic_nand_wait_for_cmd_exec(1);
+	arch_clean_invalidate_cache_range((addr_t)&val, sizeof(uint32_t));
 
 	return val;
 }
@@ -131,7 +135,7 @@ qpic_nand_read_reg(uint32_t reg_addr,
 void
 qpic_nand_erased_status_reset(struct cmd_element *cmd_list_ptr, uint8_t flags)
 {
-	uint32_t val = 0;
+	val = 0;
 
 	/* Reset the Erased Codeword/Page detection controller. */
 	val = NAND_ERASED_CW_DETECT_CFG_RESET_CTRL;
@@ -141,7 +145,7 @@ qpic_nand_erased_status_reset(struct cmd_element *cmd_list_ptr, uint8_t flags)
 	/* Enqueue the desc for the above command */
 	bam_add_one_desc(&bam,
 					 CMD_PIPE_INDEX,
-					 (unsigned char*)cmd_list_ptr,
+					 (unsigned char*)PA((addr_t)cmd_list_ptr),
 					 BAM_CE_SIZE,
 					 BAM_DESC_CMD_FLAG | BAM_DESC_INT_FLAG | flags);
 
@@ -158,7 +162,7 @@ qpic_nand_erased_status_reset(struct cmd_element *cmd_list_ptr, uint8_t flags)
 	/* Enqueue the desc for the above command */
 	bam_add_one_desc(&bam,
 					 CMD_PIPE_INDEX,
-					 (unsigned char*)cmd_list_ptr,
+					 (unsigned char*)PA((addr_t)cmd_list_ptr),
 					 BAM_CE_SIZE,
 					 BAM_DESC_CMD_FLAG | BAM_DESC_INT_FLAG);
 
@@ -225,7 +229,7 @@ qpic_nand_fetch_id(struct flash_info *flash)
 	/* Prepare the cmd desc for the above commands */
 	bam_add_one_desc(&bam,
 					 CMD_PIPE_INDEX,
-					 (unsigned char*)cmd_list_ptr_start,
+					 (unsigned char*)PA((addr_t)cmd_list_ptr_start),
 					 PA((uint32_t)cmd_list_ptr - (uint32_t)cmd_list_ptr_start),
 					 BAM_DESC_LOCK_FLAG | BAM_DESC_INT_FLAG |
 					 BAM_DESC_NWD_FLAG | BAM_DESC_CMD_FLAG);
@@ -428,7 +432,7 @@ onfi_probe_cmd_exec(struct onfi_probe_params *params,
 	/* Enqueue the desc for the above commands */
 	bam_add_one_desc(&bam,
 					 CMD_PIPE_INDEX,
-					 (unsigned char*)cmd_list_ptr_start,
+					 (unsigned char*)PA((addr_t)cmd_list_ptr_start),
 					 PA((addr_t)(uint32_t)cmd_list_ptr - (uint32_t)cmd_list_ptr_start),
 					 desc_flags);
 
@@ -479,7 +483,7 @@ qpic_nand_onfi_probe_cleanup(uint32_t vld, uint32_t dev_cmd1)
 	/* Enqueue the desc for the above commands */
 	bam_add_one_desc(&bam,
 					 CMD_PIPE_INDEX,
-					 (unsigned char*)cmd_list_ptr_start,
+					 (unsigned char*)PA((addr_t)cmd_list_ptr_start),
 					 PA((uint32_t)cmd_list_ptr - (uint32_t)cmd_list_ptr_start),
 					 BAM_DESC_UNLOCK_FLAG | BAM_DESC_CMD_FLAG| BAM_DESC_INT_FLAG);
 
@@ -825,7 +829,7 @@ qpic_nand_block_isbad_exec(struct cfg_params *params,
 	/* Enqueue the desc for the above commands */
 	bam_add_one_desc(&bam,
 					 CMD_PIPE_INDEX,
-					 (unsigned char*)cmd_list_ptr_start,
+					 (unsigned char*)PA((addr_t)cmd_list_ptr_start),
 					 PA((uint32_t)cmd_list_ptr - (uint32_t)cmd_list_ptr_start),
 					 desc_flags);
 
@@ -838,7 +842,9 @@ qpic_nand_block_isbad_exec(struct cfg_params *params,
 				 4,
 				 BAM_DESC_INT_FLAG);
 
+	arch_clean_invalidate_cache_range((addr_t)bad_block, sizeof(uint32_t));
 	qpic_nand_wait_for_cmd_exec(num_desc);
+	arch_clean_invalidate_cache_range((addr_t)bad_block, sizeof(uint32_t));
 
 	status = qpic_nand_read_reg(NAND_FLASH_STATUS, 0);
 
@@ -865,7 +871,7 @@ nand_result_t qpic_nand_block_isbad(unsigned page)
 {
 	unsigned cwperpage;
 	struct cfg_params params;
-	uint8_t bad_block[4];
+	static uint8_t bad_block[4];
 	unsigned nand_ret = NANDC_RESULT_SUCCESS;
 	uint32_t blk = page / flash.num_pages_per_blk;
 
@@ -922,6 +928,7 @@ nand_result_t qpic_nand_block_isbad(unsigned page)
 		else
 			bbtbl[blk] = NAND_BAD_BLK_VALUE_IS_GOOD;
 
+
 		return nand_ret;
 	}
 }
@@ -963,7 +970,7 @@ nand_result_t qpic_nand_blk_erase(uint32_t page)
 	/* Enqueue the desc for the above commands */
 	bam_add_one_desc(&bam,
 					 CMD_PIPE_INDEX,
-					 (unsigned char*)cmd_list_ptr_start,
+					 (unsigned char*)PA((addr_t)cmd_list_ptr_start),
 					 PA((uint32_t)cmd_list_ptr - (uint32_t)cmd_list_ptr_start),
 					 BAM_DESC_NWD_FLAG | BAM_DESC_CMD_FLAG | BAM_DESC_INT_FLAG | BAM_DESC_LOCK_FLAG);
 
@@ -987,7 +994,7 @@ nand_result_t qpic_nand_blk_erase(uint32_t page)
 	/* Enqueue the desc for the NAND_FLASH_STATUS read command */
 	bam_add_one_desc(&bam,
 					 CMD_PIPE_INDEX,
-					 (unsigned char*)cmd_list_read_ptr_start,
+					 (unsigned char*)PA((addr_t)cmd_list_read_ptr_start),
 					 PA((uint32_t)cmd_list_read_ptr - (uint32_t)cmd_list_read_ptr_start),
 					 BAM_DESC_CMD_FLAG) ;
 
@@ -996,11 +1003,13 @@ nand_result_t qpic_nand_blk_erase(uint32_t page)
 	/* Enqueue the desc for NAND_FLASH_STATUS and NAND_READ_STATUS write commands */
 	bam_add_one_desc(&bam,
 					 CMD_PIPE_INDEX,
-					 (unsigned char*)cmd_list_ptr_start,
+					 (unsigned char*)PA((addr_t)cmd_list_ptr_start),
 					 PA((uint32_t)cmd_list_ptr - (uint32_t)cmd_list_ptr_start),
 					 BAM_DESC_INT_FLAG | BAM_DESC_CMD_FLAG) ;
 	num_desc = 2;
+	arch_clean_invalidate_cache_range((addr_t)&status, sizeof(uint32_t));
 	qpic_nand_wait_for_cmd_exec(num_desc);
+	arch_clean_invalidate_cache_range((addr_t)&status, sizeof(uint32_t));
 
 	status = qpic_nand_check_status(status);
 
@@ -1057,7 +1066,7 @@ qpic_nand_add_wr_page_cws_cmd_desc(struct cfg_params *cfg,
 	/* Enqueue the desc for the above commands */
 	bam_add_one_desc(&bam,
 					 CMD_PIPE_INDEX,
-					 (unsigned char*)cmd_list_ptr_start,
+					 (unsigned char*)PA((addr_t)cmd_list_ptr_start),
 					 PA((uint32_t)cmd_list_ptr - (uint32_t)cmd_list_ptr_start),
 					 BAM_DESC_CMD_FLAG | BAM_DESC_LOCK_FLAG);
 
@@ -1075,7 +1084,7 @@ qpic_nand_add_wr_page_cws_cmd_desc(struct cfg_params *cfg,
 		/* Enqueue the desc for the above commands */
 		bam_add_one_desc(&bam,
 						 CMD_PIPE_INDEX,
-						 (unsigned char*)cmd_list_ptr_start,
+						 (unsigned char*)PA((addr_t)cmd_list_ptr_start),
 						 PA((uint32_t)cmd_list_ptr - (uint32_t)cmd_list_ptr_start),
 						 BAM_DESC_NWD_FLAG | BAM_DESC_CMD_FLAG);
 
@@ -1087,7 +1096,7 @@ qpic_nand_add_wr_page_cws_cmd_desc(struct cfg_params *cfg,
 		/* Enqueue the desc for the NAND_FLASH_STATUS read command */
 		bam_add_one_desc(&bam,
 						 CMD_PIPE_INDEX,
-						 (unsigned char*)cmd_list_read_ptr_start,
+						 (unsigned char*)PA((addr_t)cmd_list_read_ptr_start),
 						 PA((uint32_t)cmd_list_read_ptr - (uint32_t)cmd_list_read_ptr_start),
 						 BAM_DESC_CMD_FLAG);
 
@@ -1100,12 +1109,14 @@ qpic_nand_add_wr_page_cws_cmd_desc(struct cfg_params *cfg,
 		/* Enqueue the desc for NAND_FLASH_STATUS and NAND_READ_STATUS write commands */
 		bam_add_one_desc(&bam,
 						 CMD_PIPE_INDEX,
-						 (unsigned char*)cmd_list_ptr_start,
+						 (unsigned char*)PA((addr_t)cmd_list_ptr_start),
 						 PA((uint32_t)cmd_list_ptr - (uint32_t)cmd_list_ptr_start),
 						 int_flag | BAM_DESC_CMD_FLAG);
 		num_desc += 2;
 
+		arch_clean_invalidate_cache_range((addr_t)&status[i], sizeof(uint32_t));
 		qpic_nand_wait_for_cmd_exec(num_desc);
+		arch_clean_invalidate_cache_range((addr_t)&status[i], sizeof(uint32_t));
 
 		status[i] = qpic_nand_check_status(status[i]);
 
@@ -1532,18 +1543,20 @@ static int qpic_nand_read_erased_page(uint32_t page)
 		/* Enqueue the desc for the above commands */
 		bam_add_one_desc(&bam,
 					 CMD_PIPE_INDEX,
-					 (unsigned char*)cmd_list_ptr_start,
+					 (unsigned char*)PA((addr_t)cmd_list_ptr_start),
 					 PA((uint32_t)cmd_list_ptr - (uint32_t)cmd_list_ptr_start),
 					 BAM_DESC_NWD_FLAG | BAM_DESC_CMD_FLAG | flags);
 		num_cmd_desc++;
 
 		bam_add_cmd_element(cmd_list_ptr, NAND_FLASH_STATUS, (uint32_t)PA((addr_t)&(flash_sts[i])), CE_READ_TYPE);
+		arch_clean_invalidate_cache_range((addr_t)&(flash_sts[i]), sizeof(uint32_t));
 
 		cmd_list_temp = (uint32_t *)cmd_list_ptr;
 
 		cmd_list_ptr++;
 
 		bam_add_cmd_element(cmd_list_ptr, NAND_BUFFER_STATUS, (uint32_t)PA((addr_t)&(buffer_sts[i])), CE_READ_TYPE);
+		arch_clean_invalidate_cache_range((addr_t)&(buffer_sts[i]), sizeof(uint32_t));
 		cmd_list_ptr++;
 
 		if (i == flash.cws_per_page - 1)
@@ -1566,6 +1579,8 @@ static int qpic_nand_read_erased_page(uint32_t page)
 
 		/* Notify BAM HW about the newly added descriptors */
 		bam_sys_gen_event(&bam, CMD_PIPE_INDEX, num_cmd_desc);
+		arch_clean_invalidate_cache_range((addr_t)&(flash_sts[i]), sizeof(uint32_t));
+		arch_clean_invalidate_cache_range((addr_t)&(buffer_sts[i]), sizeof(uint32_t));
 	}
 
 	qpic_nand_wait_for_data(DATA_PRODUCER_PIPE_INDEX);
@@ -1735,7 +1750,7 @@ qpic_nand_read_page(uint32_t page, unsigned char* buffer, unsigned char* sparead
 		/* Enqueue the desc for the above commands */
 		bam_add_one_desc(&bam,
 					 CMD_PIPE_INDEX,
-					 (unsigned char*)cmd_list_ptr_start,
+					 (unsigned char*)PA((addr_t)cmd_list_ptr_start),
 					 PA((uint32_t)cmd_list_ptr - (uint32_t)cmd_list_ptr_start),
 					 BAM_DESC_NWD_FLAG | BAM_DESC_CMD_FLAG);
 		num_cmd_desc++;

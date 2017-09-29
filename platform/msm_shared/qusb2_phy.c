@@ -1,4 +1,4 @@
-/* Copyright (c) 2014-2015, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2014-2017, The Linux Foundation. All rights reserved.
 
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -44,7 +44,22 @@ __WEAK int platform_is_msm8996()
 	return 0;
 }
 
-__WEAK int platform_is_mdmcalifornium()
+__WEAK int platform_is_msm8996sg()
+{
+	return 0;
+}
+
+__WEAK int platform_is_mdm9650()
+{
+	return 0;
+}
+
+__WEAK int platform_is_msm8953()
+{
+	return 0;
+}
+
+__WEAK int platform_is_sdx20()
 {
 	return 0;
 }
@@ -56,6 +71,7 @@ void qusb2_phy_reset(void)
 	uint8_t tune2 = 0xB3;
 	int retry = 100;
 	int se_clock = 1;
+	int status_reg = 0;
 
 	/* Disable the ref clock before phy reset */
 #if GCC_RX2_USB2_CLKREF_EN
@@ -73,11 +89,25 @@ void qusb2_phy_reset(void)
 	dmb();
 
 	/* set CLAMP_N_EN and stay with disabled USB PHY */
-	writel(0x23, QUSB2PHY_PORT_POWERDOWN);
+	if(platform_is_sdx20())
+		writel(0x23, QUSB2PHY_PWR_CTRL1_SDX20);
+	else
+		writel(0x23, QUSB2PHY_PORT_POWERDOWN);
 
-	if (platform_is_msm8996() || platform_is_mdmcalifornium())
+	/* TCSR register bit 0 indicates whether single ended clock
+	 * or differential clock configuration is enabled. Based on the
+	 * configuration set the PLL_TEST register.
+	 */
+#if TCSR_PHY_CLK_SCHEME_SEL
+	se_clock = readl(TCSR_PHY_CLK_SCHEME_SEL) & 0x1;
+#endif
+	if (platform_is_msm8996() || platform_is_mdm9650() || platform_is_msm8953())
 	{
-		writel(0xF8, QUSB2PHY_PORT_TUNE1);
+		if(platform_is_msm8996sg())
+			writel(0xD0, QUSB2PHY_PORT_TUNE1);
+		else
+			writel(0xF8, QUSB2PHY_PORT_TUNE1);
+
 		/* Upper nibble of tune2 register should be updated based on the fuse value.
 		 * Read the bits 21..24 from fuse and update the upper nibble with this value
 		 */
@@ -92,12 +122,31 @@ void qusb2_phy_reset(void)
 		writel(tune2, QUSB2PHY_PORT_TUNE2);
 		writel(0x83, QUSB2PHY_PORT_TUNE3);
 		writel(0xC0, QUSB2PHY_PORT_TUNE4);
+		if(platform_is_msm8996sg())
+			writel(0x02, QUSB2PHY_PORT_TUNE5);
 		writel(0x30, QUSB2PHY_PLL_TUNE);
 		writel(0x79, QUSB2PHY_PLL_USER_CTL1);
 		writel(0x21, QUSB2PHY_PLL_USER_CTL2);
 		writel(0x14, QUSB2PHY_PORT_TEST2);
 		writel(0x9F, QUSB2PHY_PLL_AUTOPGM_CTL1);
 		writel(0x00, QUSB2PHY_PLL_PWR_CTL);
+	}
+	else if (platform_is_sdx20())
+	{
+		/* HPG init sequence 0x13 for CML and 0x03 for CMOS */
+		if (se_clock)
+			writel(0x03, QUSB2PHY_PLL_ANALOG_CONTROLS_TWO_SDX20);
+		else
+			writel(0x13, QUSB2PHY_PLL_ANALOG_CONTROLS_TWO_SDX20);
+
+		writel(0x7C, QUSB2PHY_PLL_CLOCK_INVERTERS_SDX20);
+		writel(0x80, QUSB2PHY_PLL_CMODE_SDX20);
+		writel(0x0a, QUSB2PHY_PLL_LOCK_DELAY_SDX20);
+		writel(0x19, QUSB2PHY_PLL_DIGITAL_TIMERS_TWO_SDX20);
+		writel(0xa5, QUSB2PHY_TUNE1_SDX20);
+		writel(0x09, QUSB2PHY_TUNE2_SDX20);
+		writel(0x00, QUSB2PHY_IMP_CTRL1_SDX20);
+		writel(0x22, QUSB2PHY_PWR_CTRL1_SDX20);
 	}
 	else
 	{
@@ -117,23 +166,26 @@ void qusb2_phy_reset(void)
 	/* Enable ULPI mode */
 	if (platform_is_msm8994())
 		writel(0x0,  QUSB2PHY_PORT_UTMI_CTRL2);
-	/* set CLAMP_N_EN and USB PHY is enabled*/
-	writel(0x22, QUSB2PHY_PORT_POWERDOWN);
-	udelay(150);
 
-	/* TCSR register bit 0 indicates whether single ended clock
-	 * or differential clock configuration is enabled. Based on the
-	 * configuration set the PLL_TEST register.
-	 */
-#if TCSR_PHY_CLK_SCHEME_SEL
-	se_clock = readl(TCSR_PHY_CLK_SCHEME_SEL) & 0x1;
-#endif
+	/* set CLAMP_N_EN and USB PHY is enabled*/
+	if (platform_is_sdx20()){
+		writel(0x22, QUSB2PHY_PWR_CTRL1_SDX20);
+		writel(0x04, QUSB2PHY_DEBUG_CTRL2_SDX20);
+		udelay(88);
+	}
+	else{
+		writel(0x22, QUSB2PHY_PORT_POWERDOWN);
+		udelay(150);
+	}
+
 	/* By default consider differential clock configuration and if TCSR
 	 * register bit 0 is not set then use single ended setting
 	 */
 	if (se_clock)
 	{
-		writel(0x80, QUSB2PHY_PLL_TEST);
+		/* PLL TEST is not valid for sdx20 */
+		if(!platform_is_sdx20())
+			writel(0x80, QUSB2PHY_PLL_TEST);
 	}
 	else
 	{
@@ -146,7 +198,14 @@ void qusb2_phy_reset(void)
 	udelay(100);
 
 	/* Check PLL status */
-	while (!(readl(QUSB2PHY_PLL_STATUS) & QUSB2PHY_PLL_LOCK))
+	if (platform_is_sdx20()){
+		status_reg = QUSB2PHY_DEBUG_STAT5_SDX20;
+	}
+	else{
+		status_reg = QUSB2PHY_PLL_STATUS;
+	}
+
+	while (!(readl(status_reg) & QUSB2PHY_PLL_LOCK))
 	{
 		retry--;
 		if (!retry)

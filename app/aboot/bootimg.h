@@ -2,7 +2,7 @@
  * Copyright (C) 2008 The Android Open Source Project
  * All rights reserved.
  *
- * Copyright (c) 2014, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2014,2016 The Linux Foundation. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -38,6 +38,7 @@ typedef struct boot_img_hdr boot_img_hdr;
 #define BOOT_NAME_SIZE  16
 #define BOOT_ARGS_SIZE  512
 #define BOOT_IMG_MAX_PAGE_SIZE 4096
+#define ECORRUPTED_IMAGE 2
 
 struct boot_img_hdr
 {
@@ -54,9 +55,13 @@ struct boot_img_hdr
 
     unsigned tags_addr;    /* physical addr for kernel tags */
     unsigned page_size;    /* flash page size we assume */
+#if OSVERSION_IN_BOOTIMAGE
+    uint32_t unused;    /* future expansion: should be 0 */
+    uint32_t os_version; /* version << 11 | patch_level */
+#else
     unsigned dt_size;      /* device_tree in bytes */
     unsigned unused;    /* future expansion: should be 0 */
-
+#endif
     unsigned char name[BOOT_NAME_SIZE]; /* asciiz product name */
     
     unsigned char cmdline[BOOT_ARGS_SIZE];

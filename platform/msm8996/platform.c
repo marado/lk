@@ -188,6 +188,21 @@ int platform_is_msm8996()
 		return 0;
 }
 
+int platform_is_msm8996sg()
+{
+	if (board_platform_id() == MSM8996SG)
+		return 1;
+	else
+		return 0;
+}
+
+int platform_is_apq8096_mediabox()
+{
+		return ((board_platform_id() == APQ8096) &&
+		(board_hardware_id() == HW_PLATFORM_DRAGON) &&
+		(board_hardware_subtype() == HW_PLATFORM_SUBTYPE_SVLTE1));
+}
+
 uint64_t platform_get_ddr_start()
 {
 	return ddr_start;
@@ -195,7 +210,7 @@ uint64_t platform_get_ddr_start()
 
 bool platform_use_qmp_misc_settings()
 {
-	if (board_soc_version() < 0x30000)
+	if ((board_soc_version() < 0x30000) && (board_platform_id() != MSM8996SG))
 		return true;
 
 	return false;
@@ -215,3 +230,44 @@ int platform_get_secondary_cpu_num()
 }
 #endif /*EARLYDOMAIN_SUPPORT*/
 
+/* USB platform specific bases*/
+uint32_t usb_ctrl_base()
+{
+	if (board_hardware_id() == HW_PLATFORM_SBC)
+		return	MSM_USB20_SEC_BASE;
+	else
+		return	MSM_USB30_PRIM_BASE;
+
+}
+
+uint32_t usb_qscratch_base()
+{
+	if (board_hardware_id() == HW_PLATFORM_SBC)
+		return	MSM_USB20_SEC_QSCRATCH_BASE;
+	else
+		return	MSM_USB30_QSCRATCH_PRIM_BASE;
+}
+
+uint32_t usb_phy_base()
+{
+	if (board_hardware_id() == HW_PLATFORM_SBC)
+		return	QUSB2_SEC_PHY_BASE;
+	else
+		return	QUSB2_PRIM_PHY_BASE;
+}
+
+uint32_t usb_phy_bcr()
+{
+	if (board_hardware_id() == HW_PLATFORM_SBC)
+		return	GCC_QUSB2_SEC_PHY_BCR;
+	else
+		return	GCC_QUSB2_PRIM_PHY_BCR;
+}
+
+int usb_irq()
+{
+	if (board_hardware_id() == HW_PLATFORM_SBC)
+		return	USB20_IRQ;
+	else
+		return	USB30_IRQ;
+}

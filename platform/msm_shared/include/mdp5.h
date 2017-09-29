@@ -131,6 +131,9 @@
 #define MDSS_MDP_HW_REV_110    MDSS_MDP_REV(1, 10, 0) /* 8992 v1.0 */
 #define MDSS_MDP_HW_REV_111    MDSS_MDP_REV(1, 11, 0) /* 8956 v1.0 */
 #define MDSS_MDP_HW_REV_112    MDSS_MDP_REV(1, 12, 0) /* 8952 v1.0 */
+#define MDSS_MDP_HW_REV_114    MDSS_MDP_REV(1, 14, 0) /* 8937 v1.0 */
+#define MDSS_MDP_HW_REV_116    MDSS_MDP_REV(1, 16, 0) /* msm8953 */
+#define MDSS_MDP_HW_REV_115    MDSS_MDP_REV(1, 15, 0) /* msm8917 v1.0 */
 #define MDSS_MDP_HW_REV_200    MDSS_MDP_REV(2, 0, 0) /* 8092 v1.0 */
 
 #define MDSS_MAX_LINE_BUF_WIDTH 2048
@@ -262,6 +265,23 @@
 #define MDSS_MDP_DSC_RANGE_MIN_QP		0x74	/* 15 bytes */
 #define MDSS_MDP_DSC_RANGE_MAX_QP		0xB0	/* 15 bytes */
 #define MDSS_MDP_DSC_RANGE_BPG_OFFSET		0xEc	/* 15 bytes */
+
+/* Autorefresh related registers */
+#define MDP_REG_PP_0_SYNC_CONFIG_VSYNC		REG_MDP(0x71004)
+#define MDP_REG_PP_1_SYNC_CONFIG_VSYNC		REG_MDP(0x71804)
+#define MDP_REG_PP_SLAVE_SYNC_CONFIG_VSYNC	REG_MDP(0x73004)
+#define MDP_REG_PP_0_AUTOREFRESH_CONFIG		REG_MDP(0x71030)
+#define MDP_REG_PP_1_AUTOREFRESH_CONFIG		REG_MDP(0x71830)
+#define MDP_REG_PP_SLAVE_AUTOREFRESH_CONFIG	REG_MDP(0x73030)
+
+/* Registers for programming the CDM hardware in bypass mode. */
+#define CDM_HDMI_PACK_OP_MODE 		REG_MDP(0x7A400)
+#define MDP_OUT_CTL_0 			REG_MDP(0x01410)
+#define MDP_INTF_3_INTF_CONFIG 		REG_MDP(0x6C804)
+#define CDM_CDWN2_OUT_SIZE 		REG_MDP(0x7A330)
+#define CDM_CDWN2_OP_MODE 		REG_MDP(0x7A300)
+#define CDM_CDWN2_CLAMP_OUT 		REG_MDP(0x7A304)
+#define CDM_CSC_10_OP_MODE 		REG_MDP(0x7A200)
 
 void mdp_set_revision(int rev);
 int mdp_get_revision();

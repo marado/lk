@@ -286,6 +286,19 @@ static struct clk_freq_tbl ftbl_gcc_sdcc1_4_apps_clk[] =
 	F_END
 };
 
+static struct clk_freq_tbl ftbl_gcc_sdcc2_4_apps_clk[] =
+{
+	F(   144000,    cxo,  16,   3,  25),
+	F(   400000,    cxo,  12,   1,   4),
+	F( 20000000,  gpll0,  15,   1,   2),
+	F( 25000000,  gpll0,  12,   1,   2),
+	F( 50000000,  gpll0,  12,   0,   0),
+	F(100000000,  gpll0,   6,   0,   0),
+	F(200000000,  gpll0,   3,   0,   0),
+	F_END
+};
+
+
 static struct rcg_clk sdcc1_apps_clk_src =
 {
 	.cmd_reg      = (uint32_t *) SDCC1_CMD_RCGR,
@@ -326,6 +339,47 @@ static struct branch_clk gcc_sdcc1_ahb_clk =
 	},
 };
 
+static struct rcg_clk sdcc2_apps_clk_src =
+{
+	.cmd_reg      = (uint32_t *) SDCC2_CMD_RCGR,
+	.cfg_reg      = (uint32_t *) SDCC2_CFG_RCGR,
+	.m_reg        = (uint32_t *) SDCC2_M,
+	.n_reg        = (uint32_t *) SDCC2_N,
+	.d_reg        = (uint32_t *) SDCC2_D,
+
+	.set_rate     = clock_lib2_rcg_set_rate_mnd,
+	.freq_tbl     = ftbl_gcc_sdcc2_4_apps_clk,
+	.current_freq = &rcg_dummy_freq,
+
+	.c = {
+		.dbg_name = "sdc2_clk",
+		.ops      = &clk_ops_rcg_mnd,
+	},
+};
+
+static struct branch_clk gcc_sdcc2_apps_clk =
+{
+	.cbcr_reg     = (uint32_t *) SDCC2_APPS_CBCR,
+	.parent       = &sdcc2_apps_clk_src.c,
+
+	.c = {
+		.dbg_name = "gcc_sdcc2_apps_clk",
+		.ops      = &clk_ops_branch,
+	},
+};
+
+static struct branch_clk gcc_sdcc2_ahb_clk =
+{
+	.cbcr_reg     = (uint32_t *) SDCC2_AHB_CBCR,
+	.has_sibling  = 1,
+
+	.c = {
+		.dbg_name = "gcc_sdcc2_ahb_clk",
+		.ops      = &clk_ops_branch,
+	},
+};
+
+
 static struct branch_clk gcc_sys_noc_usb30_axi_clk = {
 	.cbcr_reg    = (uint32_t *) SYS_NOC_USB3_AXI_CBCR,
 	.has_sibling = 1,
@@ -336,7 +390,24 @@ static struct branch_clk gcc_sys_noc_usb30_axi_clk = {
 	},
 };
 
+static struct branch_clk gcc_periph_noc_usb20_ahb_clk = {
+	.cbcr_reg    = (uint32_t *) PERIPH_NOC_USB20_AHB_CBCR,
+	.has_sibling = 1,
+
+	.c = {
+		.dbg_name = "periph_noc_usb20_ahb_clk",
+		.ops      = &clk_ops_branch,
+	},
+};
+
 static struct clk_freq_tbl ftbl_gcc_usb30_master_clk[] = {
+	F(  19200000, cxo,    1,    0,    0),
+	F( 120000000, gpll0,    5,    0,    0),
+	F( 150000000, gpll0,    4,    0,    0),
+	F_END
+};
+
+static struct clk_freq_tbl ftbl_gcc_usb20_master_clk[] = {
 	F(  19200000, cxo,    1,    0,    0),
 	F( 120000000, gpll0,    5,    0,    0),
 	F( 150000000, gpll0,    4,    0,    0),
@@ -360,6 +431,23 @@ static struct rcg_clk usb30_master_clk_src = {
 	},
 };
 
+static struct rcg_clk usb20_master_clk_src = {
+	.cmd_reg      = (uint32_t *) USB20_MASTER_CMD_RCGR,
+	.cfg_reg      = (uint32_t *) USB20_MASTER_CFG_RCGR,
+	.m_reg        = (uint32_t *) USB20_MASTER_M,
+	.n_reg        = (uint32_t *) USB20_MASTER_N,
+	.d_reg        = (uint32_t *) USB20_MASTER_D,
+
+	.set_rate     = clock_lib2_rcg_set_rate_mnd,
+	.freq_tbl     = ftbl_gcc_usb20_master_clk,
+	.current_freq = &rcg_dummy_freq,
+
+	.c = {
+		.dbg_name = "usb20_master_clk_src",
+		.ops      = &clk_ops_rcg,
+	},
+};
+
 static struct branch_clk gcc_usb30_master_clk = {
 	.cbcr_reg = (uint32_t *) USB30_MASTER_CBCR,
 	.bcr_reg  = (uint32_t *) USB_30_BCR,
@@ -367,6 +455,17 @@ static struct branch_clk gcc_usb30_master_clk = {
 
 	.c = {
 		.dbg_name = "usb30_master_clk",
+		.ops      = &clk_ops_branch,
+	},
+};
+
+static struct branch_clk gcc_usb20_master_clk = {
+	.cbcr_reg = (uint32_t *) USB20_MASTER_CBCR,
+	.bcr_reg  = (uint32_t *) USB_20_BCR,
+	.parent   = &usb20_master_clk_src.c,
+
+	.c = {
+		.dbg_name = "usb20_master_clk",
 		.ops      = &clk_ops_branch,
 	},
 };
@@ -386,6 +485,11 @@ static struct clk_freq_tbl ftbl_gcc_usb30_mock_utmi_clk_src[] = {
 	F_END
 };
 
+static struct clk_freq_tbl ftbl_gcc_usb20_mock_utmi_clk_src[] = {
+	F(  60000000, gpll0,   10,    0,     0),
+	F_END
+};
+
 static struct rcg_clk usb30_mock_utmi_clk_src = {
 	.cmd_reg      = (uint32_t *) USB30_MOCK_UTMI_CMD_RCGR,
 	.cfg_reg      = (uint32_t *) USB30_MOCK_UTMI_CFG_RCGR,
@@ -395,6 +499,19 @@ static struct rcg_clk usb30_mock_utmi_clk_src = {
 
 	.c = {
 		.dbg_name = "usb30_mock_utmi_clk_src",
+		.ops      = &clk_ops_rcg,
+	},
+};
+
+static struct rcg_clk usb20_mock_utmi_clk_src = {
+	.cmd_reg      = (uint32_t *) USB20_MOCK_UTMI_CMD_RCGR,
+	.cfg_reg      = (uint32_t *) USB20_MOCK_UTMI_CFG_RCGR,
+	.set_rate     = clock_lib2_rcg_set_rate_hid,
+	.freq_tbl     = ftbl_gcc_usb20_mock_utmi_clk_src,
+	.current_freq = &rcg_dummy_freq,
+
+	.c = {
+		.dbg_name = "usb20_mock_utmi_clk_src",
 		.ops      = &clk_ops_rcg,
 	},
 };
@@ -410,12 +527,34 @@ static struct branch_clk gcc_usb30_mock_utmi_clk = {
 	},
 };
 
+static struct branch_clk gcc_usb20_mock_utmi_clk = {
+	.cbcr_reg    = (uint32_t *) USB20_MOCK_UTMI_CBCR,
+	.has_sibling = 0,
+	.parent      = &usb20_mock_utmi_clk_src.c,
+
+	.c = {
+		.dbg_name = "usb20_mock_utmi_clk",
+		.ops      = &clk_ops_branch,
+	},
+};
+
+
 static struct branch_clk gcc_usb30_sleep_clk = {
 	.cbcr_reg    = (uint32_t *) USB30_SLEEP_CBCR,
 	.has_sibling = 1,
 
 	.c = {
 		.dbg_name = "usb30_sleep_clk",
+		.ops      = &clk_ops_branch,
+	},
+};
+
+static struct branch_clk gcc_usb20_sleep_clk = {
+	.cbcr_reg    = (uint32_t *) USB20_SLEEP_CBCR,
+	.has_sibling = 1,
+
+	.c = {
+		.dbg_name = "usb20_sleep_clk",
 		.ops      = &clk_ops_branch,
 	},
 };
@@ -776,6 +915,7 @@ static struct clk_freq_tbl ftbl_mdss_extpclk_clk[] = {
 	F_MDSS(148500000, hdmipll, 1, 0, 0),
 	F_MDSS(268500000, hdmipll, 1, 0, 0),
 	F_MDSS(297000000, hdmipll, 1, 0, 0),
+	F_MDSS(594000000, hdmipll, 1, 0, 0),
 	F_END
 };
 
@@ -1277,6 +1417,9 @@ static struct clk_lookup msm_msm8996_clocks[] =
 	CLK_LOOKUP("sdc1_iface_clk", gcc_sdcc1_ahb_clk.c),
 	CLK_LOOKUP("sdc1_core_clk",  gcc_sdcc1_apps_clk.c),
 
+	CLK_LOOKUP("sdc2_iface_clk", gcc_sdcc2_ahb_clk.c),
+	CLK_LOOKUP("sdc2_core_clk",  gcc_sdcc2_apps_clk.c),
+
 	CLK_LOOKUP("uart8_iface_clk", gcc_blsp2_ahb_clk.c),
 	CLK_LOOKUP("uart8_core_clk",  gcc_blsp2_uart2_apps_clk.c),
 
@@ -1291,6 +1434,12 @@ static struct clk_lookup msm_msm8996_clocks[] =
 	CLK_LOOKUP("usb30_phy_reset",     gcc_usb30_phy_reset.c),
 
 	CLK_LOOKUP("usb_phy_cfg_ahb2phy_clk",     gcc_usb_phy_cfg_ahb2phy_clk.c),
+
+	/* USB20 clocks */
+	CLK_LOOKUP("usb20_noc_usb20_clk",     gcc_periph_noc_usb20_ahb_clk.c),
+	CLK_LOOKUP("usb20_master_clk",    gcc_usb20_master_clk.c),
+	CLK_LOOKUP("usb20_mock_utmi_clk", gcc_usb20_mock_utmi_clk.c),
+	CLK_LOOKUP("usb20_sleep_clk",     gcc_usb20_sleep_clk.c),
 
 	/* mdss clocks */
 	CLK_LOOKUP("mdss_mdp_clk",     mdss_mdp_clk.c),

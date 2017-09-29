@@ -37,8 +37,8 @@
 #define DDR_START                          get_ddr_start()
 #define ABOOT_FORCE_KERNEL_ADDR            DDR_START + 0x8000
 #define ABOOT_FORCE_KERNEL64_ADDR          DDR_START + 0x80000
-#define ABOOT_FORCE_RAMDISK_ADDR           DDR_START + 0x2000000
-#define ABOOT_FORCE_TAGS_ADDR              DDR_START + 0x1E00000
+#define ABOOT_FORCE_TAGS_ADDR              DDR_START + 0x3400000
+#define ABOOT_FORCE_RAMDISK_ADDR           DDR_START + 0x3600000
 
 #define MSM_SHARED_BASE                    0x86300000
 #define MSM_SHARED_IMEM_BASE               0x08600000
@@ -56,7 +56,9 @@
 #define APPS_APCS_QTMR_AC_BASE             (APPS_SS_BASE + 0x00020000)
 #define APPS_APCS_F0_QTMR_V1_BASE          (APPS_SS_BASE + 0x00021000)
 #define QTMR_BASE                          APPS_APCS_F0_QTMR_V1_BASE
-#define APCS_ALIAS0_IPC_INTERRUPT          (APPS_SS_BASE + 0x00111008)
+#define APCS_ALIAS1_IPC_INTERRUPT_1        (APPS_SS_BASE + 0x00011008)
+#define APCS_ALIAS0_IPC_INTERRUPT_2        (APPS_SS_BASE + 0x00111008)
+#define APCS_ALIAS0_IPC_INTERRUPT          platform_get_apcs_ipc_base()
 
 #define PERIPH_SS_BASE                     0x07800000
 
@@ -161,12 +163,17 @@
  * as device memory, define the start address
  * and size in MB
  */
-#define RPMB_SND_RCV_BUF            0x90000000
+#define RPMB_SND_RCV_BUF            0xA0000000
+#define RPMB_SND_RCV_BUF_512        0x9FE00000
 #define RPMB_SND_RCV_BUF_SZ         0x1
 
 /* QSEECOM: Secure app region notification */
-#define APP_REGION_ADDR 0x85E00000
-#define APP_REGION_SIZE 0x500000
+#define APP_REGION_ADDR platform_get_tz_app_add()
+#define APP_REGION_SIZE platform_get_tz_app_size()
+#define APP_REGION_ADDR_8952 0x85E00000
+#define APP_REGION_SIZE_8952 0x500000
+#define APP_REGION_ADDR_8937 0x85B00000
+#define APP_REGION_SIZE_8937 0x800000
 
 /* MDSS */
 #define MIPI_DSI_BASE               (0x1A98000)

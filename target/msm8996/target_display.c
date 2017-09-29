@@ -553,6 +553,8 @@ int target_panel_clock(uint8_t enable, struct msm_panel_info *pinfo)
 	uint32_t flags, dsi_phy_pll_out;
 	uint32_t ret = NO_ERROR;
 	uint32_t board_version = board_soc_version();
+	uint32_t board_hw_id = board_hardware_id();
+	bool video_core_enable = false;
 	struct dfps_pll_codes *pll_codes = &pinfo->mipi.pll_codes;
 
 	if (pinfo->dest == DISPLAY_2) {
@@ -565,16 +567,21 @@ int target_panel_clock(uint8_t enable, struct msm_panel_info *pinfo)
 			flags |= MMSS_DSI_CLKS_FLAG_DSI1;
 	}
 
+	/* only required for msm8996 v2 and v2.1 revision */
+	video_core_enable = (board_version == 0x20000 || board_version == 0x20001) &&
+		!(board_hw_id == MSM8996SG || board_hw_id == APQ8096SG);
+
 	if (!enable) {
+		mmss_dsi_clock_disable(flags);
+
 		/* stop pll */
 		writel(0x0, pinfo->mipi.phy_base + 0x48);
 		dmb();
 
-		mmss_dsi_clock_disable(flags);
 		goto clks_disable;
 	}
 
-	if (board_version == 0x20000 || board_version == 0x20001)
+	if (video_core_enable)
 		video_gdsc_enable();
 	mmss_gdsc_enable();
 	mmss_bus_clock_enable();
@@ -608,7 +615,7 @@ clks_disable:
 	mdp_clock_disable();
 	mmss_bus_clock_disable();
 	mmss_gdsc_disable();
-	if (board_version == 0x20000 || board_version == 0x20001)
+	if (video_core_enable)
 		video_gdsc_disable();
 
 	return ret;
@@ -762,7 +769,8 @@ bool target_display_panel_node(char *pbuf, uint16_t buf_size)
 	struct oem_panel_data oem = mdss_dsi_get_oem_data();
 	char vic_buf[HDMI_VIC_LEN] = "0";
 
-	if (!strcmp(oem.panel, HDMI_PANEL_NAME)) {
+	if ((!strcmp(oem.panel, HDMI_PANEL_NAME)) || \
+		((!strlen(oem.panel)) && (platform_is_apq8096_mediabox()))) {
 		if (buf_size < (prefix_string_len + LK_OVERRIDE_PANEL_LEN +
 				strlen(HDMI_CONTROLLER_STRING))) {
 			dprintf(CRITICAL, "command line argument is greater than buffer size\n");
@@ -898,6 +906,7 @@ void target_display_init(const char *panel_name)
 				(void *)MIPI_FB_ADDR + 0x1000000);
 		mdss_hdmi_display_init(MDP_REV_50, (void *) HDMI_FB_ADDR);
 		goto target_display_init_end;
+		return;
 	}
 
 	if (gcdb_display_init(oem.panel, MDP_REV_50, (void *)MIPI_FB_ADDR)) {
@@ -917,7 +926,8 @@ target_display_init_end:
 void target_display_shutdown(void)
 {
 	struct oem_panel_data oem = mdss_dsi_get_oem_data();
-	if (!strcmp(oem.panel, HDMI_PANEL_NAME)) {
+	if ((!strcmp(oem.panel, HDMI_PANEL_NAME)) || \
+		((!strlen(oem.panel)) && (platform_is_apq8096_mediabox()))) {
 		msm_display_off();
 	} else {
 		gcdb_display_shutdown();

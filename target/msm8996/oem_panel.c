@@ -1,4 +1,4 @@
-/* Copyright (c) 2013-2015, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2013-2016, The Linux Foundation. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -61,6 +61,8 @@
 #include "include/panel_adv7533_1080p60.h"
 #include "include/panel_adv7533_720p60.h"
 #include "include/panel_hx8379a_truly_fwvga_video.h"
+#include "include/panel_truly_1080p_video.h"
+#include "include/panel_truly_1080p_cmd.h"
 
 /*---------------------------------------------------------------------------*/
 /* static panel selection variable                                           */
@@ -76,16 +78,18 @@ enum {
 	R69007_WQXGA_CMD_PANEL,
 	JDI_4K_DUALDSI_VIDEO_NOFBC_PANEL,
 	ADV7533_1024_600P_VIDEO_DSI0_PANEL,
-	ADV7533_1080P_VIDEO_PANEL,
 	ADV7533_1080P_VIDEO_DSI0_PANEL,
 	ADV7533_1080P_VIDEO_DSI1_PANEL,
-	ADV7533_720P_VIDEO_PANEL,
 	ADV7533_720P_VIDEO_DSI0_PANEL,
 	ADV7533_720P_VIDEO_DSI1_PANEL,
-	TRULY_FWVGA_VIDEO_PANEL,
 	DUAL_720P_SINGLE_HDMI_PANELS,
 	SINGLE_720P_SINGLE_HDMI_PANELS,
 	DSI0_600P_DSI1_720P_HDMI_PANELS,
+	ADV7533_1080P_VIDEO_PANEL,
+	ADV7533_720P_VIDEO_PANEL,
+	TRULY_FWVGA_VIDEO_PANEL,
+	TRULY_1080P_VIDEO_PANEL,
+	TRULY_1080P_CMD_PANEL,
 	UNKNOWN_PANEL
 };
 
@@ -104,16 +108,18 @@ static struct panel_list supp_panels[] = {
 	{"r69007_wqxga_cmd", R69007_WQXGA_CMD_PANEL},
 	{"jdi_4k_dualdsi_video_nofbc", JDI_4K_DUALDSI_VIDEO_NOFBC_PANEL},
 	{"adv7533_1024_600p_dsi0_video", ADV7533_1024_600P_VIDEO_DSI0_PANEL},
-	{"adv7533_1080p_video", ADV7533_1080P_VIDEO_PANEL},
 	{"adv7533_1080p_dsi0_video", ADV7533_1080P_VIDEO_DSI0_PANEL},
 	{"adv7533_1080p_dsi1_video", ADV7533_1080P_VIDEO_DSI1_PANEL},
-	{"adv7533_720p_video", ADV7533_720P_VIDEO_PANEL},
 	{"adv7533_720p_dsi0_video", ADV7533_720P_VIDEO_DSI0_PANEL},
 	{"adv7533_720p_dsi1_video", ADV7533_720P_VIDEO_DSI1_PANEL},
-	{"truly_fwvga_video", TRULY_FWVGA_VIDEO_PANEL},
 	{"dual_720p_single_hdmi_video", DUAL_720P_SINGLE_HDMI_PANELS},
 	{"single_720p_single_hdmi_video", SINGLE_720P_SINGLE_HDMI_PANELS},
-	{"dsi0_600p_dsi1_720p_hdmi_video", DSI0_600P_DSI1_720P_HDMI_PANELS}
+	{"dsi0_600p_dsi1_720p_hdmi_video", DSI0_600P_DSI1_720P_HDMI_PANELS},
+	{"adv7533_1080p_video", ADV7533_1080P_VIDEO_PANEL},
+	{"adv7533_720p_video", ADV7533_720P_VIDEO_PANEL},
+	{"truly_fwvga_video", TRULY_FWVGA_VIDEO_PANEL},
+	{"truly_1080p_video", TRULY_1080P_VIDEO_PANEL},
+	{"truly_1080p_cmd", TRULY_1080P_CMD_PANEL}
 };
 
 #define TARGET_ADV7533_MAIN_INST_0    (0x3D)
@@ -122,6 +128,7 @@ static struct panel_list supp_panels[] = {
 #define TARGET_ADV7533_CEC_DSI_INST_1 (0x3C)
 
 static uint32_t panel_id;
+#define TRULY_1080P_PANEL_ON_DELAY 40
 
 int oem_panel_rotation()
 {
@@ -136,6 +143,9 @@ int oem_panel_on()
 	} else if (panel_id == R69007_WQXGA_CMD_PANEL) {
 		/* needs extra delay to avoid unexpected artifacts */
 		mdelay(R69007_WQXGA_CMD_PANEL_ON_DELAY);
+	} else if (panel_id == TRULY_1080P_CMD_PANEL ||
+			panel_id == TRULY_1080P_VIDEO_PANEL) {
+		mdelay(TRULY_1080P_PANEL_ON_DELAY);
 	}
 
 	return NO_ERROR;
@@ -154,6 +164,63 @@ static bool init_panel_data(struct panel_struct *panelstruct,
 	struct oem_panel_data *oem_data = mdss_dsi_get_oem_data_ptr();
 
 	switch (panel_id) {
+	case TRULY_1080P_VIDEO_PANEL:
+		pan_type = PANEL_TYPE_DSI;
+		panelstruct->paneldata    = &truly_1080p_video_panel_data;
+		panelstruct->paneldata->panel_with_enable_gpio = 0;
+		panelstruct->panelres     = &truly_1080p_video_panel_res;
+		panelstruct->color        = &truly_1080p_video_color;
+		panelstruct->videopanel   = &truly_1080p_video_video_panel;
+		panelstruct->commandpanel = &truly_1080p_video_command_panel;
+		panelstruct->state        = &truly_1080p_video_state;
+		panelstruct->laneconfig   = &truly_1080p_video_lane_config;
+		panelstruct->paneltiminginfo
+			= &truly_1080p_video_timing_info;
+		panelstruct->panelresetseq
+					 = &truly_1080p_video_panel_reset_seq;
+		panelstruct->backlightinfo = &truly_1080p_video_backlight;
+		pinfo->mipi.panel_on_cmds
+			= truly_1080p_video_on_command;
+		pinfo->mipi.num_of_panel_on_cmds
+			= TRULY_1080P_VIDEO_ON_COMMAND;
+		pinfo->mipi.panel_off_cmds
+			= truly_1080p_video_off_command;
+		pinfo->mipi.num_of_panel_off_cmds
+			= TRULY_1080P_VIDEO_OFF_COMMAND;
+		memcpy(phy_db->timing,
+			truly_1080p_14nm_video_timings,
+			MAX_TIMING_CONFIG * sizeof(uint32_t));
+		pinfo->dfps.panel_dfps = truly_1080p_video_dfps;
+		pinfo->mipi.signature 	= TRULY_1080P_VIDEO_SIGNATURE;
+		break;
+	case TRULY_1080P_CMD_PANEL:
+		pan_type = PANEL_TYPE_DSI;
+		panelstruct->paneldata    = &truly_1080p_cmd_panel_data;
+		panelstruct->paneldata->panel_with_enable_gpio = 0;
+		panelstruct->panelres     = &truly_1080p_cmd_panel_res;
+		panelstruct->color        = &truly_1080p_cmd_color;
+		panelstruct->videopanel   = &truly_1080p_cmd_video_panel;
+		panelstruct->commandpanel = &truly_1080p_cmd_command_panel;
+		panelstruct->state        = &truly_1080p_cmd_state;
+		panelstruct->laneconfig   = &truly_1080p_cmd_lane_config;
+		panelstruct->paneltiminginfo
+			= &truly_1080p_cmd_timing_info;
+		panelstruct->panelresetseq
+					 = &truly_1080p_cmd_panel_reset_seq;
+		panelstruct->backlightinfo = &truly_1080p_cmd_backlight;
+		pinfo->mipi.panel_on_cmds
+			= truly_1080p_cmd_on_command;
+		pinfo->mipi.num_of_panel_on_cmds
+			= TRULY_1080P_CMD_ON_COMMAND;
+		pinfo->mipi.panel_off_cmds
+			= truly_1080p_cmd_off_command;
+		pinfo->mipi.num_of_panel_off_cmds
+			= TRULY_1080P_CMD_OFF_COMMAND;
+		memcpy(phy_db->timing,
+			truly_1080p_14nm_cmd_timings,
+			MAX_TIMING_CONFIG * sizeof(uint32_t));
+		pinfo->mipi.signature 	= TRULY_1080P_CMD_SIGNATURE;
+		break;
 	case SHARP_WQXGA_DUALDSI_VIDEO_PANEL:
 		pan_type = PANEL_TYPE_DSI;
 		pinfo->lcd_reg_en = 0;
@@ -787,6 +854,9 @@ static bool init_panel_data(struct panel_struct *panelstruct,
 int oem_panel_bridge_chip_init(struct msm_panel_info *pinfo) {
 	uint8_t rev = 0;
 
+	pinfo->adv7533.i2c_main_addr = TARGET_ADV7533_MAIN_INST_0;
+	pinfo->adv7533.i2c_cec_addr = TARGET_ADV7533_CEC_DSI_INST_0;
+	pinfo->adv7533.program_i2c_addr = false;
 	/* Set Switch GPIO to DSI2HDMI mode */
 	target_set_switch_gpio(1);
 	/* ADV7533 DSI to HDMI Bridge Chip Connected */

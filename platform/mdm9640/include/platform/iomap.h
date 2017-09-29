@@ -1,4 +1,4 @@
-/* Copyright (c) 2014-2015, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2014-2016, The Linux Foundation. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -92,9 +92,11 @@ uint32_t platform_boot_config();
 #define MPM2_MPM_SLEEP_TIMETICK_COUNT_VAL  0x004A3000
 
 /* CRYPTO ENGINE */
+#define  MSM_CE1_BASE                      0x073A000
+#define  MSM_CE1_BAM_BASE                  0x0704000
 #define  GCC_CRYPTO_BCR             (CLK_CTL_BASE + 0x16000)
 #define  GCC_CRYPTO_CMD_RCGR        (CLK_CTL_BASE + 0x16004)
-#define  GCC_0RYPTO_CFG_RCGR        (CLK_CTL_BASE + 0x16008)
+#define  GCC_CRYPTO_CFG_RCGR        (CLK_CTL_BASE + 0x16008)
 #define  GCC_CRYPTO_CBCR            (CLK_CTL_BASE + 0x1601C)
 #define  GCC_CRYPTO_AXI_CBCR        (CLK_CTL_BASE + 0x16020)
 #define  GCC_CRYPTO_AHB_CBCR        (CLK_CTL_BASE + 0x16024)
@@ -216,5 +218,12 @@ uint32_t platform_boot_config();
 #define USB3_PHY_STATUS             0x78974
 /* Register for finding out if single ended or differential clock enablement */
 #define TCSR_PHY_CLK_SCHEME_SEL     0x01956044
+
+/* RPM MSG RAM */
+#define RPM_SS_MSG_RAM_START_ADDRESS_BASE_PHYS 0x00060000
+#define RPM_SS_MSG_RAM_START_ADDRESS_BASE      RPM_SS_MSG_RAM_START_ADDRESS_BASE_PHYS
+#define RPM_SS_MSG_RAM_START_ADDRESS_BASE_SIZE 0x00006000
+/* notify RPM via IPC interrupt*/
+#define APCS_HLOS_IPC_INTERRUPT_0 APCS_ALIAS0_IPC_INTERRUPT
 
 #endif

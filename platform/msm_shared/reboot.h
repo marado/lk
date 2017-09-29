@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2015, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2015-2016, The Linux Foundation. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -28,21 +28,40 @@
  */
 #ifndef __REBOOT_H__
 #define __REBOOT_H__
+
+enum reboot_reason {
 #if USE_PON_REBOOT_REG
-#define RECOVERY_MODE     0x01
-#define FASTBOOT_MODE     0x02
-#define ALARM_BOOT        0x03
-#define DM_VERITY_LOGGING   0x04
-#define DM_VERITY_ENFORCING 0x05
-#define DM_VERITY_KEYSCLEAR 0x06
+	/* hard reset reason */
+	REBOOT_MODE_UNKNOWN	= 0x00,
+	RECOVERY_MODE		= 0x01,
+	FASTBOOT_MODE		= 0x02,
+	ALARM_BOOT		= 0x03,
+#if ENABLE_VB_ATTEST
+	DM_VERITY_EIO		= 0x04,
 #else
-#define FASTBOOT_MODE     0x77665500
-#define RECOVERY_MODE     0x77665502
-#define ALARM_BOOT        0x77665503
-#define DM_VERITY_LOGGING    0x77665508
-#define DM_VERITY_ENFORCING  0x77665509
-#define DM_VERITY_KEYSCLEAR  0x7766550A
+	DM_VERITY_LOGGING	= 0x04,
 #endif
+	DM_VERITY_ENFORCING	= 0x05,
+	DM_VERITY_KEYSCLEAR	= 0x06,
+#else
+	REBOOT_MODE_UNKNOWN	= 0x00,
+	RECOVERY_MODE		= 0x77665502,
+	FASTBOOT_MODE		= 0x77665500,
+	ALARM_BOOT		= 0x77665503,
+#if ENABLE_VB_ATTEST
+	DM_VERITY_EIO	        = 0x77665508,
+#else
+	DM_VERITY_LOGGING	= 0x77665508,
+#endif
+	DM_VERITY_ENFORCING	= 0x77665509,
+	DM_VERITY_KEYSCLEAR	= 0x7766550A,
+#endif
+	/* Don't write the reason to PON reg or SMEM
+	 * if the value is more than 0xF0000000
+	 */
+	NORMAL_DLOAD		= 0xF0000001,
+	EMERGENCY_DLOAD,
+};
 
 #include <sys/types.h>
 

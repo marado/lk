@@ -2,37 +2,40 @@
  * Copyright (c) 2017, The Linux Foundation. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
- * modification, are permitted provided that the following conditions are
- * met:
+ * modification, are permitted provided that the following conditions are met:
  *     * Redistributions of source code must retain the above copyright
  *       notice, this list of conditions and the following disclaimer.
- *     * Redistributions in binary form must reproduce the above
- *       copyright notice, this list of conditions and the following
- *       disclaimer in the documentation and/or other materials provided
- *       with the distribution.
- *     * Neither the name of The Linux Foundation nor the names of its
- *       contributors may be used to endorse or promote products derived
- *       from this software without specific prior written permission.
+ *     * Redistributions in binary form must reproduce the above copyright
+ *       notice, this list of conditions and the following disclaimer in the
+ *       documentation and/or other materials provided with the distribution.
+ *     * Neither the name of The Linux Foundation nor
+ *       the names of its contributors may be used to endorse or promote
+ *       products derived from this software without specific prior written
+ *       permission.
  *
- * THIS SOFTWARE IS PROVIDED "AS IS" AND ANY EXPRESS OR IMPLIED
- * WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF
- * MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NON-INFRINGEMENT
- * ARE DISCLAIMED.  IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS
- * BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
- * CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
- * SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR
- * BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY,
- * WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE
- * OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN
- * IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+ * AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+ * IMPLIED WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+ * NON-INFRINGEMENT ARE DISCLAIMED.  IN NO EVENT SHALL THE COPYRIGHT OWNER OR
+ * CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL,
+ * EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO,
+ * PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS;
+ * OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY,
+ * WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR
+ * OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF
+ * ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ *
  */
-
-#include <reboot.h>
 #include <stdlib.h>
 #include <string.h>
 #include <crc32.h>
 #include <ab_partition_parser.h>
 #include <partition_parser.h>
+#include <boot_device.h>
+#if defined(MMC_SDHCI_SUPPORT) || defined(UFS_SUPPORT)
+#include <mmc_wrapper.h>
+#include <ufs.h>
+#endif
 
 //#define AB_DEBUG
 
@@ -236,9 +239,12 @@ int partition_find_active_slot()
 	unsigned boot_priority;
 	struct partition_entry *partition_entries = partition_get_partition_entries();
 
+#ifdef AB_DEBUG
+	dprintf(INFO, "partition_find_active_slot() called\n");
+#endif
 	/* Return current active slot if already found */
 	if (active_slot != INVALID)
-		return active_slot;
+		goto out;
 
 	for (boot_priority = MAX_PRIORITY;
 			boot_priority > 0; boot_priority--)
@@ -274,7 +280,8 @@ int partition_find_active_slot()
 #ifdef AB_DEBUG
 	dprintf(INFO, "Slot (%s) is Valid High Priority Slot\n", SUFFIX_SLOT(i));
 #endif
-					return i;
+					active_slot = i;
+					goto out;
 				}
 			}
 		}
@@ -290,13 +297,20 @@ int partition_find_active_slot()
 							PART_ATT_MAX_RETRY_COUNT_VAL) &
 							(~PART_ATT_SUCCESSFUL_VAL &
 							~PART_ATT_UNBOOTABLE_VAL));
+
+			active_slot = SLOT_A;
+			/* This is required to mark all bits as active,
+			for fresh boot post fresh flash */
+			partition_mark_active_slot(active_slot);
+
 			if (!attributes_updated)
 				attributes_updated = true;
-			return SLOT_A;
+
+			goto out;
 		}
 	}
-	/* If no valid slot */
-	return INVALID;
+out:
+	return active_slot;
 }
 
 static int
@@ -381,6 +395,11 @@ void guid_update(struct partition_entry *partition_entries,
 {
 	unsigned char tmp_guid[PARTITION_TYPE_GUID_SIZE];
 
+#ifdef AB_DEBUG
+	dprintf(INFO, "Swapping GUID (%s) --> (%s) \n",
+			partition_entries[old_index].name,
+			partition_entries[new_index].name);
+#endif
 	memcpy(tmp_guid, partition_entries[old_index].type_guid,
 				PARTITION_TYPE_GUID_SIZE);
 	memcpy(partition_entries[old_index].type_guid,
@@ -484,22 +503,19 @@ void partition_mark_active_slot(signed slot)
 	if (active_slot == slot)
 		goto out;
 
-	switch (active_slot)
+	if(slot != INVALID)
 	{
-		case INVALID:
-			if (slot != SLOT_A)
-				swap_guid(SLOT_A, slot);
-		default:
-			if (slot == INVALID)
-				swap_guid(active_slot, SLOT_A);
-			else
-				swap_guid(active_slot, slot);
+		dprintf(INFO, "Marking (%s) as active\n", SUFFIX_SLOT(slot));
+
+		/* 1. Swap GUID's to new slot */
+		swap_guid(active_slot, slot);
+
+		/* 2. Set Active bit for all partitions of active slot */
+		mark_all_partitions_active(slot);
 	}
+
 	active_slot = slot;
 out:
-	/* Set Active bit for all partitions of active slot */
-	mark_all_partitions_active(slot);
-
 	if (attributes_updated)
 		attributes_update();
 
@@ -556,14 +572,14 @@ int partition_fill_partition_meta(char has_slot_pname[][MAX_GET_VAR_NAME_SIZE],
 				/* 2. put the partition name in array */
 				tmp = pname_size-strlen(suffix_str);
 				strlcpy(has_slot_pname[count], pname, tmp+1);
-				strcpy(has_slot_reply[count], " Yes");
+				strlcpy(has_slot_reply[count], " Yes", MAX_RSP_SIZE);
 				count++;
 			}
 		}
 		else
 		{
-			strcpy(has_slot_pname[count], pname);
-			strcpy(has_slot_reply[count], " No");
+			strlcpy(has_slot_pname[count], pname, MAX_GET_VAR_NAME_SIZE);
+			strlcpy(has_slot_reply[count], " No", MAX_RSP_SIZE);
 			count++;
 		}
 
@@ -595,15 +611,18 @@ void partition_fill_slot_meta(struct ab_slot_info *slot_info)
 	for(i=0; i<AB_SUPPORTED_SLOTS; i++)
 	{
 		current_slot_index = boot_slot_index[i];
-		strcpy(slot_info[i].slot_is_unbootable_rsp,
-				slot_is_bootable(ptn_entries, current_slot_index)?"No":"Yes");
-		strcpy(slot_info[i].slot_is_active_rsp,
-				slot_is_active(ptn_entries, current_slot_index)?"Yes":"No");
-		strcpy(slot_info[i].slot_is_succesful_rsp,
-				slot_is_sucessful(ptn_entries, current_slot_index)?"Yes":"No");
+		strlcpy(slot_info[i].slot_is_unbootable_rsp,
+				slot_is_bootable(ptn_entries, current_slot_index)?"No":"Yes",
+				MAX_RSP_SIZE);
+		strlcpy(slot_info[i].slot_is_active_rsp,
+				slot_is_active(ptn_entries, current_slot_index)?"Yes":"No",
+				MAX_RSP_SIZE);
+		strlcpy(slot_info[i].slot_is_succesful_rsp,
+				slot_is_sucessful(ptn_entries, current_slot_index)?"Yes":"No",
+				MAX_RSP_SIZE);
 		itoa(slot_retry_count(ptn_entries, current_slot_index),
 				(unsigned char *)buff, 2, 10);
-		strcpy(slot_info[i].slot_retry_count_rsp, buff);
+		strlcpy(slot_info[i].slot_retry_count_rsp, buff, MAX_RSP_SIZE);
 	}
 }
 
@@ -627,8 +646,19 @@ update_gpt(uint64_t gpt_start_addr,
 	int ret = 0;
 	uint64_t max_gpt_size_bytes =
 		(PARTITION_ENTRY_SIZE*NUM_PARTITIONS + GPT_HEADER_BLOCKS*block_size);
+	int lun = -1;
+
+	/* Get Current LUN for UFS target */
+	if (!platform_boot_dev_isemmc())
+		lun = mmc_get_lun();
 
 	buffer = memalign(CACHE_LINE, ROUNDUP(max_gpt_size_bytes, CACHE_LINE));
+	if (!buffer)
+	{
+		dprintf(CRITICAL, "update_gpt: Failed at memory allocation\n");
+		goto out;
+	}
+
 	ret = mmc_read(gpt_start_addr, (uint32_t *)buffer,
 				max_gpt_size_bytes);
 	if (ret)
@@ -645,6 +675,18 @@ update_gpt(uint64_t gpt_start_addr,
 	tmp = gpt_entries_ptr;
 	for (i=0;i<partition_count;i++)
 	{
+		if (lun != -1)
+		{
+			/* Partition table is populated with entries from lun 0 to max lun.
+			* break out of the loop once we see the partition lun is > current lun */
+			if (partition_entries[i].lun > lun)
+				break;
+			/* Find the entry where the partition table for 'lun' starts
+			and then update the attributes */
+			if (partition_entries[i].lun != lun)
+				continue;
+		}
+
 		/* Update the partition attributes */
 		PUT_LONG_LONG(&tmp[ATTRIBUTE_FLAG_OFFSET],
 			partition_entries[i].attribute_flag);
@@ -660,6 +702,19 @@ update_gpt(uint64_t gpt_start_addr,
 		    GET_LWORD_FROM_BYTE(&gpt_hdr_ptr[PARTITION_COUNT_OFFSET]);
 	partition_entry_size =
 		    GET_LWORD_FROM_BYTE(&gpt_hdr_ptr[PENTRY_SIZE_OFFSET]);
+
+	/* Check for partition entry size */
+	if (partition_entry_size != PARTITION_ENTRY_SIZE) {
+		dprintf(CRITICAL,"Invalid parition entry size\n");
+		goto out;
+	}
+
+	/* Check for maximum partition size */
+	if ((max_partition_count) > (MIN_PARTITION_ARRAY_SIZE /(partition_entry_size))) {
+		dprintf(CRITICAL, "Invalid maximum partition count\n");
+		goto out;
+	}
+
 	crc_val  = crc32(~0L, gpt_entries_ptr, ((max_partition_count) *
 				(partition_entry_size))) ^ (~0L);
 	PUT_LONG(&gpt_hdr_ptr[PARTITION_CRC_OFFSET], crc_val);
@@ -679,7 +734,8 @@ update_gpt(uint64_t gpt_start_addr,
 		goto out;
 	}
 out:
-	free(buffer);
+	if (buffer)
+		free(buffer);
 	return ret;
 }
 
@@ -697,32 +753,47 @@ static void attributes_update()
 	unsigned max_entries_size_bytes = PARTITION_ENTRY_SIZE*NUM_PARTITIONS;
 	unsigned max_entries_blocks = max_entries_size_bytes/block_size;
 	unsigned max_gpt_blocks = GPT_HEADER_BLOCKS + max_entries_blocks;
+	int max_luns = 0, lun;
+	int cur_lun = mmc_get_lun();
 
-	/* Update Primary GPT */
-	offset = 0x01;	/*  offset is 0x1 for primary GPT */
-	gpt_start_addr = offset*block_size;
-	/* Take gpt_start_addr as start and calculate offset from that in block sz*/
-	gpt_hdr_offset = 0; /* For primary partition offset is zero */
-	gpt_entries_offset = GPT_HEADER_BLOCKS;
-
-	ret = update_gpt(gpt_start_addr, gpt_hdr_offset, gpt_entries_offset);
-	if (ret)
+#if defined(MMC_SDHCI_SUPPORT) || defined(UFS_SUPPORT)
+	if (platform_boot_dev_isemmc())
+		max_luns = 1;
+	else
+		max_luns = ufs_get_num_of_luns((struct ufs_dev*)target_mmc_device());
+#endif
+	for (lun = 0; lun < max_luns; lun++)
 	{
-		dprintf(CRITICAL, "Failed to update Primary GPT\n");
-		return;
-	}
+		/* Set current LUN */
+		mmc_set_lun(lun);
 
-	/* Update Secondary GPT */
-	offset = ((mmc_get_device_capacity()/block_size) - max_gpt_blocks);
-	gpt_start_addr = offset*block_size;
-	gpt_hdr_offset = max_entries_blocks;
-	gpt_entries_offset = 0; /* For secondary GPT entries offset is zero */
+		/* Update Primary GPT */
+		offset = 0x01;	/*  offset is 0x1 for primary GPT */
+		gpt_start_addr = offset*block_size;
+		/* Take gpt_start_addr as start and calculate offset from that in block sz*/
+		gpt_hdr_offset = 0; /* For primary partition offset is zero */
+		gpt_entries_offset = GPT_HEADER_BLOCKS;
 
-	ret = update_gpt(gpt_start_addr, gpt_hdr_offset, gpt_entries_offset);
-	if (ret)
-	{
-		dprintf(CRITICAL, "Failed to update Secondary GPT\n");
-		return;
+		ret = update_gpt(gpt_start_addr, gpt_hdr_offset, gpt_entries_offset);
+		if (ret)
+		{
+			dprintf(CRITICAL, "Failed to update Primary GPT\n");
+			return;
+		}
+
+		/* Update Secondary GPT */
+		offset = ((mmc_get_device_capacity()/block_size) - max_gpt_blocks);
+		gpt_start_addr = offset*block_size;
+		gpt_hdr_offset = max_entries_blocks;
+		gpt_entries_offset = 0; /* For secondary GPT entries offset is zero */
+
+		ret = update_gpt(gpt_start_addr, gpt_hdr_offset, gpt_entries_offset);
+		if (ret)
+		{
+			dprintf(CRITICAL, "Failed to update Secondary GPT\n");
+			return;
+		}
 	}
+	mmc_set_lun(cur_lun);
 	return;
 }

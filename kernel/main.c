@@ -68,8 +68,8 @@ static void call_constructors(void)
 void kmain(void) __NO_RETURN __EXTERNALLY_VISIBLE;
 void kmain(void)
 {
-
         unsigned int marker_value = readl(MPM2_MPM_SLEEP_TIMETICK_COUNT_VAL);
+	thread_t *thr;
 
 	// get us into some sort of thread context
 	thread_init_early();
@@ -116,7 +116,13 @@ void kmain(void)
 #if (!ENABLE_NANDWRITE)
 	// create a thread to complete system initialization
 	dprintf(SPEW, "creating bootstrap completion thread\n");
-	thread_resume(thread_create("bootstrap2", &bootstrap2, NULL, DEFAULT_PRIORITY, DEFAULT_STACK_SIZE));
+	thr = thread_create("bootstrap2", &bootstrap2, NULL, DEFAULT_PRIORITY, DEFAULT_STACK_SIZE);
+	if (!thr)
+	{
+		panic("failed to create thread bootstrap2\n");
+	}
+	thread_resume(thr);
+
 
 	// enable interrupts
 	exit_critical_section();

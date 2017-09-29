@@ -9,9 +9,12 @@ MEMBASE := 0x8F600000 # SDRAM
 MEMSIZE := 0x00100000 # 1MB
 
 BASE_ADDR        := 0x80000000
-SCRATCH_ADDR     := 0x90000000
+SCRATCH_ADDR     := 0x90100000
 
+ifeq ($(ENABLE_DISPLAY),1)
+DEFINES += ENABLE_DISPLAY=1
 DEFINES += DISPLAY_SPLASH_SCREEN=1
+endif
 DEFINES += DISPLAY_TYPE_MIPI=1
 DEFINES += DISPLAY_TYPE_DSI6G=1
 DEFINES += NO_ALARM_DISPLAY=0
@@ -22,6 +25,7 @@ MODULES += \
 	lib/ptable \
 	dev/gcdb/display \
 	dev/pmic/pm8x41 \
+	dev/qpnp_haptic \
 	dev/pmic/pmi8994 \
 	lib/libfdt
 

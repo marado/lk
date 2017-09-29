@@ -1,4 +1,4 @@
-/* Copyright (c) 2014-2015, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2014-2017, The Linux Foundation. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -50,6 +50,8 @@
 #include <rpm-smd.h>
 #include <qpic_nand.h>
 #include <smem.h>
+#include <secapp_loader.h>
+#include <rpmb.h>
 
 #if LONG_PRESS_POWER_ON
 #include <shutdown_detect.h>
@@ -67,6 +69,7 @@
 #if PON_VIB_SUPPORT
 #define VIBRATE_TIME    250
 #endif
+#define HW_SUBTYPE_APQ_NOWGR 0xA
 
 #define CE1_INSTANCE            1
 #define CE_EE                   1
@@ -101,6 +104,7 @@ static struct ptable flash_ptable;
 #define QPIC_NAND_MAX_DESC_LEN                        0x7FFF
 
 #define LAST_NAND_PTN_LEN_PATTERN                     0xFFFFFFFF
+#define UBI_CMDLINE " rootfstype=ubifs rootflags=bulk_read"
 
 struct qpic_nand_init_config config;
 
@@ -320,7 +324,9 @@ void target_init(void)
 {
 	uint32_t base_addr;
 	uint8_t slot;
-
+#if VERIFIED_BOOT
+	int ret = 0;
+#endif
 	dprintf(INFO, "target_init()\n");
 
 	spmi_init(PMIC_ARB_CHANNEL_NUM, PMIC_ARB_OWNER_ID);
@@ -371,11 +377,51 @@ void target_init(void)
 #if PON_VIB_SUPPORT
 
 	/* turn on vibrator to indicate that phone is booting up to end user */
-		vib_timed_turn_on(VIBRATE_TIME);
+	vib_timed_turn_on(VIBRATE_TIME);
 #endif
 
 	if (target_use_signed_kernel())
 		target_crypto_init_params();
+
+#if VERIFIED_BOOT
+	if (VB_V2 == target_get_vb_version())
+	{
+		clock_ce_enable(CE1_INSTANCE);
+
+		/* Initialize Qseecom */
+		ret = qseecom_init();
+
+		if (ret < 0)
+		{
+			dprintf(CRITICAL, "Failed to initialize qseecom, error: %d\n", ret);
+			ASSERT(0);
+		}
+
+		/* Start Qseecom */
+		ret = qseecom_tz_init();
+
+		if (ret < 0)
+		{
+			dprintf(CRITICAL, "Failed to start qseecom, error: %d\n", ret);
+			ASSERT(0);
+		}
+
+		if (rpmb_init() < 0)
+		{
+			dprintf(CRITICAL, "RPMB init failed\n");
+			ASSERT(0);
+		}
+
+		/*
+		 * Load the sec app for first time
+		*/
+		if (load_sec_app() < 0)
+		{
+			dprintf(CRITICAL, "Failed to load App for verified\n");
+			ASSERT(0);
+		}
+	}
+#endif
 
 #if SMD_SUPPORT
 	rpm_smd_init();
@@ -415,6 +461,7 @@ void target_baseband_detect(struct board_data *board)
 	case MSM8209:
 	case MSM8208:
 	case MSM8609:
+	case MSM8909W:
 		board->baseband = BASEBAND_MSM;
 		break;
 
@@ -425,7 +472,13 @@ void target_baseband_detect(struct board_data *board)
 		break;
 
 	case APQ8009:
-		board->baseband = BASEBAND_APQ;
+	case APQ8009W:
+		if ((board->platform_hw == HW_PLATFORM_MTP) &&
+			((board->platform_subtype == HW_SUBTYPE_APQ_NOWGR) ||
+			 (board->platform_subtype == HW_PLATFORM_SUBTYPE_SWOC_NOWGR_CIRC)))
+			board->baseband = BASEBAND_APQ_NOWGR;
+		else
+			board->baseband = BASEBAND_APQ;
 		break;
 
 	default:
@@ -472,54 +525,94 @@ void target_force_cont_splash_disable(uint8_t override)
         splash_override = override;
 }
 
+/*Update this command line only for LE based builds*/
 int get_target_boot_params(const char *cmdline, const char *part, char **buf)
 {
 	struct ptable *ptable;
 	int system_ptn_index = -1;
-	uint32_t buflen;
+	int le_based = -1;
+	uint32_t buflen = 0;
 
-	if (!target_is_emmc_boot()) {
-		if (!cmdline || !part || !buf || buflen < 0) {
-			dprintf(CRITICAL, "WARN: Invalid input param\n");
-			return -1;
-		}
-		buflen = strlen(" root=/dev/mtdblock") + sizeof(int) + 1; /*1 character for null termination*/
-		*buf = (char *)malloc(buflen);
-		if(!(*buf)) {
-			dprintf(CRITICAL,"Unable to allocate memory for boot params\n");
-			return -1;
-		}
+	if (!cmdline || !part ) {
+		dprintf(CRITICAL, "WARN: Invalid input param\n");
+		return -1;
+	}
 
-		ptable = flash_get_ptable();
-		if (!ptable) {
-			dprintf(CRITICAL,
-				"WARN: Cannot get flash partition table\n");
-			free(*buf);
-			return -1;
-		}
+	/*LE partition.xml will have recoveryfs partition*/
+	if (target_is_emmc_boot())
+		le_based = partition_get_index("recoveryfs");
+	else
+		/*Nand targets by default have this*/
+		le_based = 1;
 
-		system_ptn_index = ptable_get_index(ptable, part);
+	if (le_based != -1)
+	{
+		if (!target_is_emmc_boot())
+		{
+			ptable = flash_get_ptable();
+			if (!ptable)
+			{
+				dprintf(CRITICAL,
+					"WARN: Cannot get flash partition table\n");
+				return -1;
+			}
+			system_ptn_index = ptable_get_index(ptable, part);
+		}
+		else
+			system_ptn_index = partition_get_index(part);
 		if (system_ptn_index < 0) {
 			dprintf(CRITICAL,
 				"WARN: Cannot get partition index for %s\n", part);
-			free(*buf);
 			return -1;
 		}
-
 		/*
 		* check if cmdline contains "root=" at the beginning of buffer or
 		* " root=" in the middle of buffer.
 		*/
 		if (((!strncmp(cmdline, "root=", strlen("root="))) ||
-			(strstr(cmdline, " root="))))
+			(strstr(cmdline, " root=")))) {
 			dprintf(DEBUG, "DEBUG: cmdline has root=\n");
+			return -1;
+		}
 		else
-			snprintf(*buf, buflen, " root=/dev/mtdblock%d",
-                                 system_ptn_index);
 		/*in success case buf will be freed in the calling function of this*/
-	}
+		{
+			if (!target_is_emmc_boot())
+			{
+				buflen = strlen(UBI_CMDLINE) + strlen(" root=ubi0:rootfs ubi.mtd=") + sizeof(int) + 1; /* 1 byte for null character*/
 
-	return 0;
+				/* In success case, this memory is freed in calling function */
+				*buf = (char *)malloc(buflen);
+				if(!(*buf)) {
+					dprintf(CRITICAL,"Unable to allocate memory for boot params \n");
+					return -1;
+				}
+
+				/* Adding command line parameters according to target boot type */
+				snprintf(*buf, buflen, UBI_CMDLINE);
+				snprintf(*buf+strlen(*buf), buflen, " root=ubi0:rootfs ubi.mtd=%d", system_ptn_index);
+			}
+			else
+			{
+				/* Extra character is for Null termination */
+				buflen = strlen(" root=/dev/mmcblk0p") + sizeof(int) + 1;
+
+				/* In success case, this memory is freed in calling function */
+				*buf = (char *)malloc(buflen);
+				if(!(*buf)) {
+					dprintf(CRITICAL,"Unable to allocate memory for boot params \n");
+					return -1;
+				}
+
+				/*For Emmc case increase the ptn_index by 1*/
+				snprintf(*buf, buflen, " root=/dev/mmcblk0p%d",system_ptn_index + 1);
+			}
+		}
+
+		/*Return for LE based Targets.*/
+		return 0;
+	}
+	return -1;
 }
 
 unsigned target_baseband()
@@ -595,6 +688,28 @@ void target_uninit(void)
 	if (target_is_ssd_enabled())
 		clock_ce_disable(CE1_INSTANCE);
 
+#if VERIFIED_BOOT
+	if(VB_V2 == target_get_vb_version())
+	{
+		if (is_sec_app_loaded())
+		{
+			if (send_milestone_call_to_tz() < 0)
+			{
+				dprintf(CRITICAL, "Failed to unload App for rpmb\n");
+				ASSERT(0);
+			}
+		}
+
+		if (rpmb_uninit() < 0)
+		{
+			dprintf(CRITICAL, "RPMB uninit failed\n");
+			ASSERT(0);
+		}
+
+		clock_ce_disable(CE1_INSTANCE);
+	}
+#endif
+
 #if SMD_SUPPORT
 	rpm_smd_uninit();
 #endif
@@ -612,7 +727,7 @@ void target_fastboot_init(void)
 	}
 }
 
-int set_download_mode(enum dload_mode mode)
+int set_download_mode(enum reboot_reason mode)
 {
 	int ret = 0;
 	ret = scm_dload_mode(mode);
@@ -711,5 +826,8 @@ void pmic_reset_configure(uint8_t reset_type)
 
 uint32_t target_get_pmic()
 {
-	return PMIC_IS_PM8909;
+	if (board_hardware_subtype() == HW_PLATFORM_SUBTYPE_8909_PM660)
+		return PMIC_IS_PM660;
+	else
+		return PMIC_IS_PM8909;
 }

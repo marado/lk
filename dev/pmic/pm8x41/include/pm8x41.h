@@ -1,4 +1,4 @@
-/* Copyright (c) 2012-2015, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2012-2015, 2017, The Linux Foundation. All rights reserved.
 
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -63,6 +63,9 @@
 #define PON_PSHOLD_WARM_RESET   0x1
 #define PON_PSHOLD_SHUTDOWN     0x4
 #define PON_PSHOLD_HARD_RESET   0x7
+
+#define PM_GPIO_NO_INVERT       0x00
+#define PM_GPIO_INVERT          0x01
 
 enum PM8X41_VERSIONS
 {
@@ -221,6 +224,7 @@ uint32_t pm8x41_resin_status();
 void pm8x41_reset_configure(uint8_t);
 void pm8994_reset_configure(uint8_t);
 void pm8x41_v2_reset_configure(uint8_t);
+uint8_t pmi8950_get_pmi_subtype();
 int pm8x41_ldo_set_voltage(struct pm8x41_ldo *ldo, uint32_t voltage);
 int pm8x41_ldo_control(struct pm8x41_ldo *ldo, uint8_t enable);
 uint8_t pm8x41_get_pmic_rev();

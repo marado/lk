@@ -1,4 +1,4 @@
-/* Copyright (c) 2013-2015, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2013-2017, The Linux Foundation. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -230,10 +230,6 @@ static void usb30_init(struct udc_device *dev_info)
 
 	/* section 4.4.2: Initialization and configuration sequences */
 
-	/* 1. UTMI Mux configuration */
-	if (dev_info->t_usb_if->mux_config)
-		dev_info->t_usb_if->mux_config();
-
 	/* 2. Put controller in reset */
 	dwc_reset(dwc, 1);
 
@@ -242,6 +238,10 @@ static void usb30_init(struct udc_device *dev_info)
 
 	/* 3. Reset PHY */
 	phy_reset(wrapper, dev_info);
+
+	/* 3.1 UTMI Mux configuration */
+	if (dev_info->t_usb_if->mux_config)
+		dev_info->t_usb_if->mux_config();
 
 	/* 4. SS phy config */
 	if (!use_hsonly_mode())
@@ -1380,7 +1380,10 @@ static struct udc_descriptor *udc_descriptor_alloc(uint32_t type,
 {
 	struct udc_descriptor *desc;
 	if ((len > 255) || (len < 2) || (num > 255) || (type > 255))
-		return 0;
+	{
+		dprintf(CRITICAL, "Invalid parameters for descriptor allocation\n");
+		ASSERT(0);
+	}
 
 	desc = malloc(sizeof(struct udc_descriptor) + len);
 	ASSERT(desc);

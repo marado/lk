@@ -464,7 +464,7 @@ static int dev_tree_compatible(void *dtb, uint32_t dtb_size, struct dt_entry_nod
  */
 void *dev_tree_appended(void *kernel, uint32_t kernel_size, uint32_t dtb_offset, void *tags)
 {
-	void *kernel_end = kernel + kernel_size;
+	uintptr_t kernel_end = (uintptr_t)kernel + kernel_size;
 	uint32_t app_dtb_offset = 0;
 	void *dtb = NULL;
 	void *bestmatch_tag = NULL;
@@ -473,7 +473,6 @@ void *dev_tree_appended(void *kernel, uint32_t kernel_size, uint32_t dtb_offset,
 	struct dt_entry_node *dt_entry_queue = NULL;
 	struct dt_entry_node *dt_node_tmp1 = NULL;
 	struct dt_entry_node *dt_node_tmp2 = NULL;
-
 
 	/* Initialize the dtb entry node*/
 	dt_entry_queue = (struct dt_entry_node *)
@@ -493,7 +492,8 @@ void *dev_tree_appended(void *kernel, uint32_t kernel_size, uint32_t dtb_offset,
 	if (((uintptr_t)kernel + (uintptr_t)app_dtb_offset) < (uintptr_t)kernel) {
 		return NULL;
 	}
-	dtb = kernel + app_dtb_offset;
+	dtb = (void *)((uintptr_t)kernel + app_dtb_offset);
+
 	while (((uintptr_t)dtb + sizeof(struct fdt_header)) < (uintptr_t)kernel_end) {
 		struct fdt_header dtb_hdr;
 		uint32_t dtb_size;
@@ -543,6 +543,10 @@ void *dev_tree_appended(void *kernel, uint32_t kernel_size, uint32_t dtb_offset,
 	}
 
 	if(bestmatch_tag) {
+		if (check_aboot_addr_range_overlap((uintptr_t)tags, bestmatch_tag_size)) {
+			dprintf(CRITICAL, "Tags addresses overlap with aboot addresses.\n");
+			return NULL;
+		}
 		memcpy(tags, bestmatch_tag, bestmatch_tag_size);
 		/* clear out the old DTB magic so kernel doesn't find it */
 		*((uint32_t *)(kernel + app_dtb_offset)) = 0;

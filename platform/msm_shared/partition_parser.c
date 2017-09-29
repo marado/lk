@@ -1252,8 +1252,9 @@ partition_parse_gpt_header(unsigned char *buffer,
 	if (!flashing_gpt) {
 		partition_0 = GET_LLWORD_FROM_BYTE(&buffer[PARTITION_ENTRIES_OFFSET]);
 		/*start LBA should always be 2 in primary GPT*/
-		if(partition_0 != 0x2) {
+		if(partition_0 != 0x2 && !parse_secondary_gpt) {
 			dprintf(CRITICAL, "Starting LBA mismatch\n");
+			ret = 1;
 			goto fail;
 
 		}

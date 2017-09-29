@@ -1,4 +1,4 @@
-/* Copyright (c) 2011-2015, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2011-2017, The Linux Foundation. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -55,6 +55,15 @@
                                    SCM_MASK_IRQS | \
                                    ((n) & 0xf))
 
+#define SECBOOT_FUSE_BIT                  0
+#define SECBOOT_FUSE_SHK_BIT              1
+#define SECBOOT_FUSE_DEBUG_DISABLED_BIT   2
+#define SECBOOT_FUSE_ANTI_ROLLBACK_BIT    3
+#define SECBOOT_FUSE_FEC_ENABLED_BIT      4
+#define SECBOOT_FUSE_RPMB_ENABLED_BIT     5
+#define SECBOOT_FUSE_DEBUG_RE_ENABLED_BIT 6
+#define CHECK_BIT(var, pos) ((var) & (1 << (pos)))
+
 /* SCM interface as per ARM spec present? */
 bool scm_arm_support;
 static bool scm_initialized;
@@ -65,7 +74,6 @@ bool is_scm_armv8_support()
 	if (!scm_initialized)
 	{
 		scm_init();
-		scm_initialized = true;
 	}
 #endif
 
@@ -113,6 +121,12 @@ void scm_init()
 
 	if (ret < 0)
 		dprintf(CRITICAL, "Failed to initialize SCM\n");
+
+	scm_initialized = true;
+
+#if DISABLE_DLOAD_MODE
+	scm_disable_sdi();
+#endif
 }
 
 /**
@@ -1080,6 +1094,13 @@ int scm_random(uintptr_t * rbuf, uint32_t  r_len)
 	// Memory passed to TZ should be algined to cache line
 	BUF_DMA_ALIGN(rand_buf, sizeof(uintptr_t));
 
+	// r_len must be less than or equal to sizeof(rand_buf) to avoid memory corruption.
+	if (r_len > sizeof(rand_buf))
+	{
+		dprintf(CRITICAL, "r_len is larger than sizeof(randbuf).");
+		return -1;
+	}
+
 	if (!is_scm_armv8_support())
 	{
 		data.out_buf     = (uint8_t*) rand_buf;
@@ -1239,34 +1260,41 @@ uint32_t scm_call2(scmcall_arg *arg, scmcall_ret *ret)
 	return 0;
 }
 
-static bool secure_boot_enabled = true;
+static bool secure_boot_enabled = false;
 static bool wdog_debug_fuse_disabled = true;
 
 void scm_check_boot_fuses()
 {
 	uint32_t ret = 0;
-	uint32_t resp;
+	uint32_t *resp = NULL;
 	scmcall_arg scm_arg = {0};
 	scmcall_ret scm_ret = {0};
 
+	resp = memalign(CACHE_LINE, (2 * sizeof(uint32_t)));
+	ASSERT(resp);
 	if (!is_scm_armv8_support()) {
-		ret = scm_call(TZBSP_SVC_INFO, IS_SECURE_BOOT_ENABLED, NULL, 0, &resp, sizeof(resp));
+		ret = scm_call_atomic2(TZBSP_SVC_INFO, IS_SECURE_BOOT_ENABLED, (uint32_t)resp, 2 * sizeof(uint32_t));
+		arch_clean_invalidate_cache_range((addr_t)resp, ROUNDUP((2*sizeof(uint32_t)), CACHE_LINE));
 	} else {
 		scm_arg.x0 = MAKE_SIP_SCM_CMD(TZBSP_SVC_INFO, IS_SECURE_BOOT_ENABLED);
 		ret = scm_call2(&scm_arg, &scm_ret);
-		resp = scm_ret.x1;
+		resp[0] = scm_ret.x1;
 	}
 
-	/* Parse Bit 0 and Bit 2 of the response */
-	if(!ret) {
-		/* Bit 0 - SECBOOT_ENABLE_CHECK */
-		if(resp & 0x1)
-			secure_boot_enabled = false;
+	if (!ret) {
+		/* Check for secure device: Bit#0 = 0, Bit#1 = 0 Bit#2 = 0 , Bit#5 = 0 , Bit#6 = 1 */
+        	if (!CHECK_BIT(resp[0], SECBOOT_FUSE_BIT) && !CHECK_BIT(resp[0], SECBOOT_FUSE_SHK_BIT) &&
+        		!CHECK_BIT(resp[0], SECBOOT_FUSE_DEBUG_DISABLED_BIT) &&
+        		!CHECK_BIT(resp[0], SECBOOT_FUSE_RPMB_ENABLED_BIT) &&
+        		CHECK_BIT(resp[0], SECBOOT_FUSE_DEBUG_RE_ENABLED_BIT)) {
+        		secure_boot_enabled = true;
+        	}
 		/* Bit 2 - DEBUG_DISABLE_CHECK */
-		if(resp & 0x4)
+		if (CHECK_BIT(resp[0], SECBOOT_FUSE_DEBUG_DISABLED_BIT))
 			wdog_debug_fuse_disabled = false;
 	} else
 		dprintf(CRITICAL, "scm call to check secure boot fuses failed\n");
+	free(resp);
 }
 
 bool is_secure_boot_enable()
@@ -1334,16 +1362,34 @@ int scm_call2_atomic(uint32_t svc, uint32_t cmd, uint32_t arg1, uint32_t arg2)
 	return ret;
 }
 
+int scm_disable_sdi()
+{
+	int ret = 0;
+
+	scm_check_boot_fuses();
+
+	/* Make WDOG_DEBUG DISABLE scm call only in non-secure boot */
+	if(!(secure_boot_enabled || wdog_debug_fuse_disabled)) {
+		ret = scm_call2_atomic(SCM_SVC_BOOT, WDOG_DEBUG_DISABLE, 1, 0);
+		if(ret)
+			dprintf(CRITICAL, "Failed to disable secure wdog debug: %d\n", ret);
+	}
+	return ret;
+}
+
 #if PLATFORM_USE_SCM_DLOAD
-int scm_dload_mode(int mode)
+int scm_dload_mode(enum reboot_reason mode)
 {
 	int ret = 0;
 	uint32_t dload_type;
 
 	dprintf(SPEW, "DLOAD mode: %d\n", mode);
-	if (mode == NORMAL_DLOAD)
+	if (mode == NORMAL_DLOAD) {
 		dload_type = SCM_DLOAD_MODE;
-	else if(mode == EMERGENCY_DLOAD)
+#if DISABLE_DLOAD_MODE
+		return 0;
+#endif
+	} else if(mode == EMERGENCY_DLOAD)
 		dload_type = SCM_EDLOAD_MODE;
 	else
 		dload_type = 0;
@@ -1361,16 +1407,11 @@ int scm_dload_mode(int mode)
 		return ret;
 	}
 
-	scm_check_boot_fuses();
-
-	/* Make WDOG_DEBUG DISABLE scm call only in non-secure boot */
-	if(!(secure_boot_enabled || wdog_debug_fuse_disabled)) {
-		ret = scm_call2_atomic(SCM_SVC_BOOT, WDOG_DEBUG_DISABLE, 1, 0);
-		if(ret)
-			dprintf(CRITICAL, "Failed to disable the wdog debug \n");
-	}
-
+#if !DISABLE_DLOAD_MODE
+	return scm_disable_sdi();
+#else
 	return ret;
+#endif
 }
 
 bool scm_device_enter_dload()

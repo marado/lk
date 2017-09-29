@@ -1,4 +1,4 @@
-/* Copyright (c) 2012-2015, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2012-2015, 2017, The Linux Foundation. All rights reserved.
 
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -40,6 +40,7 @@
 #define BOOT_DONE_BIT                         7
 
 #define REVID_REVISION4                       0x103
+#define REVID_REV_ID_SPARE_0                  0x160
 
 /* LPG Registers */
 #define LPG_SLAVE_ID                  	0x10000	/* slave_id == 1 */
@@ -57,6 +58,7 @@
 #define GPIO_MODE_CTL                         0x40
 #define GPIO_DIG_VIN_CTL                      0x41
 #define GPIO_DIG_PULL_CTL                     0x42
+#define GPIO_DIG_OUT_SRC_CTL                  0x44
 #define GPIO_DIG_OUT_CTL                      0x45
 #define GPIO_EN_CTL                           0x46
 
