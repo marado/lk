@@ -29,6 +29,7 @@
 #include <debug.h>
 #include <arch/arm.h>
 #include <dev/udc.h>
+#include <stdlib.h>
 #include <string.h>
 #include <kernel/thread.h>
 #include <arch/ops.h>
@@ -42,7 +43,6 @@
 #include <target.h>
 #include <partition_parser.h>
 #include <mmc.h>
-#include <malloc.h>
 
 #include "recovery.h"
 #include "bootimg.h"
@@ -474,11 +474,9 @@ int booting_into_recovery(void)
 {
 	int ret;
 	struct recovery_message *msg;
-	uint32_t block_size = 0;
 
 	if (target_is_emmc_boot()) {
-		block_size = mmc_get_device_blocksize();
-		msg = (struct recovery_message *)memalign(CACHE_LINE, block_size);
+		msg = (struct recovery_message *)memalign(CACHE_LINE, ROUNDUP(sizeof(*msg), CACHE_LINE));
 		ASSERT(msg);
 		memset(msg, 0, sizeof(*msg));
 		ret = emmc_get_recovery_msg(msg);
