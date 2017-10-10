@@ -240,6 +240,7 @@
 enum part_access_type
 {
 	PART_ACCESS_DEFAULT = 0x0,
+	PART_ACCESS_BOOT2 = 0x2,
 	PART_ACCESS_RPMB = 0x3,
 };
 
@@ -357,4 +358,6 @@ void mmc_put_card_to_sleep(struct mmc_device *dev);
 bool mmc_set_drv_type(struct sdhci_host *host, struct mmc_card *card, uint8_t drv_type);
 /* API: Send the read & write command sequence to rpmb */
 uint32_t mmc_sdhci_rpmb_send(struct mmc_device *dev, struct mmc_command *cmd);
+/* API: switch active physical partition */
+uint32_t mmc_sdhci_switch_part(struct mmc_device *dev, uint32_t type);
 #endif

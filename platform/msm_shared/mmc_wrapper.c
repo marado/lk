@@ -35,7 +35,6 @@
 #include <target.h>
 #include <string.h>
 #include <partition_parser.h>
-
 /*
  * Weak function for UFS.
  * These are needed to avoid link errors for platforms which
@@ -232,6 +231,31 @@ uint32_t mmc_read(uint64_t data_addr, uint32_t *out, uint32_t data_len)
 		arch_invalidate_cache_range((addr_t)out, data_len);
 	}
 
+	return ret;
+}
+
+/*
+ * Function: mmc_read_boot2
+ * Arg     : Data address on card, o/p buffer & data length
+ * Return  : 0 on Success, non zero on failure
+ * Flow    : Read data from the card to out
+ */
+uint32_t mmc_read_boot2(uint64_t data_addr, uint32_t *out, uint32_t data_len)
+{
+	void *dev;
+	uint32_t ret = 0;
+
+	dev = target_mmc_device();
+	if (mmc_sdhci_switch_part(dev, PART_ACCESS_BOOT2))
+	{
+		return 1;
+	}
+	ret = mmc_read(data_addr, out, data_len);
+
+	if (mmc_sdhci_switch_part(dev, PART_ACCESS_DEFAULT))
+	{
+		return 1;
+	}
 	return ret;
 }
 

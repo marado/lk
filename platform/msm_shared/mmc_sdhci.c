@@ -2384,9 +2384,9 @@ void mmc_put_card_to_sleep(struct mmc_device *dev)
 }
 
 /*
- * Switch the partition access type to rpmb or default
+ * Switch the partition access type
  */
-static uint32_t mmc_sdhci_switch_part(struct mmc_device *dev, uint32_t type)
+uint32_t mmc_sdhci_switch_part(struct mmc_device *dev, uint32_t type)
 {
 	uint32_t part_access;
 	uint32_t ret;

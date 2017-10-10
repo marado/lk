@@ -39,6 +39,7 @@ uint32_t mmc_get_psn(void);
 
 uint32_t mmc_read(uint64_t data_addr, uint32_t *out, uint32_t data_len);
 uint32_t mmc_write(uint64_t data_addr, uint32_t data_len, void *in);
+uint32_t mmc_read_boot2(uint64_t data_addr, uint32_t *out, uint32_t data_len);
 uint32_t mmc_erase_card(uint64_t, uint64_t);
 uint64_t mmc_get_device_capacity(void);
 uint32_t mmc_erase_card(uint64_t addr, uint64_t len);

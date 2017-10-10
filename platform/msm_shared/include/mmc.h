@@ -624,6 +624,8 @@ unsigned int mmc_write(unsigned long long data_addr,
 
 unsigned int mmc_read(unsigned long long data_addr, unsigned int *out,
 		      unsigned int data_len);
+unsigned int mmc_read_boot2(unsigned long long data_addr, unsigned int *out,
+              unsigned int data_len);
 unsigned mmc_get_psn(void);
 
 unsigned int mmc_erase_card(unsigned long long data_addr,
