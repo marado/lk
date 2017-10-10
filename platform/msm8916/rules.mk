@@ -16,7 +16,8 @@ DEFINES += WITH_CPU_EARLY_INIT=0 WITH_CPU_WARM_BOOT=0 \
 INCLUDES += -I$(LOCAL_DIR)/include -I$(LK_TOP_DIR)/platform/msm_shared/include
 
 DEVS += fbcon
-MODULES += dev/fbcon
+MODULES += dev/fbcon \
+           lib/fs/fat
 
 OBJS += \
        $(LOCAL_DIR)/platform.o \

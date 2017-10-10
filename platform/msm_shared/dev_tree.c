@@ -1362,7 +1362,13 @@ int update_device_tree(void *fdt, const char *cmdline,
 
 	/* make sure local-mac-address is set for WCN device */
 	offset = fdt_node_offset_by_compatible(fdt, -1, "qcom,wcnss-wlan");
-
+#ifdef STORED_SETTINGS
+	ret = stored_settings_get_wlan_mac(mac);
+	if (!ret)
+	{
+		dprintf(CRITICAL, "Couldn't read persistant WLAN MAC address\n");
+	}
+#endif
 	if (mac != NULL && offset != -FDT_ERR_NOTFOUND)
 	{
 		if (fdt_getprop(fdt, offset, "local-mac-address", NULL) == NULL)
@@ -1378,6 +1384,13 @@ int update_device_tree(void *fdt, const char *cmdline,
 		}
 	}
 
+#ifdef STORED_SETTINGS
+	ret = stored_settings_get_bt_mac(mac);
+	if (!ret)
+	{
+		dprintf(CRITICAL, "Couldn't read persistant BT MAC address\n");
+	}
+#endif
 	/* make sure local-mac-address is set for WCN BT device */
 	offset = fdt_node_offset_by_compatible(fdt, -1, "qcom,wcnss-bt");
 
@@ -1386,6 +1399,10 @@ int update_device_tree(void *fdt, const char *cmdline,
 		if (fdt_getprop(fdt, offset, "local-mac-address", NULL) == NULL)
 		{
 			/* The BT MAC address is same as WLAN MAC address but with last bit flipped */
+#ifdef STORED_SETTINGS
+			/* In case we can't read the BT MAC Address */
+			if (!ret)
+#endif
 			mac[5] = (mac[5] & 0xFE) | ((mac[5] ^ 0x1) & 0x1);
 
 			dprintf(INFO, "Setting BT mac address in DT: %02X:%02X:%02X:%02X:%02X:%02X\n",

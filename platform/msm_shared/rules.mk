@@ -1,7 +1,7 @@
 LOCAL_DIR := $(GET_LOCAL_DIR)
 
 INCLUDES += \
-			-I$(LOCAL_DIR)/include -I$(LK_TOP_DIR)/dev/panel/msm
+			-I$(LOCAL_DIR)/include -I$(LK_TOP_DIR)/dev/panel/msm -I$(LK_TOP_DIR)/lib/fs/fat
 
 DEFINES += $(TARGET_XRES)
 DEFINES += $(TARGET_YRES)
@@ -169,6 +169,7 @@ endif
 
 ifeq ($(PLATFORM),msm8916)
 DEFINES += DISPLAY_TYPE_MDSS=1
+DEFINES += STORED_SETTINGS=1
 	OBJS += $(LOCAL_DIR)/qgic.o \
 		$(LOCAL_DIR)/qtimer.o \
 		$(LOCAL_DIR)/qtimer_mmap.o \
@@ -197,7 +198,8 @@ DEFINES += DISPLAY_TYPE_MDSS=1
 		$(LOCAL_DIR)/crypto_hash.o \
 		$(LOCAL_DIR)/crypto5_eng.o \
 		$(LOCAL_DIR)/crypto5_wrapper.o \
-		$(LOCAL_DIR)/i2c_qup.o
+		$(LOCAL_DIR)/i2c_qup.o \
+		$(LOCAL_DIR)/stored_settings.o
 
 endif
 
