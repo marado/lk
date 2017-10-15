@@ -51,6 +51,7 @@
 #include <secapp_loader.h>
 #include <rpmb.h>
 #include <smem.h>
+#include <stored_settings.h>
 
 #if LONG_PRESS_POWER_ON
 #include <shutdown_detect.h>
@@ -195,6 +196,13 @@ void target_init(void)
 		dprintf(CRITICAL, "Error reading the partition table info\n");
 		ASSERT(0);
 	}
+
+#ifdef STORED_SETTINGS
+	if (read_stored_settings())
+	{
+		dprintf(CRITICAL, "Error reading stored settings\n");
+	}
+#endif
 
 	pm8x41_get_pon_set_trigger(CBLPWR_N,false);
 	pm8x41_get_pon_set_trigger(USB_CHG,false);
