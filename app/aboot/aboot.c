@@ -840,6 +840,30 @@ int check_aboot_addr_range_overlap(uintptr_t start, uint32_t size)
 		return -1;
 }
 
+/* Function to check if the memory address range falls beyond ddr region.
+ * start: Start of the memory region
+ * size: Size of the memory region
+ */
+int check_ddr_addr_range_bound(uintptr_t start, uint32_t size)
+{
+	uintptr_t ddr_pa_start_addr = PA(get_ddr_start());
+	uint64_t ddr_size = smem_get_ddr_size();
+	uint64_t ddr_pa_end_addr = ddr_pa_start_addr + ddr_size;
+	uintptr_t pa_start_addr = PA(start);
+
+	/* Check for boundary conditions. */
+	if ((UINT_MAX - start) < size)
+		return -1;
+
+	/* Check if memory range is beyond the ddr range. */
+	if (pa_start_addr < ddr_pa_start_addr ||
+		pa_start_addr >= (ddr_pa_end_addr) ||
+		(pa_start_addr + size) > ddr_pa_end_addr)
+		return -1;
+	else
+		return 0;
+}
+
 #define ROUND_TO_PAGE(x,y) (((x) + (y)) & (~(y)))
 
 BUF_DMA_ALIGN(buf, BOOT_IMG_MAX_PAGE_SIZE); //Equal to max-supported pagesize
@@ -1276,16 +1300,19 @@ int boot_linux_from_mmc(void)
 	kernel_size = ROUND_TO_PAGE(kernel_size,  page_mask);
 	/* Check if the addresses in the header are valid. */
 	if (check_aboot_addr_range_overlap(hdr->kernel_addr, kernel_size) ||
-		check_aboot_addr_range_overlap(hdr->ramdisk_addr, ramdisk_actual))
+		check_ddr_addr_range_bound(hdr->kernel_addr, kernel_size) ||
+		check_aboot_addr_range_overlap(hdr->ramdisk_addr, ramdisk_actual) ||
+		check_ddr_addr_range_bound(hdr->ramdisk_addr, ramdisk_actual))
 	{
-		dprintf(CRITICAL, "kernel/ramdisk addresses overlap with aboot addresses.\n");
+		dprintf(CRITICAL, "kernel/ramdisk addresses are not valid.\n");
 		return -1;
 	}
 
 #ifndef DEVICE_TREE
-	if (check_aboot_addr_range_overlap(hdr->tags_addr, MAX_TAGS_SIZE))
+	if (check_aboot_addr_range_overlap(hdr->tags_addr, MAX_TAGS_SIZE) ||
+		check_ddr_addr_range_bound(hdr->tags_addr, MAX_TAGS_SIZE))
 	{
-		dprintf(CRITICAL, "Tags addresses overlap with aboot addresses.\n");
+		dprintf(CRITICAL, "Tags addresses are not valid.\n");
 		return -1;
 	}
 #endif
@@ -1318,18 +1345,20 @@ int boot_linux_from_mmc(void)
 		}
 
 		/* Validate and Read device device tree in the tags_addr */
-		if (check_aboot_addr_range_overlap(hdr->tags_addr, dt_entry.size))
+		if (check_aboot_addr_range_overlap(hdr->tags_addr, dt_entry.size) ||
+			check_ddr_addr_range_bound(hdr->tags_addr, dt_entry.size))
 		{
-			dprintf(CRITICAL, "Device tree addresses overlap with aboot addresses.\n");
+			dprintf(CRITICAL, "Device tree addresses are not valid\n");
 			return -1;
 		}
 
 		memmove((void *)hdr->tags_addr, (char *)dt_table_offset + dt_entry.offset, dt_entry.size);
 	} else {
 		/* Validate the tags_addr */
-		if (check_aboot_addr_range_overlap(hdr->tags_addr, kernel_actual))
+		if (check_aboot_addr_range_overlap(hdr->tags_addr, kernel_actual) ||
+			check_ddr_addr_range_bound(hdr->tags_addr, kernel_actual))
 		{
-			dprintf(CRITICAL, "Device tree addresses overlap with aboot addresses.\n");
+			dprintf(CRITICAL, "Device tree addresses are not valid.\n");
 			return -1;
 		}
 		/*
@@ -1455,9 +1484,11 @@ int boot_linux_from_flash(void)
 
 	/* Check if the addresses in the header are valid. */
 	if (check_aboot_addr_range_overlap(hdr->kernel_addr, kernel_actual) ||
-		check_aboot_addr_range_overlap(hdr->ramdisk_addr, ramdisk_actual))
+		check_ddr_addr_range_bound(hdr->kernel_addr, kernel_actual) ||
+		check_aboot_addr_range_overlap(hdr->ramdisk_addr, ramdisk_actual) ||
+		check_ddr_addr_range_bound(hdr->ramdisk_addr, ramdisk_actual))
 	{
-		dprintf(CRITICAL, "kernel/ramdisk addresses overlap with aboot addresses.\n");
+		dprintf(CRITICAL, "kernel/ramdisk addresses are not valid.\n");
 		return -1;
 	}
 
@@ -1468,9 +1499,10 @@ int boot_linux_from_flash(void)
 	}
 	imagesize_actual = (page_size + kernel_actual + ramdisk_actual + second_actual);
 
-	if (check_aboot_addr_range_overlap(hdr->tags_addr, MAX_TAGS_SIZE))
+	if (check_aboot_addr_range_overlap(hdr->tags_addr, MAX_TAGS_SIZE) ||
+		check_ddr_addr_range_bound(hdr->tags_addr, MAX_TAGS_SIZE))
 	{
-		dprintf(CRITICAL, "Tags addresses overlap with aboot addresses.\n");
+		dprintf(CRITICAL, "Tags addresses are not valid.\n");
 		return -1;
 	}
 #else
@@ -1486,9 +1518,10 @@ int boot_linux_from_flash(void)
 
 	imagesize_actual = (page_size + kernel_actual + ramdisk_actual + second_actual + dt_actual);
 
-	if (check_aboot_addr_range_overlap(hdr->tags_addr, dt_size))
+	if (check_aboot_addr_range_overlap(hdr->tags_addr, dt_size) ||
+		check_ddr_addr_range_bound(hdr->tags_addr, dt_size))
 	{
-		dprintf(CRITICAL, "Device tree addresses overlap with aboot addresses.\n");
+		dprintf(CRITICAL, "Device tree addresses are not valid.\n");
 		return -1;
 	}
 #endif
@@ -1551,8 +1584,9 @@ int boot_linux_from_flash(void)
 			}
 
 			/* Validate and Read device device tree in the "tags_add */
-			if (check_aboot_addr_range_overlap(hdr->tags_addr, dt_entry.size)){
-				dprintf(CRITICAL, "Device tree addresses overlap with aboot addresses.\n");
+			if (check_aboot_addr_range_overlap(hdr->tags_addr, dt_entry.size) ||
+				check_ddr_addr_range_bound(hdr->tags_addr, dt_entry.size)){
+				dprintf(CRITICAL, "Device tree addresses are not valid.\n");
 				return -1;
 			}
 
@@ -1670,9 +1704,10 @@ int boot_linux_from_flash(void)
 			}
 
 			/* Validate and Read device device tree in the "tags_add */
-			if (check_aboot_addr_range_overlap(hdr->tags_addr, dt_entry.size))
+			if (check_aboot_addr_range_overlap(hdr->tags_addr, dt_entry.size) ||
+				check_ddr_addr_range_bound(hdr->tags_addr, dt_entry.size))
 			{
-				dprintf(CRITICAL, "Device tree addresses overlap with aboot addresses.\n");
+				dprintf(CRITICAL, "Device tree addresses are not valid.\n");
 				return -1;
 			}
 
@@ -2162,9 +2197,10 @@ dt_size = hdr->dt_size;
 		}
 
 		/* Validate and Read device device tree in the "tags_add */
-		if (check_aboot_addr_range_overlap(hdr->tags_addr, dt_entry.size))
+		if (check_aboot_addr_range_overlap(hdr->tags_addr, dt_entry.size) ||
+			check_ddr_addr_range_bound(hdr->tags_addr, dt_entry.size))
 		{
-			dprintf(CRITICAL, "Device tree addresses overlap with aboot addresses.\n");
+			dprintf(CRITICAL, "Device tree addresses are not valid.\n");
 			return -1;
 		}
 
@@ -2341,9 +2377,11 @@ void cmd_boot(const char *arg, void *data, unsigned sz)
 	kernel_size  = ROUND_TO_PAGE(kernel_size,  page_mask);
 	/* Check if the addresses in the header are valid. */
 	if (check_aboot_addr_range_overlap(hdr->kernel_addr, kernel_size) ||
-		check_aboot_addr_range_overlap(hdr->ramdisk_addr, ramdisk_actual))
+		check_ddr_addr_range_bound(hdr->kernel_addr, kernel_size) ||
+		check_aboot_addr_range_overlap(hdr->ramdisk_addr, ramdisk_actual) ||
+		check_ddr_addr_range_bound(hdr->ramdisk_addr, ramdisk_actual))
 	{
-		dprintf(CRITICAL, "kernel/ramdisk addresses overlap with aboot addresses.\n");
+		dprintf(CRITICAL, "kernel/ramdisk addresses are not valid.\n");
 		return;
 	}
 
@@ -2353,9 +2391,10 @@ void cmd_boot(const char *arg, void *data, unsigned sz)
 
 	dtb_copied = !ret ? 1 : 0;
 #else
-	if (check_aboot_addr_range_overlap(hdr->tags_addr, MAX_TAGS_SIZE))
+	if (check_aboot_addr_range_overlap(hdr->tags_addr, MAX_TAGS_SIZE) ||
+		check_ddr_addr_range_bound(hdr->tags_addr, MAX_TAGS_SIZE))
 	{
-		dprintf(CRITICAL, "Tags addresses overlap with aboot addresses.\n");
+		dprintf(CRITICAL, "Tags addresses are not valid.\n");
 		return;
 	}
 #endif
@@ -2365,9 +2404,10 @@ void cmd_boot(const char *arg, void *data, unsigned sz)
 	memmove((void*) hdr->kernel_addr, (char*) (kernel_start_addr), kernel_size);
 
 #if DEVICE_TREE
-	if (check_aboot_addr_range_overlap(hdr->tags_addr, kernel_actual))
+	if (check_aboot_addr_range_overlap(hdr->tags_addr, kernel_actual) ||
+		check_ddr_addr_range_bound(hdr->tags_addr, kernel_actual))
 	{
-		dprintf(CRITICAL, "Tags addresses overlap with aboot addresses.\n");
+		dprintf(CRITICAL, "Tags addresses are not valid.\n");
 		return;
 	}
 
