@@ -130,7 +130,3 @@ endif
 #Disable the dload mode
 DEFINES += DISABLE_DLOAD_MODE=0
 
-ENABLE_WDOG_SUPPORT := 0
-ifeq ($(ENABLE_WDOG_SUPPORT),1)
-DEFINES += WDOG_SUPPORT=1
-endif
