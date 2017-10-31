@@ -466,8 +466,10 @@ void target_init(void)
 	}
 #endif
 
+#if VERIFIED_BOOT || defined(SET_ROT_ONLY)
 #if VERIFIED_BOOT
 	if (VB_V2 == target_get_vb_version())
+#endif
 	{
 		/* Initialize Qseecom */
 		if (qseecom_init() < 0)
