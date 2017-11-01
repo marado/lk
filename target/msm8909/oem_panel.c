@@ -52,8 +52,9 @@
 #include "include/panel_auo_cx_qvga_cmd.h"
 #include "include/panel_hx8394f_720p_video.h"
 #include "include/panel_gc9305_qvga_spi_cmd.h"
+#include "include/panel_st7789v2_qvga_spi_cmd.h"
 
-#define DISPLAY_MAX_PANEL_DETECTION 0
+#define DISPLAY_MAX_PANEL_DETECTION 2
 #define ILI9806E_FWVGA_VIDEO_PANEL_POST_INIT_DELAY 68
 
 enum {
@@ -91,6 +92,7 @@ enum {
 	HX8394D_HVGA_VIDEO_PANEL,
 	HX8394F_720P_VIDEO_PANEL,
 	GC9305_QVGA_SPI_CMD_PANEL,
+	ST7789v2_QVGA_SPI_CMD_PANEL,
 	UNKNOWN_PANEL
 };
 
@@ -114,6 +116,7 @@ static struct panel_list supp_panels[] = {
 	{"hx8394d_hvga_video", HX8394D_HVGA_VIDEO_PANEL},
 	{"hx8394f_720p_video", HX8394F_720P_VIDEO_PANEL},
 	{"gc9305_qvga_cmd", GC9305_QVGA_SPI_CMD_PANEL},
+	{"ST7789V2_qvga_cmd", ST7789v2_QVGA_SPI_CMD_PANEL},
 };
 
 static uint32_t panel_id;
@@ -460,6 +463,25 @@ static int init_panel_data(struct panel_struct *panelstruct,
 					= gc9305_signature_len;
 		pan_type = PANEL_TYPE_SPI;
 		break;
+	case ST7789v2_QVGA_SPI_CMD_PANEL:
+		panelstruct->paneldata    = &st7789v2_qvga_cmd_panel_data;
+		panelstruct->panelres     = &st7789v2_qvga_cmd_panel_res;
+		panelstruct->color        = &st7789v2_qvga_cmd_color;
+		panelstruct->panelresetseq
+					= &st7789v2_qvga_cmd_reset_seq;
+		panelstruct->backlightinfo = &st7789v2_qvga_cmd_backlight;
+		pinfo->spi.panel_cmds
+					= st7789v2_qvga_cmd_on_command;
+		pinfo->spi.num_of_panel_cmds
+					= ST7789v2_QVGA_CMD_ON_COMMAND;
+		pinfo->spi.signature_addr
+					= &st7789v2_signature_addr;
+		pinfo->spi.signature
+					= st7789v2_signature;
+		pinfo->spi.signature_len
+					= st7789v2_signature_len;
+		pan_type = PANEL_TYPE_SPI;
+		break;
 	case UNKNOWN_PANEL:
 	default:
 		memset(panelstruct, 0, sizeof(struct panel_struct));
@@ -486,7 +508,8 @@ int oem_panel_select(const char *panel_name, struct panel_struct *panelstruct,
 	uint32_t platform_type = board_platform_id();
 	uint32_t platform_subtype = board_hardware_subtype();
 	int32_t panel_override_id;
-	uint32_t target_id = 0, plat_hw_ver_major = 0;
+	uint32_t target_id = board_target_id();
+	uint32_t plat_hw_ver_major = ((target_id >> 16) & 0xFF);;
 
 	if (panel_name) {
 		panel_override_id = panel_name_to_id(supp_panels,
@@ -530,14 +553,33 @@ int oem_panel_select(const char *panel_name, struct panel_struct *panelstruct,
 		switch (platform_subtype) {
 			case QRD_SKUA:
 				if (MSM8905 == board_platform_id()) {
-					switch (auto_pan_loop) {
-						case 0:
-						default:
-							dprintf(CRITICAL, "GC9305_QVGA_SPI_CMD_PANEL\n");
-							panel_id = GC9305_QVGA_SPI_CMD_PANEL;
-							break;
+					if (plat_hw_ver_major > 0x10 && plat_hw_ver_major < 0x13) {
+						/* QRD8905 Nand SKU */
+						switch (auto_pan_loop) {
+							case 0:
+								dprintf(CRITICAL, "ST7789v2_QVGA_SPI_CMD_PANEL\n");
+								panel_id = ST7789v2_QVGA_SPI_CMD_PANEL;
+								break;
+							case 1:
+								dprintf(CRITICAL, "GC9305_QVGA_SPI_CMD_PANEL\n");
+								panel_id = GC9305_QVGA_SPI_CMD_PANEL;
+								break;
+							default:
+								dprintf(CRITICAL, "ST7789v2_QVGA_SPI_CMD_PANEL\n");
+								panel_id = ST7789v2_QVGA_SPI_CMD_PANEL;
+								break;
+						}
+						auto_pan_loop++;
+					} else {
+						switch (auto_pan_loop) {
+							case 0:
+							default:
+								dprintf(CRITICAL, "GC9305_QVGA_SPI_CMD_PANEL\n");
+								panel_id = GC9305_QVGA_SPI_CMD_PANEL;
+								break;
+						}
+						auto_pan_loop++;
 					}
-					auto_pan_loop++;
 				}
 				else
 					panel_id = HX8379A_FWVGA_SKUA_VIDEO_PANEL;
