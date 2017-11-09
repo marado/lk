@@ -191,10 +191,12 @@ static const char *warmboot_cmdline = " qpnp-power-on.warm_boot=1";
 static const char *baseband_apq_nowgr   = " androidboot.baseband=baseband_apq_nowgr";
 static const char *androidboot_slot_suffix = " androidboot.slot_suffix=";
 static const char *skip_ramfs = " skip_initramfs";
-static const char *sys_path_cmdline = " rootwait ro init=/init";
-static const char *sys_path = "  root=/dev/mmcblk0p";
 
 #if VERIFIED_BOOT
+static const char *sys_path_cmdline = " rootwait ro init=/init root=/dev/dm-0 dm=\"system none ro,0 1 android-verity";
+static const char *sys_path = " /dev/mmcblk0p\"";
+static const char *sys_path_emmc = " /dev/mmcblk0p%d\"";
+static const char *sys_path_ufs = " /dev/sd%c%d\"";
 static const char *verity_mode = " androidboot.veritymode=";
 static const char *verified_state= " androidboot.verifiedbootstate=";
 static const char *keymaster_v1= " androidboot.keymaster=1";
@@ -216,6 +218,11 @@ struct verified_boot_state_name vbsn[] =
 	{YELLOW,"yellow"},
 	{RED,"red" },
 };
+#else
+static const char *sys_path_cmdline = " rootwait ro init=/init";
+static const char *sys_path = "  root=/dev/mmcblk0p";
+static const char *sys_path_emmc = " root=/dev/mmcblk0p%d";
+static const char *sys_path_ufs = " root=/dev/sd%c%d";
 #endif
 /*As per spec delay wait time before shutdown in Red state*/
 #define DELAY_WAIT 30000
@@ -526,13 +533,13 @@ unsigned char *update_cmdline(const char * cmdline)
 		system_ptn_index = partition_get_index("system");
 		if (platform_boot_dev_isemmc())
 		{
-			snprintf(syspath_buf, syspath_buflen, " root=/dev/mmcblk0p%d",
+			snprintf(syspath_buf, syspath_buflen, sys_path_emmc,
 				system_ptn_index + 1);
 		}
 		else
 		{
 			lun = partition_get_lun(system_ptn_index);
-			snprintf(syspath_buf, syspath_buflen, " root=/dev/sd%c%d",
+			snprintf(syspath_buf, syspath_buflen, sys_path_ufs,
 					lun_char_base + lun,
 					partition_get_index_in_lun("system", lun));
 		}
