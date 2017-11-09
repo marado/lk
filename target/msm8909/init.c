@@ -486,10 +486,23 @@ void target_baseband_detect(struct board_data *board)
 uint8_t target_panel_auto_detect_enabled()
 {
 	uint8_t ret = 0;
+	uint32_t platform = board_platform_id();
+	uint32_t hw_id = board_hardware_id();
+	uint32_t target_id = board_target_id();
+	uint32_t plat_hw_ver_major = ((target_id >> 16) & 0xFF);
 
-	switch(board_hardware_id()) {
+	switch(platform) {
+	case MSM8905:
+		switch(hw_id) {
+		case HW_PLATFORM_QRD:
+			if(plat_hw_ver_major > 0x10 && plat_hw_ver_major < 0x13)
+				ret = 1;
+			break;
+		default:
+			break;
+		}
 	default:
-		ret = 0;
+                ret = 0;
 		break;
 	}
 	return ret;
@@ -557,7 +570,7 @@ int get_target_boot_params(const char *cmdline, const char *part, char *buf,
 			return -1;
 		}
 
-		snprintf(buf, buflen, " ubi.mtd=rootfs");
+		snprintf(buf, buflen, " ubi.mtd=system ubi.mtd=userdata");
 	}
 
 	return 0;
