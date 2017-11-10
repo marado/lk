@@ -154,7 +154,7 @@ static struct mdss_spi_cmd st7789v2_qvga_cmd_on_command[] = {
 	{0x0F, st7789v2_qvga_cmd_on_cmd13, 0x00, 0},
 	{0x01, st7789v2_qvga_cmd_on_cmd14, 0x00, 0},
 	{0x01, st7789v2_qvga_cmd_on_cmd15, 0x00, 0},
-	{0x01, st7789v2_qvga_cmd_on_cmd16, 0x00, 1},
+	{0x01, st7789v2_qvga_cmd_on_cmd16, 0x78, 1},
 	{0x01, st7789v2_qvga_cmd_on_cmd17, 0x00, 1},
 };
 
