@@ -43,14 +43,12 @@
 #include <target.h>
 #include <partition_parser.h>
 #include <mmc.h>
-
 #include "recovery.h"
 #include "bootimg.h"
 #include "smem.h"
 
 #define BOOT_FLAGS	1
 #define UPDATE_STATUS	2
-#define ROUND_TO_PAGE(x,y) (((x) + (y)) & (~(y)))
 
 static const int MISC_PAGES = 3;			// number of pages to save
 static const int MISC_COMMAND_PAGE = 1;		// bootloader command is this page
