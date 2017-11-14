@@ -225,9 +225,11 @@ void target_uninit(void)
 		mmc_put_card_to_sleep(dev);
 	}
 
+#if VERIFIED_BOOT || defined(SET_ROT_ONLY)
 #if VERIFIED_BOOT
 	if (target_get_vb_version() == VB_V2 &&
 		is_sec_app_loaded())
+#endif
 	{
 		if (send_milestone_call_to_tz() < 0)
 		{
@@ -252,8 +254,10 @@ void target_uninit(void)
 	/* Tear down glink channels */
 	rpm_glink_uninit();
 
+#if VERIFIED_BOOT || defined(SET_ROT_ONLY)
 #if VERIFIED_BOOT
 	if (target_get_vb_version() == VB_V2)
+#endif
 	{
 		if (rpmb_uninit() < 0)
 		{
