@@ -131,6 +131,9 @@ struct fastboot_cmd_desc {
 
 #define ADD_OF(a, b) (UINT_MAX - b > a) ? (a + b) : UINT_MAX
 
+#define FASTBOOT_SERIAL_ENTRY_ENABLE
+#define BUSY_WAIT_FOR_USER_INPUT 200 //2 sec
+
 #if UFS_SUPPORT || USE_BOOTDEV_CMDLINE
 static const char *emmc_cmdline = " androidboot.bootdevice=";
 #else
@@ -3747,6 +3750,26 @@ void aboot_init(const struct app_descriptor *app)
 	if (fastboot_trigger())
 		boot_into_fastboot = true;
 	#endif
+
+#ifdef FASTBOOT_SERIAL_ENTRY_ENABLE
+	dprintf(CRITICAL,"=========================================\n");
+        dprintf(CRITICAL,"||  Press 'f' to boot into fastboot.   ||\n");
+        dprintf(CRITICAL,"||       Press any key to skip.        ||\n");
+        dprintf(CRITICAL,"=========================================\n");
+        int ch = -1;
+        for(int i=0;i<BUSY_WAIT_FOR_USER_INPUT;i++)
+        {
+            if(ch == -1){
+                ch = uart_getc(0,false);
+                thread_sleep(10);
+            } else {
+                break;
+            }
+        }
+        if(ch == 'f'){
+            boot_into_fastboot = true;
+        }
+#endif
 
 #if USE_PON_REBOOT_REG
 	reboot_mode = check_hard_reboot_mode();
