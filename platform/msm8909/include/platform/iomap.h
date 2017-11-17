@@ -204,9 +204,13 @@
 #define RPMB_SND_RCV_BUF_SZ         0x1
 
 /* QSEECOM: Secure app region notification */
+#if VERIFIED_BOOT
+#define APP_REGION_ADDR 0x87900000
+#define APP_REGION_SIZE 0x300000
+#else
 #define APP_REGION_ADDR 0x87a00000
 #define APP_REGION_SIZE 0x200000
-
+#endif
 
 /* MDSS */
 #define MIPI_DSI_BASE               (0x1AC8000)
