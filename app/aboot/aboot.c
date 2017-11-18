@@ -267,7 +267,7 @@ struct atag_ptbl_entry
  * for fastboot
  */
 struct getvar_partition_info {
-	const char part_name[MAX_GPT_NAME_SIZE]; /* Partition name */
+	char part_name[MAX_GPT_NAME_SIZE]; /* Partition name */
 	char getvar_size[MAX_GET_VAR_NAME_SIZE]; /* fastboot get var name for size */
 	char getvar_type[MAX_GET_VAR_NAME_SIZE]; /* fastboot get var name for type */
 	char size_response[MAX_RSP_SIZE];        /* fastboot response for size */
@@ -275,10 +275,10 @@ struct getvar_partition_info {
 };
 
 /*
- * Right now, we are publishing the info for only
- * three partitions
+ * Update the part_type_known for known paritions types.
  */
-struct getvar_partition_info part_info[] =
+struct getvar_partition_info part_info[NUM_PARTITIONS];
+struct getvar_partition_info part_type_known[] =
 {
 	{ "system"  , "partition-size:", "partition-type:", "", "ext4" },
 	{ "userdata", "partition-size:", "partition-type:", "", "ext4" },
@@ -290,6 +290,13 @@ char charger_screen_enabled[MAX_RSP_SIZE];
 char sn_buf[13];
 char display_panel_buf[MAX_PANEL_BUF_SIZE];
 char panel_display_mode[MAX_RSP_SIZE];
+#if PRODUCT_IOT
+char block_size_string[MAX_RSP_SIZE];
+
+/* For IOT we are using custom version */
+#define PRODUCT_IOT_VERSION "IOT001"
+char bootloader_version_string[MAX_RSP_SIZE];
+#endif
 
 #if CHECK_BAT_VOLTAGE
 char battery_voltage[MAX_RSP_SIZE];
@@ -1053,6 +1060,30 @@ int check_aboot_addr_range_overlap(uintptr_t start, uint32_t size)
 		return -1;
 }
 
+/* Function to check if the memory address range falls beyond ddr region.
+ * start: Start of the memory region
+ * size: Size of the memory region
+ */
+int check_ddr_addr_range_bound(uintptr_t start, uint32_t size)
+{
+	uintptr_t ddr_pa_start_addr = PA(get_ddr_start());
+	uint64_t ddr_size = smem_get_ddr_size();
+	uint64_t ddr_pa_end_addr = ddr_pa_start_addr + ddr_size;
+	uintptr_t pa_start_addr = PA(start);
+
+	/* Check for boundary conditions. */
+	if ((UINT_MAX - start) < size)
+		return -1;
+
+	/* Check if memory range is beyond the ddr range. */
+	if (pa_start_addr < ddr_pa_start_addr ||
+		pa_start_addr >= (ddr_pa_end_addr) ||
+		(pa_start_addr + size) > ddr_pa_end_addr)
+		return -1;
+	else
+		return 0;
+}
+
 #define ROUND_TO_PAGE(x,y) (((x) + (y)) & (~(y)))
 
 BUF_DMA_ALIGN(buf, BOOT_IMG_MAX_PAGE_SIZE); //Equal to max-supported pagesize
@@ -1078,16 +1109,15 @@ static void verify_signed_bootimg(uint32_t bootimg_addr, uint32_t bootimg_size)
 	dprintf(INFO, "Authenticating boot image (%d): start\n", bootimg_size);
 
 #if VERIFIED_BOOT
-	if(boot_into_recovery)
-	{
-		ret = boot_verify_image((unsigned char *)bootimg_addr,
-				bootimg_size, "/recovery");
-	}
+	char *ptn_name = NULL;
+	if (boot_into_recovery &&
+		(!partition_multislot_is_supported()))
+		ptn_name = "/recovery";
 	else
-	{
-		ret = boot_verify_image((unsigned char *)bootimg_addr,
-				bootimg_size, "/boot");
-	}
+		ptn_name = "/boot";
+
+	ret = boot_verify_image((unsigned char *)bootimg_addr,
+				bootimg_size, ptn_name);
 	boot_verify_print_state();
 #else
 	ret = image_verify((unsigned char *)bootimg_addr,
@@ -1568,16 +1598,19 @@ int boot_linux_from_mmc(void)
 	kernel_size = ROUND_TO_PAGE(kernel_size,  page_mask);
 	/* Check if the addresses in the header are valid. */
 	if (check_aboot_addr_range_overlap(hdr->kernel_addr, kernel_size) ||
-		check_aboot_addr_range_overlap(hdr->ramdisk_addr, ramdisk_actual))
+		check_ddr_addr_range_bound(hdr->kernel_addr, kernel_size) ||
+		check_aboot_addr_range_overlap(hdr->ramdisk_addr, ramdisk_actual) ||
+		check_ddr_addr_range_bound(hdr->ramdisk_addr, ramdisk_actual))
 	{
-		dprintf(CRITICAL, "kernel/ramdisk addresses overlap with aboot addresses.\n");
+		dprintf(CRITICAL, "kernel/ramdisk addresses are not valid.\n");
 		return -1;
 	}
 
 #ifndef DEVICE_TREE
-	if (check_aboot_addr_range_overlap(hdr->tags_addr, MAX_TAGS_SIZE))
+	if (check_aboot_addr_range_overlap(hdr->tags_addr, MAX_TAGS_SIZE) ||
+		check_ddr_addr_range_bound(hdr->tags_addr, MAX_TAGS_SIZE))
 	{
-		dprintf(CRITICAL, "Tags addresses overlap with aboot addresses.\n");
+		dprintf(CRITICAL, "Tags addresses are not valid.\n");
 		return -1;
 	}
 #endif
@@ -1643,18 +1676,20 @@ int boot_linux_from_mmc(void)
 		}
 
 		/* Validate and Read device device tree in the tags_addr */
-		if (check_aboot_addr_range_overlap(hdr->tags_addr, dtb_size))
+		if (check_aboot_addr_range_overlap(hdr->tags_addr, dtb_size) ||
+			check_ddr_addr_range_bound(hdr->tags_addr, dtb_size))
 		{
-			dprintf(CRITICAL, "Device tree addresses overlap with aboot addresses.\n");
+			dprintf(CRITICAL, "Device tree addresses are not valid\n");
 			return -1;
 		}
 
 		memmove((void *)hdr->tags_addr, (char *)best_match_dt_addr, dtb_size);
 	} else {
 		/* Validate the tags_addr */
-		if (check_aboot_addr_range_overlap(hdr->tags_addr, kernel_actual))
+		if (check_aboot_addr_range_overlap(hdr->tags_addr, kernel_actual) ||
+			check_ddr_addr_range_bound(hdr->tags_addr, kernel_actual))
 		{
-			dprintf(CRITICAL, "Device tree addresses overlap with aboot addresses.\n");
+			dprintf(CRITICAL, "Device tree addresses are not valid.\n");
 			return -1;
 		}
 		/*
@@ -1782,9 +1817,11 @@ int boot_linux_from_flash(void)
 
 	/* Check if the addresses in the header are valid. */
 	if (check_aboot_addr_range_overlap(hdr->kernel_addr, kernel_actual) ||
-		check_aboot_addr_range_overlap(hdr->ramdisk_addr, ramdisk_actual))
+		check_ddr_addr_range_bound(hdr->kernel_addr, kernel_actual) ||
+		check_aboot_addr_range_overlap(hdr->ramdisk_addr, ramdisk_actual) ||
+		check_ddr_addr_range_bound(hdr->ramdisk_addr, ramdisk_actual))
 	{
-		dprintf(CRITICAL, "kernel/ramdisk addresses overlap with aboot addresses.\n");
+		dprintf(CRITICAL, "kernel/ramdisk addresses are not valid.\n");
 		return -1;
 	}
 
@@ -1795,9 +1832,10 @@ int boot_linux_from_flash(void)
 	}
 	imagesize_actual = (page_size + kernel_actual + ramdisk_actual + second_actual);
 
-	if (check_aboot_addr_range_overlap(hdr->tags_addr, MAX_TAGS_SIZE))
+	if (check_aboot_addr_range_overlap(hdr->tags_addr, MAX_TAGS_SIZE) ||
+		check_ddr_addr_range_bound(hdr->tags_addr, MAX_TAGS_SIZE))
 	{
-		dprintf(CRITICAL, "Tags addresses overlap with aboot addresses.\n");
+		dprintf(CRITICAL, "Tags addresses are not valid.\n");
 		return -1;
 	}
 #else
@@ -1813,9 +1851,10 @@ int boot_linux_from_flash(void)
 
 	imagesize_actual = (page_size + kernel_actual + ramdisk_actual + second_actual + dt_actual);
 
-	if (check_aboot_addr_range_overlap(hdr->tags_addr, dt_size))
+	if (check_aboot_addr_range_overlap(hdr->tags_addr, dt_size) ||
+		check_ddr_addr_range_bound(hdr->tags_addr, dt_size))
 	{
-		dprintf(CRITICAL, "Device tree addresses overlap with aboot addresses.\n");
+		dprintf(CRITICAL, "Device tree addresses are not valid.\n");
 		return -1;
 	}
 #endif
@@ -1890,8 +1929,9 @@ int boot_linux_from_flash(void)
 			}
 
 			/* Validate and Read device device tree in the "tags_add */
-			if (check_aboot_addr_range_overlap(hdr->tags_addr, dt_entry.size)){
-				dprintf(CRITICAL, "Device tree addresses overlap with aboot addresses.\n");
+			if (check_aboot_addr_range_overlap(hdr->tags_addr, dt_entry.size) ||
+				check_ddr_addr_range_bound(hdr->tags_addr, dt_entry.size)){
+				dprintf(CRITICAL, "Device tree addresses are not valid.\n");
 				return -1;
 			}
 
@@ -2011,9 +2051,10 @@ int boot_linux_from_flash(void)
 			}
 
 			/* Validate and Read device device tree in the "tags_add */
-			if (check_aboot_addr_range_overlap(hdr->tags_addr, dt_entry.size))
+			if (check_aboot_addr_range_overlap(hdr->tags_addr, dt_entry.size) ||
+				check_ddr_addr_range_bound(hdr->tags_addr, dt_entry.size))
 			{
-				dprintf(CRITICAL, "Device tree addresses overlap with aboot addresses.\n");
+				dprintf(CRITICAL, "Device tree addresses are not valid.\n");
 				return -1;
 			}
 
@@ -2558,9 +2599,10 @@ int copy_dtb(uint8_t *boot_image_start, unsigned int scratch_offset)
 			dtb_size = dt_entry.size;
 		}
 		/* Validate and Read device device tree in the "tags_add */
-		if (check_aboot_addr_range_overlap(hdr->tags_addr, dtb_size))
+		if (check_aboot_addr_range_overlap(hdr->tags_addr, dtb_size) ||
+			check_ddr_addr_range_bound(hdr->tags_addr, dtb_size))
 		{
-			dprintf(CRITICAL, "Device tree addresses overlap with aboot addresses.\n");
+			dprintf(CRITICAL, "Device tree addresses are not valid.\n");
 			return -1;
 		}
 
@@ -2759,9 +2801,11 @@ void cmd_boot(const char *arg, void *data, unsigned sz)
 	kernel_size  = ROUND_TO_PAGE(kernel_size,  page_mask);
 	/* Check if the addresses in the header are valid. */
 	if (check_aboot_addr_range_overlap(hdr->kernel_addr, kernel_size) ||
-		check_aboot_addr_range_overlap(hdr->ramdisk_addr, ramdisk_actual))
+		check_ddr_addr_range_bound(hdr->kernel_addr, kernel_size) ||
+		check_aboot_addr_range_overlap(hdr->ramdisk_addr, ramdisk_actual) ||
+		check_ddr_addr_range_bound(hdr->ramdisk_addr, ramdisk_actual))
 	{
-		dprintf(CRITICAL, "kernel/ramdisk addresses overlap with aboot addresses.\n");
+		dprintf(CRITICAL, "kernel/ramdisk addresses are not valid.\n");
 		goto boot_failed;
 	}
 
@@ -2772,9 +2816,10 @@ void cmd_boot(const char *arg, void *data, unsigned sz)
 
 	dtb_copied = !ret ? 1 : 0;
 #else
-	if (check_aboot_addr_range_overlap(hdr->tags_addr, MAX_TAGS_SIZE))
+	if (check_aboot_addr_range_overlap(hdr->tags_addr, MAX_TAGS_SIZE) ||
+		check_ddr_addr_range_bound(hdr->tags_addr, MAX_TAGS_SIZE))
 	{
-		dprintf(CRITICAL, "Tags addresses overlap with aboot addresses.\n");
+		dprintf(CRITICAL, "Tags addresses are not valid.\n");
 		goto boot_failed;
 	}
 #endif
@@ -2784,9 +2829,10 @@ void cmd_boot(const char *arg, void *data, unsigned sz)
 	memmove((void*) hdr->kernel_addr, (char*) (kernel_start_addr), kernel_size);
 
 #if DEVICE_TREE
-	if (check_aboot_addr_range_overlap(hdr->tags_addr, kernel_actual))
+	if (check_aboot_addr_range_overlap(hdr->tags_addr, kernel_actual) ||
+		check_ddr_addr_range_bound(hdr->tags_addr, kernel_actual))
 	{
-		dprintf(CRITICAL, "Tags addresses overlap with aboot addresses.\n");
+		dprintf(CRITICAL, "Tags addresses are not valid.\n");
 		goto boot_failed;
 	}
 
@@ -4115,9 +4161,28 @@ static void get_partition_size(const char *arg, char *response)
  */
 static void publish_getvar_partition_info(struct getvar_partition_info *info, uint8_t num_parts)
 {
-	uint8_t i;
+	uint8_t i,n;
+	struct partition_entry *ptn_entry =
+				partition_get_partition_entries();
 
 	for (i = 0; i < num_parts; i++) {
+		strlcat(info[i].part_name, (char const *)ptn_entry[i].name, MAX_RSP_SIZE);
+		strlcat(info[i].getvar_size, "partition-size:", MAX_GET_VAR_NAME_SIZE);
+		strlcat(info[i].getvar_type, "partition-type:", MAX_GET_VAR_NAME_SIZE);
+
+		/* Mark partiton type for known paritions only */
+		for (n=0; n < ARRAY_SIZE(part_type_known); n++)
+		{
+			if (!strncmp(part_type_known[n].part_name, info[i].part_name,
+					strlen(part_type_known[n].part_name)))
+			{
+				strlcat(info[i].type_response,
+						part_type_known[n].type_response,
+						MAX_RSP_SIZE);
+				break;
+			}
+		}
+
 		get_partition_size(info[i].part_name, info[i].size_response);
 
 		if (strlcat(info[i].getvar_size, info[i].part_name, MAX_GET_VAR_NAME_SIZE) >= MAX_GET_VAR_NAME_SIZE)
@@ -4167,6 +4232,7 @@ void publish_getvar_multislot_vars()
 		for (i=0; i<AB_SUPPORTED_SLOTS; i++)
 		{
 			tmp = SUFFIX_SLOT(i);
+			tmp++; // to remove "_" from slot_suffix.
 			snprintf(slot_info[i].slot_is_unbootable, sizeof(slot_info[i].slot_is_unbootable),
 										"slot-unbootable:%s", tmp);
 			snprintf(slot_info[i].slot_is_active, sizeof(slot_info[i].slot_is_active),
@@ -4192,8 +4258,11 @@ void publish_getvar_multislot_vars()
 
 	active_slt = partition_find_active_slot();
 	if (active_slt != INVALID)
-		snprintf(active_slot_suffix, sizeof(active_slot_suffix), "%s",
-			SUFFIX_SLOT(active_slt));
+	{
+		tmp = SUFFIX_SLOT(active_slt);
+		tmp++; // to remove "_" from slot_suffix.
+		snprintf(active_slot_suffix, sizeof(active_slot_suffix), "%s", tmp);
+	}
 	else
 		strlcpy(active_slot_suffix, "INVALID", sizeof(active_slot_suffix));
 
@@ -4207,6 +4276,19 @@ void get_product_name(unsigned char *buf)
 	snprintf((char*)buf, MAX_RSP_SIZE, "%s",  TARGET(BOARD));
 	return;
 }
+
+#if PRODUCT_IOT
+void get_bootloader_version_iot(unsigned char *buf)
+{
+	if (buf != NULL)
+	{
+		strlcpy(buf, TARGET(BOARD), MAX_VERSION_LEN);
+		strlcat(buf, "-", MAX_VERSION_LEN);
+		strlcat(buf, PRODUCT_IOT_VERSION, MAX_VERSION_LEN);
+	}
+	return;
+}
+#endif
 
 void get_bootloader_version(unsigned char *buf)
 {
@@ -4282,7 +4364,7 @@ void aboot_fastboot_register_commands(void)
 	 * devices.
 	 */
 	if (target_is_emmc_boot())
-		publish_getvar_partition_info(part_info, ARRAY_SIZE(part_info));
+		publish_getvar_partition_info(part_info, partition_get_partition_count());
 
 	if (partition_multislot_is_supported())
 		publish_getvar_multislot_vars();
@@ -4301,9 +4383,23 @@ void aboot_fastboot_register_commands(void)
 			device.display_panel);
 	fastboot_publish("display-panel",
 			(const char *) panel_display_mode);
+#if PRODUCT_IOT
+	get_bootloader_version_iot(&bootloader_version_string);
+	fastboot_publish("version-bootloader", (const char *) bootloader_version_string);
+
+	/* Version baseband is n/a for apq iot devices */
+	fastboot_publish("version-baseband", "N/A");
+
+	/* IOT targets support only mmc target */
+	snprintf(block_size_string, MAX_RSP_SIZE, "0x%x", mmc_get_device_blocksize());
+	fastboot_publish("erase-block-size", (const char *) block_size_string);
+	fastboot_publish("logical-block-size", (const char *) block_size_string);
+#else
 	fastboot_publish("version-bootloader", (const char *) device.bootloader_version);
 	fastboot_publish("version-baseband", (const char *) device.radio_version);
+#endif
 	fastboot_publish("secure", is_secure_boot_enable()? "yes":"no");
+	fastboot_publish("unlocked", device.is_unlocked ? "yes":"no");
 	smem_get_hw_platform_name((unsigned char *) hw_platform_buf, sizeof(hw_platform_buf));
 	snprintf(get_variant, MAX_RSP_SIZE, "%s %s", hw_platform_buf,
 		target_is_emmc_boot()? "eMMC":"UFS");
@@ -4500,11 +4596,18 @@ retry_boot:
 				case ERR_INVALID_PAGE_SIZE:
 				case ERR_DT_PARSE:
 				case ERR_ABOOT_ADDR_OVERLAP:
+				case ERR_INVALID_BOOT_MAGIC:
 					if(partition_multislot_is_supported())
+					{
+						/*
+						 * Deactivate current slot, as it failed to
+						 * boot, and retry next slot.
+						 */
+						partition_deactivate_slot(boot_slot);
 						goto retry_boot;
+					}
 					else
 						break;
-				case ERR_INVALID_BOOT_MAGIC:
 				default:
 					break;
 				/* going to fastboot menu */
