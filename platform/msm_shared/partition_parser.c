@@ -891,8 +891,8 @@ int partition_get_index(const char *name)
 		return INVALID_PTN;
 	}
 	for (n = 0; n < partition_count; n++) {
-		if ((input_string_length == strlen((const char *)&partition_entries[n].name))
-			&& !memcmp(name, &partition_entries[n].name, input_string_length)) {
+		if ((input_string_length == strlen((const char *)partition_entries[n].name))
+			&& !memcmp((const char *)name, (const char *)partition_entries[n].name, input_string_length)) {
 			return n;
 		}
 	}
