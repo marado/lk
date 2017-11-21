@@ -259,6 +259,23 @@ uint32_t mmc_read_boot2(uint64_t data_addr, uint32_t *out, uint32_t data_len)
 	return ret;
 }
 
+/*
+ * Function: mmc_set_active_partition
+ * Arg     : partition index (enum part_access_type)
+ * Return  : 0 on Success, non zero on failure
+ * Flow    : Changes the current physical MMC partition.
+ */
+int mmc_set_active_partition(int part)
+{
+	void *dev;
+
+	dev = target_mmc_device();
+	if (mmc_sdhci_switch_part(dev, part))
+	{
+		return 1;
+	}
+	return 0;
+}
 
 /*
  * Function: mmc get erase unit size
