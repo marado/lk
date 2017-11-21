@@ -15,7 +15,11 @@ endif
 EMMC_BOOT := 1
 
 #Enable OTA Support
+ifeq ($(VERIFIED_BOOT),1)
+ENABLE_VBOOT_MOTA_SUPPORT := 0
+else
 ENABLE_VBOOT_MOTA_SUPPORT := 1
+endif
 
 ifeq ($(VERIFIED_BOOT),1)
 ENABLE_MDTP_SUPPORT := 1
@@ -26,7 +30,11 @@ ENABLE_SECAPP_LOADER := 1
 ENABLE_RPMB_SUPPORT := 1
 
 #enable fbcon display menu
+ifneq (,$(findstring DISPLAY_SPLASH_SCREEN,$(DEFINES)))
 ENABLE_FBCON_DISPLAY_MSG := 1
+else
+ENABLE_FBCON_DISPLAY_MSG := 0
+endif
 endif
 endif
 
