@@ -54,8 +54,8 @@ __WEAK void mmc_read_partition_table(uint8_t arg)
 	}
 }
 
-static uint32_t mmc_boot_read_gpt(uint32_t block_size);
-static uint32_t mmc_boot_read_mbr(uint32_t block_size);
+static unsigned int mmc_boot_read_gpt(uint32_t block_size, struct partition_entry * partition_entries, unsigned int * partition_count);
+static unsigned int mmc_boot_read_mbr(uint32_t block_size, struct partition_entry * partition_entries, unsigned int * partition_count);
 static void mbr_fill_name(struct partition_entry *partition_ent,
 						  uint32_t type);
 static uint32_t partition_verify_mbr_signature(uint32_t size,
@@ -73,6 +73,9 @@ static uint32_t partition_parse_gpt_header(uint8_t *buffer,
 
 static uint32_t write_mbr(uint32_t, uint8_t *mbrImage, uint32_t block_size);
 static uint32_t write_gpt(uint32_t size, uint8_t *gptImage, uint32_t block_size);
+static void _partition_dump(struct partition_entry *partition_entries, unsigned int partition_count);
+static int _partition_get_index(const char *name, struct partition_entry *partition_entries, unsigned int partition_count);
+static unsigned long long _partition_get_offset(int index, struct partition_entry *partition_entries);
 
 char *ext3_partitions[] =
     { "system", "userdata", "persist", "cache", "tombstones" };
@@ -81,11 +84,11 @@ char *vfat_partitions[] = { "modem", "mdm", "NONE" };
 unsigned int ext3_count = 0;
 unsigned int vfat_count = 0;
 
-struct partition_entry *partition_entries;
-static unsigned gpt_partitions_exist = 0;
-static unsigned partition_count;
+struct partition_entry *g_user_partition_entries = NULL;
+static unsigned int gpt_partitions_exist = 0;
+static unsigned int g_user_partition_count;
 
-unsigned int partition_read_table()
+static unsigned int _partition_read_table(struct partition_entry ** partition_entries,unsigned int *count, int physical_partition)
 {
 	unsigned int ret;
 	uint32_t block_size;
@@ -93,34 +96,64 @@ unsigned int partition_read_table()
 	block_size = mmc_get_device_blocksize();
 
 	/* Allocate partition entries array */
-	if(!partition_entries)
+	if(!*partition_entries)
 	{
-		partition_entries = (struct partition_entry *) calloc(NUM_PARTITIONS, sizeof(struct partition_entry));
+		*partition_entries = (struct partition_entry *) calloc(NUM_PARTITIONS, sizeof(struct partition_entry));
 		ASSERT(partition_entries);
 	}
 
 	/* Read MBR of the card */
-	ret = mmc_boot_read_mbr(block_size);
+	ret = mmc_boot_read_mbr(block_size, *partition_entries, count);
 	if (ret) {
 		dprintf(CRITICAL, "MMC Boot: MBR read failed!\n");
 		return 1;
 	}
 
+	if (physical_partition == PART_ACCESS_BOOT2)
+	{
+		if (mmc_set_active_partition(PART_ACCESS_BOOT2))
+		{
+			dprintf(CRITICAL, "Can't switch to BOOT2 Partition\n");
+			return 1;
+		}
+
+		ret = mmc_boot_read_gpt(block_size, *partition_entries, count);
+		if (ret) {
+			dprintf(CRITICAL, "MMC Boot: BOOT2 GPT read failed!\n");
+			goto end;
+
+		}
+		mmc_set_active_partition(PART_ACCESS_DEFAULT);
+	}
 	/* Read GPT of the card if exist */
-	if (gpt_partitions_exist) {
-		ret = mmc_boot_read_gpt(block_size);
+	else if (gpt_partitions_exist) {
+		ret = mmc_boot_read_gpt(block_size, *partition_entries, count);
 		if (ret) {
 			dprintf(CRITICAL, "MMC Boot: GPT read failed!\n");
 			return 1;
 		}
 	}
 	return 0;
+
+end:
+	mmc_set_active_partition(PART_ACCESS_DEFAULT);
+	return 1;
+
 }
+
+/*
+ * Read and fill partition table of userdata partition
+ */
+unsigned int partition_read_table()
+{
+	return _partition_read_table(&g_user_partition_entries, &g_user_partition_count, PART_ACCESS_DEFAULT);
+}
+
 
 /*
  * Read MBR from MMC card and fill partition table.
  */
-static unsigned int mmc_boot_read_mbr(uint32_t block_size)
+static unsigned int mmc_boot_read_mbr(uint32_t block_size, struct partition_entry *partition_entries, unsigned int * partition_count)
 {
 	uint8_t *buffer = NULL;
 	unsigned int dtype;
@@ -164,22 +197,22 @@ static unsigned int mmc_boot_read_mbr(uint32_t block_size)
 			gpt_partitions_exist = 1;
 			goto end;
 		}
-		partition_entries[partition_count].dtype = dtype;
-		partition_entries[partition_count].attribute_flag =
+		partition_entries[*partition_count].dtype = dtype;
+		partition_entries[*partition_count].attribute_flag =
 		    buffer[idx + i * TABLE_ENTRY_SIZE + OFFSET_STATUS];
-		partition_entries[partition_count].first_lba =
+		partition_entries[*partition_count].first_lba =
 		    GET_LWORD_FROM_BYTE(&buffer[idx +
 						i * TABLE_ENTRY_SIZE +
 						OFFSET_FIRST_SEC]);
-		partition_entries[partition_count].size =
+		partition_entries[*partition_count].size =
 		    GET_LWORD_FROM_BYTE(&buffer[idx +
 						i * TABLE_ENTRY_SIZE +
 						OFFSET_SIZE]);
-		dfirstsec = partition_entries[partition_count].first_lba;
-		mbr_fill_name(&partition_entries[partition_count],
-			      partition_entries[partition_count].dtype);
-		partition_count++;
-		if (partition_count == NUM_PARTITIONS)
+		dfirstsec = partition_entries[*partition_count].first_lba;
+		mbr_fill_name(&partition_entries[*partition_count],
+			      partition_entries[*partition_count].dtype);
+		(*partition_count)++;
+		if (*partition_count == NUM_PARTITIONS)
 			goto end;
 	}
 
@@ -202,20 +235,20 @@ static unsigned int mmc_boot_read_mbr(uint32_t block_size)
 			ret = 0;
 			break;
 		}
-		partition_entries[partition_count].attribute_flag =
+		partition_entries[*partition_count].attribute_flag =
 		    buffer[TABLE_ENTRY_0 + OFFSET_STATUS];
-		partition_entries[partition_count].dtype =
+		partition_entries[*partition_count].dtype =
 		    buffer[TABLE_ENTRY_0 + OFFSET_TYPE];
-		partition_entries[partition_count].first_lba =
+		partition_entries[*partition_count].first_lba =
 		    GET_LWORD_FROM_BYTE(&buffer[TABLE_ENTRY_0 +
 						OFFSET_FIRST_SEC]) +
 		    EBR_current_sec;
-		partition_entries[partition_count].size =
+		partition_entries[*partition_count].size =
 		    GET_LWORD_FROM_BYTE(&buffer[TABLE_ENTRY_0 + OFFSET_SIZE]);
-		mbr_fill_name(&(partition_entries[partition_count]),
-			      partition_entries[partition_count].dtype);
-		partition_count++;
-		if (partition_count == NUM_PARTITIONS)
+		mbr_fill_name(&(partition_entries[*partition_count]),
+			      partition_entries[*partition_count].dtype);
+		(*partition_count)++;
+		if (*partition_count == NUM_PARTITIONS)
 			goto end;
 
 		dfirstsec =
@@ -245,7 +278,7 @@ end:
 /*
  * Read GPT from MMC and fill partition table
  */
-static unsigned int mmc_boot_read_gpt(uint32_t block_size)
+static unsigned int mmc_boot_read_gpt(uint32_t block_size, struct partition_entry * partition_entries, unsigned int * partition_count)
 {
 	int ret = 0;
 	unsigned int header_size;
@@ -319,7 +352,7 @@ static unsigned int mmc_boot_read_gpt(uint32_t block_size)
 	partition_0 = GET_LLWORD_FROM_BYTE(&data[PARTITION_ENTRIES_OFFSET]);
 	/* Read GPT Entries */
 	for (i = 0; i < (ROUNDUP(max_partition_count, part_entry_cnt)) / part_entry_cnt; i++) {
-		ASSERT(partition_count < NUM_PARTITIONS);
+		ASSERT(*partition_count < NUM_PARTITIONS);
 		ret = mmc_read((partition_0 * block_size) + (i * block_size),
 						(uint32_t *) data, block_size);
 
@@ -330,34 +363,34 @@ static unsigned int mmc_boot_read_gpt(uint32_t block_size)
 		}
 
 		for (j = 0; j < part_entry_cnt; j++) {
-			memcpy(&(partition_entries[partition_count].type_guid),
+			memcpy(&(partition_entries[*partition_count].type_guid),
 			       &data[(j * partition_entry_size)],
 			       PARTITION_TYPE_GUID_SIZE);
-			if (partition_entries[partition_count].type_guid[0] ==
+			if (partition_entries[*partition_count].type_guid[0] ==
 			    0x00
-			    && partition_entries[partition_count].
+			    && partition_entries[*partition_count].
 			    type_guid[1] == 0x00) {
 				i = ROUNDUP(max_partition_count, part_entry_cnt);
 				break;
 			}
 			memcpy(&
-			       (partition_entries[partition_count].
+			       (partition_entries[*partition_count].
 				unique_partition_guid),
 			       &data[(j * partition_entry_size) +
 				     UNIQUE_GUID_OFFSET],
 			       UNIQUE_PARTITION_GUID_SIZE);
-			partition_entries[partition_count].first_lba =
+			partition_entries[*partition_count].first_lba =
 			    GET_LLWORD_FROM_BYTE(&data
 						 [(j * partition_entry_size) +
 						  FIRST_LBA_OFFSET]);
-			partition_entries[partition_count].last_lba =
+			partition_entries[*partition_count].last_lba =
 			    GET_LLWORD_FROM_BYTE(&data
 						 [(j * partition_entry_size) +
 						  LAST_LBA_OFFSET]);
-			partition_entries[partition_count].size =
-			    partition_entries[partition_count].last_lba -
-			    partition_entries[partition_count].first_lba + 1;
-			partition_entries[partition_count].attribute_flag =
+			partition_entries[*partition_count].size =
+			    partition_entries[*partition_count].last_lba -
+			    partition_entries[*partition_count].first_lba + 1;
+			partition_entries[*partition_count].attribute_flag =
 			    GET_LLWORD_FROM_BYTE(&data
 						 [(j * partition_entry_size) +
 						  ATTRIBUTE_FLAG_OFFSET]);
@@ -366,17 +399,17 @@ static unsigned int mmc_boot_read_gpt(uint32_t block_size)
 			memcpy(UTF16_name, &data[(j * partition_entry_size) +
 						 PARTITION_NAME_OFFSET],
 			       MAX_GPT_NAME_SIZE);
-			partition_entries[partition_count].lun = mmc_get_lun();
+			partition_entries[*partition_count].lun = mmc_get_lun();
 
 			/*
 			 * Currently partition names in *.xml are UTF-8 and lowercase
 			 * Only supporting english for now so removing 2nd byte of UTF-16
 			 */
 			for (n = 0; n < MAX_GPT_NAME_SIZE / 2; n++) {
-				partition_entries[partition_count].name[n] =
+				partition_entries[*partition_count].name[n] =
 				    UTF16_name[n * 2];
 			}
-			partition_count++;
+			(*partition_count)++;
 		}
 	}
 end:
@@ -478,7 +511,7 @@ static unsigned int write_mbr(uint32_t size, uint8_t *mbrImage, uint32_t block_s
 		goto end;
 	}
 	/* Re-read the MBR partition into mbr table */
-	ret = mmc_boot_read_mbr(block_size);
+	ret = mmc_boot_read_mbr(block_size, g_user_partition_entries, &g_user_partition_count);
 	if (ret) {
 		dprintf(CRITICAL, "Failed to re-read mbr partition.\n");
 		goto end;
@@ -756,7 +789,7 @@ static unsigned int write_gpt(uint32_t size, uint8_t *gptImage, uint32_t block_s
 
 	/* Re-read the GPT partition table */
 	dprintf(INFO, "Re-reading the GPT Partition Table\n");
-	partition_count = 0;
+	g_user_partition_count = 0;
 	flashing_gpt = 0;
 	mmc_read_partition_table(0);
 	partition_dump();
@@ -881,12 +914,12 @@ mbr_fill_name(struct partition_entry *partition_ent, unsigned int type)
 /*
  * Find index of parition in array of partition entries
  */
-int partition_get_index(const char *name)
+static int _partition_get_index(const char *name, struct partition_entry *partition_entries, unsigned int partition_count)
 {
 	unsigned int input_string_length = strlen(name);
 	unsigned n;
 
-	if( partition_count >= NUM_PARTITIONS)
+	if(( partition_count >= NUM_PARTITIONS) || (partition_count == 0))
 	{
 		return INVALID_PTN;
 	}
@@ -899,8 +932,13 @@ int partition_get_index(const char *name)
 	return INVALID_PTN;
 }
 
+int partition_get_index(const char *name)
+{
+	return _partition_get_index(name, g_user_partition_entries, g_user_partition_count);
+}
+
 /* Get size of the partition */
-unsigned long long partition_get_size(int index)
+static unsigned long long _partition_get_size(int index, struct partition_entry *partition_entries)
 {
 	uint32_t block_size;
 
@@ -913,8 +951,13 @@ unsigned long long partition_get_size(int index)
 	}
 }
 
+unsigned long long partition_get_size(int index)
+{
+	return _partition_get_size(index, g_user_partition_entries);
+}
+
 /* Get offset of the partition */
-unsigned long long partition_get_offset(int index)
+static unsigned long long _partition_get_offset(int index, struct partition_entry *partition_entries)
 {
 	uint32_t block_size;
 
@@ -925,6 +968,11 @@ unsigned long long partition_get_offset(int index)
 	else {
 		return partition_entries[index].first_lba * block_size;
 	}
+}
+
+unsigned long long partition_get_offset(int index)
+{
+	return _partition_get_offset(index, g_user_partition_entries);
 }
 
 struct partition_info partition_get_info(const char *name)
@@ -956,11 +1004,11 @@ out:
 
 uint8_t partition_get_lun(int index)
 {
-	return partition_entries[index].lun;
+	return g_user_partition_entries[index].lun;
 }
 
 /* Debug: Print all parsed partitions */
-void partition_dump()
+static void _partition_dump(struct partition_entry *partition_entries, unsigned int partition_count)
 {
 	unsigned i = 0;
 	for (i = 0; i < partition_count; i++) {
@@ -971,6 +1019,11 @@ void partition_dump()
 			partition_entries[i].first_lba,
 			partition_entries[i].last_lba);
 	}
+}
+
+void partition_dump()
+{
+	_partition_dump(g_user_partition_entries, g_user_partition_count);
 }
 
 static unsigned int
@@ -1185,5 +1238,5 @@ bool partition_gpt_exists()
 
 int partition_read_only(int index)
 {
-	 return partition_entries[index].attribute_flag >> PART_ATT_READONLY_OFFSET;
+	 return g_user_partition_entries[index].attribute_flag >> PART_ATT_READONLY_OFFSET;
 }
