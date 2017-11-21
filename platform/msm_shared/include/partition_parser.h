@@ -178,6 +178,8 @@ bool partition_gpt_exists();
 
 struct partition_info partition_get_info(const char *name);
 
+unsigned long long partition_get_dpp_offset();
+
 /* For Debugging */
 void partition_dump(void);
 /* Read only attribute for partition */

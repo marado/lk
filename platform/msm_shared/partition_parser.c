@@ -142,6 +142,35 @@ end:
 }
 
 /*
+ * Get the DPP partition offset from within BOOT2 Partition
+ */
+unsigned long long partition_get_dpp_offset()
+{
+	struct partition_entry *boot_partition_entries = NULL;
+	unsigned int entries = 0;
+	int ret;
+	int index;
+	unsigned long long offset;
+
+	ret = _partition_read_table(&boot_partition_entries, &entries, PART_ACCESS_BOOT2);
+
+	if (ret)
+	{
+		dprintf(CRITICAL, "Error reading BOOT2 partition table\n");
+		return 0;
+	}
+
+	_partition_dump(boot_partition_entries, entries);
+
+	index = _partition_get_index("DPP", boot_partition_entries, entries);
+	offset = _partition_get_offset(index, boot_partition_entries);
+
+	dprintf(SPEW, "DPP Partition index: %d, offset: %llu\n", index, offset);
+
+    return offset;
+}
+
+/*
  * Read and fill partition table of userdata partition
  */
 unsigned int partition_read_table()
