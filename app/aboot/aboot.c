@@ -107,6 +107,9 @@ struct fastboot_cmd_desc {
 
 #define EXPAND(NAME) #NAME
 #define TARGET(NAME) EXPAND(NAME)
+#define WAIT_TIME_FOR_RED_STATE_SEC 30
+#define WAIT_TIME_FOR_YELLOW_STATE_SEC 5
+#define SEC_TO_MSEC_MULTIPLIER 1000
 
 #ifdef MEMBASE
 #define EMMC_BOOT_IMG_HEADER_ADDR (0xFF000+(MEMBASE))
@@ -300,7 +303,9 @@ unsigned char *update_cmdline(const char * cmdline)
         bool is_mdtp_activated = 0;
 #if VERIFIED_BOOT
 #if !VBOOT_MOTA
-    uint32_t boot_state = boot_verify_get_state();
+    uint32_t boot_state = 0;
+	if (qseecom_get_version() == QSEE_VERSION_40)
+		boot_state = boot_verify_get_state();
 #endif
 #endif
 
@@ -329,9 +334,12 @@ unsigned char *update_cmdline(const char * cmdline)
 
 #if VERIFIED_BOOT
 #if !VBOOT_MOTA
-	cmdline_len += strlen(verified_state) + strlen(vbsn[boot_state].name);
-	cmdline_len += strlen(verity_mode) + strlen(vbvm[device.verity_mode].name);
-	cmdline_len += strlen(keymaster_v1);
+	if (qseecom_get_version() == QSEE_VERSION_40)
+	{
+		cmdline_len += strlen(verified_state) + strlen(vbsn[boot_state].name);
+		cmdline_len += strlen(verity_mode) + strlen(vbvm[device.verity_mode].name);
+		cmdline_len += strlen(keymaster_v1);
+	}
 #endif
 #endif
 
@@ -458,23 +466,26 @@ unsigned char *update_cmdline(const char * cmdline)
 
 #if VERIFIED_BOOT
 #if !VBOOT_MOTA
-		src = verified_state;
-		if(have_cmdline) --dst;
-		have_cmdline = 1;
-		while ((*dst++ = *src++));
-		src = vbsn[boot_state].name;
-		if(have_cmdline) --dst;
-		while ((*dst++ = *src++));
+		if (qseecom_get_version() == QSEE_VERSION_40)
+		{
+			src = verified_state;
+			if(have_cmdline) --dst;
+			have_cmdline = 1;
+			while ((*dst++ = *src++));
+			src = vbsn[boot_state].name;
+			if(have_cmdline) --dst;
+			while ((*dst++ = *src++));
 
-		src = verity_mode;
-		if(have_cmdline) --dst;
-		while ((*dst++ = *src++));
-		src = vbvm[device.verity_mode].name;
-		if(have_cmdline) -- dst;
-		while ((*dst++ = *src++));
-		src = keymaster_v1;
-		if(have_cmdline) --dst;
-		while ((*dst++ = *src++));
+			src = verity_mode;
+			if(have_cmdline) --dst;
+			while ((*dst++ = *src++));
+			src = vbvm[device.verity_mode].name;
+			if(have_cmdline) -- dst;
+			while ((*dst++ = *src++));
+			src = keymaster_v1;
+			if(have_cmdline) --dst;
+			while ((*dst++ = *src++));
+		}
 #endif
 #endif
 		src = usb_sn_cmdline;
@@ -738,26 +749,32 @@ void boot_linux(void *kernel, unsigned *tags,
 
 #if VERIFIED_BOOT
 #if !VBOOT_MOTA
-	if (device.verity_mode == 0) {
+	if (qseecom_get_version() == QSEE_VERSION_40)
+	{
+		if (device.verity_mode == 0) {
 #if FBCON_DISPLAY_MSG
-		display_bootverify_menu(DISPLAY_MENU_LOGGING);
-		wait_for_users_action();
+			display_bootverify_menu(DISPLAY_MENU_LOGGING);
+			wait_for_users_action();
 #else
-		dprintf(CRITICAL,
-			"The dm-verity is not started in enforcing mode.\nWait for 5 seconds before proceeding\n");
-		mdelay(5000);
+			dprintf(CRITICAL,
+				"The dm-verity is not started in enforcing mode.\nWait for 5 seconds before proceeding\n");
+			mdelay(5000);
 #endif
-	}
+		}
 
 #endif
+	}
 #endif
 
 #if VERIFIED_BOOT
-	/* Write protect the device info */
-	if (target_build_variant_user() && devinfo_present && mmc_write_protect("devinfo", 1))
+	if (qseecom_get_version() == QSEE_VERSION_40)
 	{
-		dprintf(INFO, "Failed to write protect dev info\n");
-		ASSERT(0);
+		/* Write protect the device info */
+		if (target_build_variant_user() && devinfo_present && mmc_write_protect("devinfo", 1))
+		{
+			dprintf(INFO, "Failed to write protect dev info\n");
+			ASSERT(0);
+		}
 	}
 #endif
 
@@ -835,17 +852,27 @@ static void verify_signed_bootimg(uint32_t bootimg_addr, uint32_t bootimg_size)
 	dprintf(INFO, "Authenticating boot image (%d): start\n", bootimg_size);
 
 #if VERIFIED_BOOT
-	if(boot_into_recovery)
+	if (qseecom_get_version() == QSEE_VERSION_40)
 	{
-		ret = boot_verify_image((unsigned char *)bootimg_addr,
-				bootimg_size, "/recovery");
+		if(boot_into_recovery)
+		{
+			ret = boot_verify_image((unsigned char *)bootimg_addr,
+					bootimg_size, "/recovery");
+		}
+		else
+		{
+			ret = boot_verify_image((unsigned char *)bootimg_addr,
+					bootimg_size, "/boot");
+		}
+		boot_verify_print_state();
 	}
 	else
 	{
-		ret = boot_verify_image((unsigned char *)bootimg_addr,
-				bootimg_size, "/boot");
+		ret = image_verify((unsigned char *)bootimg_addr,
+						   (unsigned char *)(bootimg_addr + bootimg_size),
+						   bootimg_size,
+						   auth_algo);
 	}
-	boot_verify_print_state();
 #else
 	ret = image_verify((unsigned char *)bootimg_addr,
 					   (unsigned char *)(bootimg_addr + bootimg_size),
@@ -866,46 +893,51 @@ static void verify_signed_bootimg(uint32_t bootimg_addr, uint32_t bootimg_size)
 #endif
 
 #if VERIFIED_BOOT
-	switch(boot_verify_get_state())
+	if (qseecom_get_version() == QSEE_VERSION_40)
 	{
-		case RED:
+		switch(boot_verify_get_state())
+		{
+			case RED:
 #if FBCON_DISPLAY_MSG
-			display_bootverify_menu(DISPLAY_MENU_RED);
-			wait_for_users_action();
+				display_bootverify_menu(DISPLAY_MENU_RED);
+				wait_for_users_action();
 #else
-			dprintf(CRITICAL,
-					"Your device has failed verification and may not work properly.\nWait for 5 seconds before proceeding\n");
-			mdelay(5000);
+				dprintf(CRITICAL,
+						"Your device has failed verification and may not work properly.\nWait for %d seconds before proceeding\n",WAIT_TIME_FOR_RED_STATE_SEC);
+				mdelay(WAIT_TIME_FOR_RED_STATE_SEC * SEC_TO_MSEC_MULTIPLIER);
+				shutdown_device();
 #endif
 
-			break;
-		case YELLOW:
+				break;
+			case YELLOW:
 #if FBCON_DISPLAY_MSG
-			display_bootverify_menu(DISPLAY_MENU_YELLOW);
-			wait_for_users_action();
+				display_bootverify_menu(DISPLAY_MENU_YELLOW);
+				wait_for_users_action();
 #else
-			dprintf(CRITICAL,
-					"Your device has loaded a different operating system.\nWait for 5 seconds before proceeding\n");
-			mdelay(5000);
+				dprintf(CRITICAL,
+						"Your device has loaded a different operating system.\nWait for %d seconds before proceeding\n",WAIT_TIME_FOR_YELLOW_STATE_SEC);
+				mdelay(WAIT_TIME_FOR_YELLOW_STATE_SEC * SEC_TO_MSEC_MULTIPLIER);
 #endif
-			break;
-		default:
-			break;
+				break;
+			default:
+				break;
+		}
 	}
 #endif
-#if !VERIFIED_BOOT
-	if(device.is_tampered)
+	if (qseecom_get_version() != QSEE_VERSION_40)
 	{
-		write_device_info_mmc(&device);
-	#ifdef TZ_TAMPER_FUSE
-		set_tamper_fuse_cmd();
-	#endif
-	#ifdef ASSERT_ON_TAMPER
-		dprintf(CRITICAL, "Device is tampered. Asserting..\n");
-		ASSERT(0);
-	#endif
+		if(device.is_tampered)
+		{
+			write_device_info(&device);
+		#ifdef TZ_TAMPER_FUSE
+			set_tamper_fuse_cmd();
+		#endif
+		#ifdef ASSERT_ON_TAMPER
+			dprintf(CRITICAL, "Device is tampered. Asserting..\n");
+			ASSERT(0);
+		#endif
+		}
 	}
-#endif
 }
 
 static bool check_format_bit()
@@ -1093,7 +1125,8 @@ int boot_linux_from_mmc(void)
 #endif
 
 #if VERIFIED_BOOT
-	boot_verifier_init();
+	if (qseecom_get_version() == QSEE_VERSION_40)
+		boot_verifier_init();
 #endif
 
 	if (check_aboot_addr_range_overlap((uintptr_t) image_addr, imagesize_actual))
@@ -1156,19 +1189,22 @@ int boot_linux_from_mmc(void)
 		#endif /* TZ_SAVE_KERNEL_HASH */
 
 #if VERIFIED_BOOT
-#if !VBOOT_MOTA
-	if(boot_verify_get_state() == ORANGE)
+	if (qseecom_get_version() == QSEE_VERSION_40)
 	{
+#if !VBOOT_MOTA
+		if(boot_verify_get_state() == ORANGE)
+		{
 #if FBCON_DISPLAY_MSG
-		display_bootverify_menu(DISPLAY_MENU_ORANGE);
-		wait_for_users_action();
+			display_bootverify_menu(DISPLAY_MENU_ORANGE);
+			wait_for_users_action();
 #else
-		dprintf(CRITICAL,
-			"Your device has been unlocked and can't be trusted.\nWait for 5 seconds before proceeding\n");
-		mdelay(5000);
+			dprintf(CRITICAL,
+				"Your device has been unlocked and can't be trusted.\nWait for 5 seconds before proceeding\n");
+			mdelay(5000);
 #endif
-	}
+		}
 #endif /* !VBOOT_MOTA */
+	}
 #endif
 
 #ifdef MDTP_SUPPORT
@@ -1190,11 +1226,14 @@ int boot_linux_from_mmc(void)
 	}
 
 #if VERIFIED_BOOT
+	if (qseecom_get_version() == QSEE_VERSION_40)
+	{
 #if !VBOOT_MOTA
 	// send root of trust
-	if(!send_rot_command((uint32_t)device.is_unlocked))
-		ASSERT(0);
+		if(!send_rot_command((uint32_t)device.is_unlocked))
+			ASSERT(0);
 #endif
+	}
 #endif
 	/*
 	 * Check if the kernel image is a gzip package. If yes, need to decompress it.
@@ -1463,7 +1502,8 @@ int boot_linux_from_flash(void)
 #endif
 
 #if VERIFIED_BOOT
-	boot_verifier_init();
+	if (qseecom_get_version() == QSEE_VERSION_40)
+		boot_verifier_init();
 #endif
 
 	/* Authenticate Kernel */
@@ -2250,10 +2290,13 @@ void cmd_boot(const char *arg, void *data, unsigned sz)
 
 
 #if VERIFIED_BOOT
-	if(!device.is_unlocked)
+	if (qseecom_get_version() == QSEE_VERSION_40)
 	{
-		fastboot_fail("unlock device to use this command");
-		return;
+		if(!device.is_unlocked)
+		{
+			fastboot_fail("unlock device to use this command");
+			return;
+		}
 	}
 #endif
 
@@ -2303,7 +2346,8 @@ void cmd_boot(const char *arg, void *data, unsigned sz)
 
 	// Initialize boot state before trying to verify boot.img
 #if VERIFIED_BOOT
-		boot_verifier_init();
+		if (qseecom_get_version() == QSEE_VERSION_40)
+			boot_verifier_init();
 #endif
 	/* Handle overflow if the input image size is greater than
 	 * boot image buffer can hold
@@ -2466,12 +2510,15 @@ void cmd_erase_mmc(const char *arg, void *data, unsigned sz)
 	uint8_t lun = 0;
 
 #if VERIFIED_BOOT
-	if(!strcmp(arg, KEYSTORE_PTN_NAME))
+	if (qseecom_get_version() == QSEE_VERSION_40)
 	{
-		if(!device.is_unlocked)
+		if(!strcmp(arg, KEYSTORE_PTN_NAME))
 		{
-			fastboot_fail("unlock device to erase keystore");
-			return;
+			if(!device.is_unlocked)
+			{
+				fastboot_fail("unlock device to erase keystore");
+				return;
+			}
 		}
 	}
 #endif
@@ -2505,11 +2552,14 @@ void cmd_erase_mmc(const char *arg, void *data, unsigned sz)
 		return;
 	}
 #if VERIFIED_BOOT
+	if (qseecom_get_version() == QSEE_VERSION_40)
+	{
 #if !VBOOT_MOTA
-	if(!(strncmp(arg, "userdata", 8)))
-		if(send_delete_keys_to_tz())
-			ASSERT(0);
+		if(!(strncmp(arg, "userdata", 8)))
+			if(send_delete_keys_to_tz())
+				ASSERT(0);
 #endif
+	}
 #endif
 #endif
 	fastboot_okay("");
@@ -2525,10 +2575,13 @@ void cmd_erase(const char *arg, void *data, unsigned sz)
 #endif
 
 #if VERIFIED_BOOT
-	if(!device.is_unlocked)
+	if (qseecom_get_version() == QSEE_VERSION_40)
 	{
-		fastboot_fail("device is locked. Cannot erase");
-		return;
+		if(!device.is_unlocked)
+		{
+			fastboot_fail("device is locked. Cannot erase");
+			return;
+		}
 	}
 #endif
 
@@ -2585,17 +2638,20 @@ void cmd_flash_mmc_img(const char *arg, void *data, unsigned sz)
 		else
 		{
 #if VERIFIED_BOOT
-			if(!strcmp(pname, KEYSTORE_PTN_NAME))
+			if (qseecom_get_version() == QSEE_VERSION_40)
 			{
-				if(!device.is_unlocked)
+				if(!strcmp(pname, KEYSTORE_PTN_NAME))
 				{
-					fastboot_fail("unlock device to flash keystore");
-					return;
-				}
-				if(!boot_verify_validate_keystore((unsigned char *)data,sz))
-				{
-					fastboot_fail("image is not a keystore file");
-					return;
+					if(!device.is_unlocked)
+					{
+						fastboot_fail("unlock device to flash keystore");
+						return;
+					}
+					if(!boot_verify_validate_keystore((unsigned char *)data,sz))
+					{
+						fastboot_fail("image is not a keystore file");
+						return;
+					}
 				}
 			}
 #endif
@@ -3045,26 +3101,29 @@ void cmd_flash_mmc(const char *arg, void *data, unsigned sz)
 #endif /* SSD_ENABLE */
 
 #if VERIFIED_BOOT
-	if(!device.is_unlocked)
+	if (qseecom_get_version() == QSEE_VERSION_40)
 	{
-		/* if device is locked:
-		 * common partition will not allow to be flashed
-		 * critical partition will allow to flash image.
-		 */
-		if(!device.is_unlocked && !critical_flash_allowed(arg)) {
-			fastboot_fail("Partition flashing is not allowed");
-			return;
-		}
+		if(!device.is_unlocked)
+		{
+			/* if device is locked:
+			 * common partition will not allow to be flashed
+			 * critical partition will allow to flash image.
+			 */
+			if(!device.is_unlocked && !critical_flash_allowed(arg)) {
+				fastboot_fail("Partition flashing is not allowed");
+				return;
+			}
 #if !VBOOT_MOTA
-		/* if device critical is locked:
-		 * common partition will allow to be flashed
-		 * critical partition will not allow to flash image.
-		 */
-		if(!device.is_unlock_critical && critical_flash_allowed(arg)) {
-			fastboot_fail("Critical partition flashing is not allowed");
-			return;
-		}
+			/* if device critical is locked:
+			 * common partition will allow to be flashed
+			 * critical partition will not allow to flash image.
+			 */
+			if(!device.is_unlock_critical && critical_flash_allowed(arg)) {
+				fastboot_fail("Critical partition flashing is not allowed");
+				return;
+			}
 #endif
+		}
 	}
 #endif
 
@@ -3078,14 +3137,17 @@ void cmd_flash_mmc(const char *arg, void *data, unsigned sz)
                 cmd_flash_mmc_img(arg, data, sz);
 
 #if VERIFIED_BOOT
-#if !VBOOT_MOTA
-	if((!strncmp(arg, "system", 6)) && !device.verity_mode)
+	if (qseecom_get_version() == QSEE_VERSION_40)
 	{
-		// reset dm_verity mode to enforcing
-		device.verity_mode = 1;
-		write_device_info(&device);
-	}
+#if !VBOOT_MOTA
+		if((!strncmp(arg, "system", 6)) && !device.verity_mode)
+		{
+			// reset dm_verity mode to enforcing
+			device.verity_mode = 1;
+			write_device_info(&device);
+		}
 #endif
+	}
 #endif
 
 	return;
@@ -3814,7 +3876,7 @@ void aboot_init(const struct app_descriptor *app)
         }
 #if VERIFIED_BOOT
 #if !VBOOT_MOTA
-        else if(reboot_mode == DM_VERITY_ENFORCING) {
+	else if(reboot_mode == DM_VERITY_ENFORCING) {
 		device.verity_mode = 1;
 		write_device_info(&device);
 	} else if(reboot_mode == DM_VERITY_LOGGING) {
