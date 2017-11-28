@@ -230,6 +230,8 @@ static bool boot_reason_alarm;
 static bool devinfo_present = true;
 bool boot_into_fastboot = false;
 static uint32_t dt_size = 0;
+static unsigned long long int blank_img_header_flash = ULLONG_MAX;
+static unsigned long long int blank_img_header_mmc;
 
 /* Assuming unauthorized kernel image by default */
 static int auth_kernel_img = 0;
@@ -1318,6 +1320,11 @@ int boot_linux_from_mmc(void)
                 return -1;
 	}
 
+        if (!memcmp(buf, &blank_img_header_mmc, BLANK_PARTITION_MAGIC_SIZE)) {
+                dprintf(CRITICAL, "ERROR: No boot image present in boot partition\n");
+                return -1;
+        }
+
 	if (memcmp(hdr->magic, BOOT_MAGIC, BOOT_MAGIC_SIZE)) {
 		dprintf(CRITICAL, "ERROR: Invalid boot image header\n");
                 return -ECORRUPTED_IMAGE;
@@ -1750,6 +1757,10 @@ int boot_linux_from_flash(void)
 		return -1;
 	}
 
+	if (!memcmp(buf, &blank_img_header_flash, BLANK_PARTITION_MAGIC_SIZE)) {
+		dprintf(CRITICAL, "ERROR: No boot image present in boot partition\n");
+		return -1;
+	}
 	if (memcmp(hdr->magic, BOOT_MAGIC, BOOT_MAGIC_SIZE)) {
 		dprintf(CRITICAL, "ERROR: Invalid boot image header\n");
 		return -ECORRUPTED_IMAGE;
