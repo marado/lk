@@ -155,6 +155,7 @@ static const char *baseband_dsda    = " androidboot.baseband=dsda";
 static const char *baseband_dsda2   = " androidboot.baseband=dsda2";
 static const char *baseband_sglte2  = " androidboot.baseband=sglte2";
 static const char *warmboot_cmdline = " qpnp-power-on.warm_boot=1";
+static const char *scm_downloadmode_cmdline = " qcom_scm.download_mode=y";
 
 #if VERIFIED_BOOT
 #if !VBOOT_MOTA
@@ -323,6 +324,7 @@ unsigned char *update_cmdline(const char * cmdline)
 
 	cmdline_len += strlen(usb_sn_cmdline);
 	cmdline_len += strlen(sn_buf);
+	cmdline_len += strlen(scm_downloadmode_cmdline);
 
 #if VERIFIED_BOOT
 #if !VBOOT_MOTA
@@ -478,6 +480,10 @@ unsigned char *update_cmdline(const char * cmdline)
 			src = warmboot_cmdline;
 			while ((*dst++ = *src++));
 		}
+
+		src = scm_downloadmode_cmdline;
+		if(have_cmdline) --dst;
+		while ((*dst++ = *src++));
 
 		if (boot_into_recovery && gpt_exists) {
 			src = secondary_gpt_enable;
