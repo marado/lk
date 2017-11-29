@@ -80,6 +80,7 @@
 #include "board.h"
 #include "scm.h"
 #include "secapp_loader.h"
+#include "qseecom_lk.h"
 #include <menu_keys_detect.h>
 #include <display_menu.h>
 
