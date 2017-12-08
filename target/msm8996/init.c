@@ -697,6 +697,12 @@ int target_update_cmdline(char *cmdline)
 }
 
 #if _APPEND_CMDLINE
+#if MOUNT_EMMC_LE
+	#define ROOTFS_EMMC_PATH " root=/dev/mmcblk0p"
+#else
+	#define ROOTFS_EMMC_PATH " root=/dev/mmcblock0p"
+#endif
+
 int get_target_boot_params(const char *cmdline, const char *part, char **buf)
 {
 	int system_ptn_index = -1;
@@ -704,7 +710,7 @@ int get_target_boot_params(const char *cmdline, const char *part, char **buf)
 	char lun_char_base = 'a', lun_char_limit = 'h';
 
 	/*allocate buflen for largest possible string*/
-	uint32_t buflen = strlen(" root=/dev/mmcblock0p") + sizeof(int) + 1; /*1 character for null termination*/
+	uint32_t buflen = strlen(ROOTFS_EMMC_PATH) + sizeof(int) + 1; /*1 character for null termination*/
 
 	if (!cmdline || !part ) {
 		dprintf(CRITICAL, "WARN: Invalid input param\n");
@@ -734,7 +740,7 @@ int get_target_boot_params(const char *cmdline, const char *part, char **buf)
 	else
 	{
 		if (platform_boot_dev_isemmc()) {
-			snprintf(*buf, buflen, " root=/dev/mmcblock0p%d",
+			snprintf(*buf, buflen, ROOTFS_EMMC_PATH"%d",
 					system_ptn_index + 1);
 		} else {
 			lun = partition_get_lun(system_ptn_index);

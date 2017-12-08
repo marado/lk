@@ -141,6 +141,13 @@ else
   DEFINES += USE_LE_SYSTEMD=0
 endif
 
+ifeq ($(MOUNT_EMMC_LE),true)
+  DEFINES += MOUNT_EMMC_LE=1
+else
+  DEFINES += MOUNT_EMMC_LE=0
+endif
+
+
 # these need to be filled out by the project/target/platform rules.mk files
 TARGET :=
 PLATFORM :=
