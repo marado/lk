@@ -109,15 +109,18 @@ void reboot_device(unsigned reboot_reason)
 	 * write to the BOOT_MISC_REG for known reset cases
 	 */
 	if(reboot_reason != DLOAD)
+	{
 		scm_dload_mode(NORMAL_MODE);
 
 #if USE_PON_REBOOT_REG
-	value = REG_READ(PON_SOFT_RB_SPARE);
-	value |= (reboot_reason << 2);
-	REG_WRITE(PON_SOFT_RB_SPARE, value);
+		value = REG_READ(PON_SOFT_RB_SPARE);
+		value |= (reboot_reason << 2);
+		REG_WRITE(PON_SOFT_RB_SPARE, value);
 #else
-	writel(reboot_reason, RESTART_REASON_ADDR);
+		writel(reboot_reason, RESTART_REASON_ADDR);
 #endif
+	}
+
 	/* For Dload cases do a warm reset
 	 * For other cases do a hard reset
 	 */

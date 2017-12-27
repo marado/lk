@@ -32,7 +32,7 @@
 #include <sys/types.h>
 #include <platform/iomap.h>
 
-#define DLOAD 1
+#define DLOAD 0xFF
 
 enum dload_mode {
 	NORMAL_DLOAD,
