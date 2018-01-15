@@ -1,4 +1,4 @@
-/* Copyright (c) 2013-2016, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2013-2018, The Linux Foundation. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -110,6 +110,8 @@ struct panel_lookup_list lookup_skip_panels[] = {
 	{"sharp_1080p_cmd", "qcom,mdss_dsi_sharp_1080p_cmd", false},
 	{"sharp_120hz_1080p_cmd", "qcom,mdss_dual_sharp_1080p_120hz_cmd",
 		true},
+	{"lgd_incell_sw49106_fhd_video", "qcom,mdss_dsi_lgd_incell_sw49106_fhd_video",
+		false},
 };
 
 struct sim_lookup_list lookup_sim[] = {
