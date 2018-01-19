@@ -124,10 +124,22 @@ extern struct fbcon_config* msm_display_get_fb(uint32_t disp_id);
 extern int msm_display_init_count();
 
 bool display_init_done = false;
+bool panel_type_is_selected = true;
 
 bool target_display_is_init_done()
 {
 	return display_init_done;
+}
+
+void target_display_set_panel_type(char *panel_name)
+{
+	if (!strcmp(panel_name, NO_PANEL_CONFIG))
+		panel_type_is_selected = false;
+}
+
+bool target_display_panel_is_selected()
+{
+	return panel_type_is_selected;
 }
 
 static void target_hdmi_ldo_enable(uint8_t enable)
@@ -869,6 +881,9 @@ void target_display_init(const char *panel_name)
 
 	set_panel_cmd_string(panel_name);
 	oem = mdss_dsi_get_oem_data();
+
+	target_display_set_panel_type(oem.panel);
+
 	if (!strcmp(oem.panel, NO_PANEL_CONFIG)
 		|| !strcmp(oem.panel, SIM_VIDEO_PANEL)
 		|| !strcmp(oem.panel, SIM_DUALDSI_VIDEO_PANEL)

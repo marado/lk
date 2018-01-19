@@ -1180,8 +1180,9 @@ int animated_splash() {
 /* early domain services */
 void earlydomain_services()
 {
-	uint32_t ret = 0;
+	int ret = 0;
 	int i = 0;
+	bool panel_is_selected;
 
 	dprintf(CRITICAL, "earlydomain_services: Waiting for display init to complete\n");
 
@@ -1191,9 +1192,18 @@ void earlydomain_services()
 		i++;
 	}
 
-	dprintf(CRITICAL, "earlydomain_services: Display init done\n");
-	// Notify Kernel that LK is running
-	writel(0xC001CAFE, MDSS_SCRATCH_REG_1);
+	panel_is_selected = target_display_panel_is_selected();
+
+	/* Ensure panel type is selected before touching display scratch register. */
+	if (panel_is_selected) {
+		dprintf(CRITICAL, "earlydomain_services: Display init done\n");
+
+		/* Notify Kernel that LK is running */
+		writel(0xC001CAFE, MDSS_SCRATCH_REG_1);
+
+	} else {
+		dprintf(CRITICAL, "earlydomain_services: panel is not selected\n");
+	}
 
 	/* starting early domain services */
 	if (early_camera_init() == -1) {
@@ -1215,7 +1225,7 @@ void earlydomain_services()
 
 	/*Create Animated splash thread
 	if target supports it*/
-	if (target_animated_splash_screen())
+	if (panel_is_selected && target_animated_splash_screen())
 	{
 		ret = animated_splash_screen_mmc();
 		mmc_read_done = true;
@@ -1236,8 +1246,11 @@ void earlydomain_services()
 		early_audio_end();
 		early_audio_enabled = 0;
 	}
-	// Notify Kernel that LK is shutdown
-	writel(0xDEADBEEF, MDSS_SCRATCH_REG_1);
+
+	if (panel_is_selected) {
+		// Notify Kernel that LK is shutdown
+		writel(0xDEADBEEF, MDSS_SCRATCH_REG_1);
+	}
 }
 
 #else

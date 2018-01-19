@@ -161,6 +161,9 @@ struct fastboot_cmd_desc {
 //a uncompressed kernel + appended dtb
 #define PATCHED_KERNEL_MAGIC "UNCOMPRESSED_IMG"
 
+/* String for the case select-display-panel is set to none. */
+#define PANEL_IS_NONE " none"
+
 #if USE_BOOTDEV_CMDLINE
 static const char *emmc_cmdline = " androidboot.bootdevice=";
 #else
@@ -4619,11 +4622,17 @@ void aboot_init(const struct app_descriptor *app)
 	}
 #endif
 #endif
-	while ((device.early_domain_enabled)
-		&& (TRUE == target_animated_splash_screen())
-		&& (FALSE == target_is_mmc_read_done()))
-	{
-		mdelay_optimal(10);
+	/* If device.display_panel is none, no need to enter
+	 * below while loop, which is to wait for mmc_read is done
+	 * in earlydomain_services.
+	 */
+	if (strcmp(device.display_panel, PANEL_IS_NONE)) {
+		while ((device.early_domain_enabled)
+			&& (TRUE == target_animated_splash_screen())
+			&& (FALSE == target_is_mmc_read_done()))
+		{
+			mdelay_optimal(10);
+		}
 	}
 	target_serialno((unsigned char *) sn_buf);
 	dprintf(SPEW,"serial number: %s\n",sn_buf);

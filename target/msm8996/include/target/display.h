@@ -187,6 +187,8 @@ struct fbcon_config* target_display_get_fb(uint32_t disp_id);
 int target_display_update(struct target_display_update * update, uint32_t size, uint32_t disp_id);
 int target_release_layer(struct target_layer *layer);
 int target_display_close(struct target_display * disp);
+bool target_display_panel_is_selected();
+void target_display_set_panel_type(char *panel_name);
 int target_get_max_display();
 bool target_display_is_init_done();
 int target_display_init_count();
