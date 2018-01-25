@@ -98,8 +98,14 @@
 #define PMIC_ARB_CHANNEL_NUM    0
 #define PMIC_ARB_OWNER_ID       0
 
-/* Run Early camera for 30 seconds i.e 900 frames incase of no gpio */
+/* In case of no gpio and platform difference,
+ * flip frame number is limited by variable config.
+ */
+#if LONGSPLASH
+#define EARLYCAM_NO_GPIO_FRAME_LIMIT 1500
+#else
 #define EARLYCAM_NO_GPIO_FRAME_LIMIT 900
+#endif
 
 static int early_camera_enabled = 1;
 static int early_audio_enabled = 1;

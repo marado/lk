@@ -156,6 +156,10 @@ else
   DEFINES += USE_LE_SYSTEMD=0
 endif
 
+ifneq ($(TARGET_LA), 1)
+DEFINES += LONGSPLASH=1
+endif
+
 # these need to be filled out by the project/target/platform rules.mk files
 TARGET :=
 PLATFORM :=
