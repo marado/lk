@@ -1,5 +1,5 @@
-/* Copyright (c) 2013, The Linux Foundation. All rights reserved.
-
+/* Copyright (c) 2018, The Linux Foundation. All rights reserved.
+ *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
  * met:
@@ -9,7 +9,7 @@
  *     copyright notice, this list of conditions and the following
  *     disclaimer in the documentation and/or other materials provided
  *     with the distribution.
- *   * Neither the name of The Linux Foundation. nor the names of its
+ *   * Neither the name of The Linux Foundation nor the names of its
  *     contributors may be used to endorse or promote products derived
  *     from this software without specific prior written permission.
  *
@@ -26,52 +26,21 @@
  * IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include <boot_stats.h>
-#include <debug.h>
-#include <reg.h>
-#include <platform/iomap.h>
-#include <platform.h>
+#include <pm_vib.h>
+#include <board.h>
 
-static uint32_t kernel_load_start;
-void bs_set_timestamp(enum bs_entry bs_id)
+void pm_vib_turn_on()
 {
-	addr_t bs_imem = get_bs_info_addr();
-	uint32_t clk_count = 0;
+	if ((board_pmic_target(1) & 0xffff) == PMIC_IS_PMI632)
+		pm_vib_ldo_turn_on();
+	else
+		pm_haptic_vib_turn_on();
+}
 
-	if(bs_imem) {
-		if (bs_id >= BS_MAX) {
-			dprintf(CRITICAL, "bad bs id: %u, max: %u\n", bs_id, BS_MAX);
-			ASSERT(0);
-		}
-
-		if (bs_id == BS_KERNEL_LOAD_START) {
-			kernel_load_start = platform_get_sclk_count();
-			return;
-		}
-
-		if(bs_id == BS_KERNEL_LOAD_DONE){
-			clk_count = platform_get_sclk_count();
-			if(clk_count){
-				writel(clk_count - kernel_load_start,
-					bs_imem + (sizeof(uint32_t) * BS_KERNEL_LOAD_TIME));
-			}
-			return;
-		}
-		if(bs_id == BS_DTB_OVERLAY_START){
-			clk_count = platform_get_sclk_count();
-			dprintf(INFO, "DTBO Overlay count start: %u\n", clk_count);
-			return;
-		}
-		if(bs_id == BS_DTB_OVERLAY_END){
-			clk_count = platform_get_sclk_count();
-			dprintf(INFO, "DTBO Overlay count done: %u\n", clk_count);
-		}
-		else{
-			clk_count = platform_get_sclk_count();
-			if(clk_count){
-				writel(clk_count,
-					bs_imem + (sizeof(uint32_t) * bs_id));
-			}
-		}
-	}
+void pm_vib_turn_off()
+{
+	if ((board_pmic_target(1) & 0xffff) == PMIC_IS_PMI632)
+		pm_vib_ldo_turn_off();
+	else
+		pm_haptic_vib_turn_off();
 }
