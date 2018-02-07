@@ -295,6 +295,7 @@ unsigned board_machtype(void)
 /* Detect the target type */
 void target_detect(struct board_data *board)
 {
+	board->revision = target_get_board_id();
 	/*
 	* already fill the board->target on board.c
 	*/

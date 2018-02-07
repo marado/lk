@@ -40,6 +40,8 @@ static struct board_data board = {UNKNOWN,
 	LINUX_MACHTYPE_UNKNOWN,
 	BASEBAND_MSM,
 	{{PMIC_IS_INVALID, 0}, {PMIC_IS_INVALID, 0}, {PMIC_IS_INVALID, 0}},
+	{0},
+	0
 };
 
 static void platform_detect()
@@ -173,6 +175,10 @@ void board_init()
 uint32_t board_platform_id(void)
 {
 	return board.platform;
+}
+uint32_t board_revision(void)
+{
+	return board.revision;
 }
 
 uint32_t board_target_id()
