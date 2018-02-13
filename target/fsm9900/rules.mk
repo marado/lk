@@ -9,7 +9,7 @@ MEMSIZE := 0x00100000 # 1MB
 
 BASE_ADDR        := 0x08000000
 
-SCRATCH_ADDR     := 0x08b00000
+SCRATCH_ADDR     := 0x60000000
 
 MODULES += \
 	dev/keys \
