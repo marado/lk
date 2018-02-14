@@ -36,6 +36,7 @@
 #include <arch/arm/mmu.h>
 #include <smem.h>
 #include <board.h>
+#include <platform/gpio.h>
 #include <boot_stats.h>
 #include <platform.h>
 #include <target/display.h>
@@ -73,8 +74,22 @@ static mmu_section_t mmu_section_table[] = {
 int platform_is_msm8939();
 int platform_is_msm8929();
 
+static void gpio_init()
+{
+	// Board revision is dictated by 2 GPIO's (msm GPIO 97 , msm GPIO 98)
+	// TLMM_BOARD_ID0_GPIO(97) is configured as a pull down input gpio
+	gpio_tlmm_config(97, 0, GPIO_INPUT, GPIO_PULL_DOWN, GPIO_2MA, GPIO_ENABLE);
+	// TLMM_BOARD_ID1_GPIO(98) is configured as a pull down input gpio
+	gpio_tlmm_config(98, 0, GPIO_INPUT, GPIO_PULL_DOWN, GPIO_2MA, GPIO_ENABLE);
+
+	// Volume up button is an active low GPIO connected to msm GPIO 108
+	gpio_tlmm_config(108, 0, GPIO_INPUT, GPIO_PULL_UP, GPIO_2MA, GPIO_ENABLE);
+
+}
+
 void platform_early_init(void)
 {
+	gpio_init();
 	board_init();
 	platform_clock_init();
 	qgic_init();

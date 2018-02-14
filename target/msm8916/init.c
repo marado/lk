@@ -52,6 +52,7 @@
 #include <rpmb.h>
 #include <smem.h>
 #include <stored_settings.h>
+#include <platform/board.h>
 
 #if LONG_PRESS_POWER_ON
 #include <shutdown_detect.h>
@@ -64,6 +65,12 @@
 #define PMIC_ARB_CHANNEL_NUM    0
 #define PMIC_ARB_OWNER_ID       0
 #define TLMM_VOL_UP_BTN_GPIO    107
+#define TLMM_BOARD_ID0_GPIO		97
+#define BOARD_ID0_SHIFT			0
+#define BOARD_ID0_MASK			1
+#define TLMM_BOARD_ID1_GPIO		98
+#define BOARD_ID1_SHIFT			1
+#define BOARD_ID1_MASK			1
 
 #if PON_VIB_SUPPORT
 #define VIBRATE_TIME    250
@@ -96,6 +103,13 @@ void target_early_init(void)
 #if WITH_DEBUG_UART
 	uart_dm_init(2, 0, BLSP1_UART1_BASE);
 #endif
+}
+
+/* Read board ID from GPIO pins*/
+uint8_t target_get_board_id()
+{
+	return (((gpio_status(TLMM_BOARD_ID1_GPIO) & BOARD_ID1_MASK) << BOARD_ID1_SHIFT)
+			| ((gpio_status(TLMM_BOARD_ID0_GPIO) & BOARD_ID0_MASK) << BOARD_ID0_SHIFT));
 }
 
 void target_sdc_init()
@@ -156,7 +170,6 @@ int target_volume_up()
 	/* Active low signal. */
 	return !status;
 }
-
 /* Return 1 if vol_down pressed */
 uint32_t target_volume_down()
 {
@@ -179,6 +192,7 @@ void target_init(void)
 {
         uint32_t base_addr;
 	uint8_t slot;
+	uint8_t board_id;
 #if VERIFIED_BOOT
 #if !VBOOT_MOTA
         int ret = 0;
@@ -187,6 +201,9 @@ void target_init(void)
 	dprintf(INFO, "target_init()\n");
 
 	spmi_init(PMIC_ARB_CHANNEL_NUM, PMIC_ARB_OWNER_ID);
+
+	board_id = target_get_board_id();
+	dprintf(INFO, "Found board ID = %d \n",board_id);
 
 	target_keystatus();
 
