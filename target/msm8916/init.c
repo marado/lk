@@ -65,6 +65,7 @@
 #define PMIC_ARB_CHANNEL_NUM    0
 #define PMIC_ARB_OWNER_ID       0
 #define TLMM_VOL_UP_BTN_GPIO    107
+#define TLMM_VOL_DOWN_BTN_GPIO	108
 #define TLMM_BOARD_ID0_GPIO		97
 #define BOARD_ID0_SHIFT			0
 #define BOARD_ID0_MASK			1
@@ -173,6 +174,8 @@ int target_volume_up()
 /* Return 1 if vol_down pressed */
 uint32_t target_volume_down()
 {
+	if (BOARD_DB410C_GEN_2 == target_get_board_id())
+		return !gpio_status(TLMM_VOL_DOWN_BTN_GPIO);
 	/* Volume down button tied in with PMIC RESIN. */
 	return pm8x41_resin_status();
 }
