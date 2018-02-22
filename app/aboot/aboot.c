@@ -1399,7 +1399,8 @@ int boot_linux_from_mmc(void)
 	if (partition_multislot_is_supported())
 	{
 		current_active_slot = partition_find_active_slot();
-		dprintf(INFO, "Loading boot image (%d) active_slot(%s): start\n",
+		if (current_active_slot != INVALID)
+			dprintf(INFO, "Loading boot image (%d) active_slot(%s): start\n",
 				imagesize_actual, SUFFIX_SLOT(current_active_slot));
 	}
 	else
@@ -1424,7 +1425,8 @@ int boot_linux_from_mmc(void)
 
 	if (partition_multislot_is_supported())
 	{
-		dprintf(INFO, "Loading boot image (%d) active_slot(%s): done\n",
+		if (current_active_slot != INVALID)
+			dprintf(INFO, "Loading boot image (%d) active_slot(%s): done\n",
 				imagesize_actual, SUFFIX_SLOT(current_active_slot));
 	}
 	else
@@ -3019,8 +3021,9 @@ void cmd_flash_mmc_img(const char *arg, void *data, unsigned sz)
 			if (partition_scan_for_multislot())
 			{
 				current_active_slot = partition_find_active_slot();
-				dprintf(INFO, "Multislot supported: Slot %s active",
-					(SUFFIX_SLOT(current_active_slot)));
+				if (current_active_slot != INVALID)
+					dprintf(INFO, "Multislot supported: Slot %s active",
+						(SUFFIX_SLOT(current_active_slot)));
 			}
 			partition_mark_active_slot(current_active_slot);
 		}
