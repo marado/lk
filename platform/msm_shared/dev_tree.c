@@ -1475,6 +1475,10 @@ static int update_fstab_node(void *fdt)
 			suffix_str += strlen(fstab_table.device_path_id);
 			prefix_string_len = strlen(prefix_str) - (strlen(suffix_str) - 1);
 			suffix_str = strstr((suffix_str + 1), "/");
+			if (!suffix_str) {
+			  dprintf(CRITICAL, "Property is not proper to update\n");
+			  continue;
+                        }
 			str_len = strlcpy(new_str, prefix_str, prefix_string_len);
 			if (!str_len) {
 				dprintf(CRITICAL, "Property length is not proper to update\n");
