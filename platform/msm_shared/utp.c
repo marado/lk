@@ -270,6 +270,7 @@ static int utp_enqueue_utrd(struct ufs_dev *dev, struct utp_utrd_req_build_type 
 
 	ret = UFS_SUCCESS;
 	req = (struct ufs_req_node *)malloc(sizeof(struct ufs_req_node));
+	ASSERT(req);
 
 	event_init(&utrd_evt, false, EVENT_FLAG_AUTOUNSIGNAL);
 
