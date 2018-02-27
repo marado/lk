@@ -1173,13 +1173,16 @@ int boot_linux_from_flash(void)
 	unsigned kernel_actual;
 	unsigned ramdisk_actual;
 	unsigned imagesize_actual;
-	unsigned second_actual;
+	unsigned second_actual = 0;
 
 #if DEVICE_TREE
 	struct dt_table *table;
 	struct dt_entry dt_entry;
+	unsigned dt_table_offset;
 	uint32_t dt_actual;
 	uint32_t dt_hdr_size;
+	unsigned int dtb_size = 0;
+        unsigned char *best_match_dt_addr = NULL;
 #endif
 
 	if (target_is_emmc_boot()) {
@@ -1317,14 +1320,30 @@ int boot_linux_from_flash(void)
 		memmove((void*) hdr->kernel_addr, (char *)(image_addr + page_size), hdr->kernel_size);
 		memmove((void*) hdr->ramdisk_addr, (char *)(image_addr + page_size + kernel_actual), hdr->ramdisk_size);
 #if DEVICE_TREE
-		/* Validate and Read device device tree in the "tags_add */
-		if (check_aboot_addr_range_overlap(hdr->tags_addr, dt_entry.size))
-		{
-			dprintf(CRITICAL, "Device tree addresses overlap with aboot addresses.\n");
-			return -1;
-		}
+		if(hdr->dt_size != 0) {
 
-		memmove((void*) hdr->tags_addr, (char *)(image_addr + page_size + kernel_actual + ramdisk_actual), hdr->dt_size);
+			dt_table_offset = ((uint32_t)image_addr + page_size + kernel_actual + ramdisk_actual + second_actual);
+			table = (struct dt_table*) dt_table_offset;
+			if (dev_tree_validate(table, hdr->page_size, &dt_hdr_size) != 0){
+				dprintf(CRITICAL, "ERROR: Cannot validate Device Tree Table \n");
+				return -1;
+			}
+			/* Find index of device tree within device tree table */
+			if(dev_tree_get_entry_info(table, &dt_entry) != 0){
+				dprintf(CRITICAL, "ERROR: Getting device tree address failed\n");
+				return -1;
+			}
+
+			/* Validate and Read device device tree in the "tags_add */
+			if (check_aboot_addr_range_overlap(hdr->tags_addr, dt_entry.size)){
+				dprintf(CRITICAL, "Device tree addresses overlap with aboot addresses.\n");
+				return -1;
+			}
+
+			best_match_dt_addr = (unsigned char *)table + dt_entry.offset;
+			dtb_size = dt_entry.size;
+			memmove((void *)hdr->tags_addr, (char *)best_match_dt_addr, dtb_size);
+		}
 #endif
 
 		/* Make sure everything from scratch address is read before next step!*/
@@ -1348,16 +1367,26 @@ int boot_linux_from_flash(void)
 				kernel_actual + ramdisk_actual);
 		bs_set_timestamp(BS_KERNEL_LOAD_START);
 
+		if (UINT_MAX - offset < kernel_actual)
+		{
+			dprintf(CRITICAL, "ERROR: Integer overflow in boot image header %s\t%d\n",__func__,__LINE__);
+			return -1;
+		}
 		if (flash_read(ptn, offset, (void *)hdr->kernel_addr, kernel_actual)) {
 			dprintf(CRITICAL, "ERROR: Cannot read kernel image\n");
 			return -1;
 		}
 		offset += kernel_actual;
-
+		if (UINT_MAX - offset < ramdisk_actual)
+		{
+			dprintf(CRITICAL, "ERROR: Integer overflow in boot image header %s\t%d\n",__func__,__LINE__);
+			return -1;
+		}
 		if (flash_read(ptn, offset, (void *)hdr->ramdisk_addr, ramdisk_actual)) {
 			dprintf(CRITICAL, "ERROR: Cannot read ramdisk image\n");
 			return -1;
 		}
+
 		offset += ramdisk_actual;
 
 		dprintf(INFO, "Loading boot image (%d): done\n",
@@ -1365,6 +1394,11 @@ int boot_linux_from_flash(void)
 		bs_set_timestamp(BS_KERNEL_LOAD_DONE);
 
 		if(hdr->second_size != 0) {
+			if (UINT_MAX - offset < second_actual)
+			{
+				dprintf(CRITICAL, "ERROR: Integer overflow in boot image header %s\t%d\n",__func__,__LINE__);
+				return -1;
+			}
 			offset += second_actual;
 			/* Second image loading not implemented. */
 			ASSERT(0);
