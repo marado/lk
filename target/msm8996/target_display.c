@@ -70,6 +70,9 @@
 #define REGULATOR_SIZE_IN_BYTES_8996	5
 #define LANE_SIZE_IN_BYTES_8996		20
 
+#define PANEL_NAME_DELIMITER '+'
+#define MAX_PANEL_COUNT      3
+
 /*---------------------------------------------------------------------------*/
 /* GPIO configuration                                                        */
 /*---------------------------------------------------------------------------*/
@@ -872,6 +875,48 @@ static int target_layers_populate(struct target_layer_int *layers)
 	return 0;
 }
 
+void target_display_HDMI_resolution (uint32_t *width, uint32_t *height)
+{
+	uint32_t reg;
+	int start_v, end_v, start_h, end_h;
+
+	// Get HDMI resolution
+	reg = readl(HDMI_ACTIVE_V);
+	start_v = (int)(reg & 0xFFF);
+	end_v = (int)(reg >> 16);
+	reg = readl(HDMI_ACTIVE_H);
+	start_h = (int)(reg & 0xFFF);
+	end_h = (int)(reg >> 16);
+	*width = end_h - start_h;
+	*height = end_v - start_v;
+}
+
+static int panel_name_parser (char *panel_name)
+{
+	int panel_count = 1;
+	unsigned int i = 0;
+	unsigned int length = strlen(panel_name);
+
+	for (i = 0; i < length; i++) {
+		if (panel_name[i] == PANEL_NAME_DELIMITER) {
+			panel_count++;
+			panel_name[i] = 0;
+		}
+	}
+	return panel_count;
+}
+
+static bool composite_panel_name(const char *panel_name)
+{
+	unsigned int i;
+
+	for (i = 0; i < (strlen(panel_name)); i++)
+		if (panel_name[i] == PANEL_NAME_DELIMITER)
+			return true;
+
+	return false;
+}
+
 void target_display_init(const char *panel_name)
 {
 	struct oem_panel_data oem;
@@ -895,6 +940,16 @@ void target_display_init(const char *panel_name)
 		goto target_display_init_end;
 	} else if (!strcmp(oem.panel, HDMI_PANEL_NAME)) {
 		mdss_hdmi_display_init(MDP_REV_50, (void *) HDMI_FB_ADDR);
+		// Get HDMI resolution
+		target_display_HDMI_resolution (&displays[0].width, &displays[0].height);
+		if (displays[0].width > 2560)
+			displays[0].dual_pipe = true;
+		else
+			displays[0].dual_pipe = false;
+		displays[1].width = 0;
+		displays[1].height = 0;
+		displays[2].width = 0;
+		displays[2].height = 0;
 		goto target_display_init_end;
 	} else if (!strcmp(oem.panel, "dual_720p_single_hdmi_video")) {
 		// Three display panels init, init DSI0 first
@@ -905,23 +960,113 @@ void target_display_init(const char *panel_name)
 		gcdb_display_init("adv7533_720p_dsi1_video", MDP_REV_50,
 				(void *)MIPI_FB_ADDR + 0x1000000);
 		mdss_hdmi_display_init(MDP_REV_50, (void *) HDMI_FB_ADDR);
+		displays[0].width = 1280;
+		displays[0].height = 720;
+		displays[1].width = 1280;
+		displays[1].height = 720;
+		// Get HDMI resolution
+		target_display_HDMI_resolution (&displays[2].width, &displays[2].height);
+		if (displays[2].width > 2560)
+			displays[2].dual_pipe = true;
+		else
+			displays[2].dual_pipe = false;
+
+		goto target_display_init_end;
+	} else if (!strcmp(oem.panel, "dual_1080p_single_hdmi_video")) {
+		// Three display panels init, init DSI0 first
+		gcdb_display_init("adv7533_1080p_dsi0_video", MDP_REV_50,
+				(void *)MIPI_FB_ADDR);
+		// if the panel has different size or color format, they cannot use
+		// the same FB buffer
+		gcdb_display_init("adv7533_1080p_dsi1_video", MDP_REV_50,
+				(void *)MIPI_FB_ADDR + 0x1000000);
+		mdss_hdmi_display_init(MDP_REV_50, (void *) HDMI_FB_ADDR);
+		displays[0].width = 1920;
+		displays[0].height = 1080;
+		displays[1].width = 1920;
+		displays[1].height = 1080;
+		// Get HDMI resolution
+		target_display_HDMI_resolution (&displays[2].width, &displays[2].height);
+		if (displays[2].width > 2560)
+			displays[2].dual_pipe = true;
+		else
+			displays[2].dual_pipe = false;
+
 		goto target_display_init_end;
 	} else if (!strcmp(oem.panel, "single_720p_single_hdmi_video")) {
 		// Dual display panels init, init DSI0 first
 		gcdb_display_init("adv7533_720p_video", MDP_REV_50,
 				(void *)MIPI_FB_ADDR);
 		mdss_hdmi_display_init(MDP_REV_50, (void *) HDMI_FB_ADDR);
+		displays[0].width = 1280;
+		displays[0].height = 720;
+		// Get HDMI resolution
+		target_display_HDMI_resolution (&displays[1].width, &displays[1].height);
+		if (displays[1].width > 2560)
+			displays[1].dual_pipe = true;
+		else
+			displays[1].dual_pipe = false;
+		displays[2].width = 0;
+		displays[2].height = 0;
 		goto target_display_init_end;
 	} else if (!strcmp(oem.panel, "dsi0_600p_dsi1_720p_hdmi_video")) {
 		// Initialize DSI0 in 1024x600 resolution
 		gcdb_display_init("adv7533_1024_600p_dsi0_video", MDP_REV_50,
 				(void *)MIPI_FB_ADDR);
+		displays[0].width = 1024;
+		displays[0].height = 600;
 		// Initialize DSI1 in 1280x720 resolution
 		gcdb_display_init("adv7533_720p_dsi1_video", MDP_REV_50,
 				(void *)MIPI_FB_ADDR + 0x1000000);
+		displays[1].width = 1280;
+		displays[1].height = 720;
 		mdss_hdmi_display_init(MDP_REV_50, (void *) HDMI_FB_ADDR);
+		// Get HDMI resolution
+		target_display_HDMI_resolution (&displays[2].width, &displays[2].height);
+		if (displays[2].width > 2560)
+			displays[2].dual_pipe = true;
+		else
+			displays[2].dual_pipe = false;
 		goto target_display_init_end;
 		return;
+	} else if (composite_panel_name(oem.panel)) {
+		int i, panel_count;
+		char* panel[3];
+		dprintf(CRITICAL,"%s is composite_panel_name, lenght:%d\n", oem.panel, strlen(oem.panel));
+		panel_count = panel_name_parser (oem.panel);
+		panel[0] = oem.panel;
+		panel[1] = oem.panel + strlen (oem.panel) + 1;
+		if (panel_count == 3)
+			panel[2] = oem.panel + strlen (oem.panel) + strlen (panel[1]) + 2;
+
+		for (i = 0; ((i < panel_count) && (i < MAX_PANEL_COUNT)); i++) {
+			if (!strcmp(panel[i], HDMI_PANEL_NAME)) {
+				dprintf (CRITICAL, "panel%d name is %s\n", i, panel[i]);
+				mdss_hdmi_display_init(MDP_REV_50, (void *) HDMI_FB_ADDR);
+				// Get HDMI resolution
+				target_display_HDMI_resolution (&displays[i].width, &displays[i].height);
+				if (displays[i].width > 2560)
+					displays[i].dual_pipe = true;
+				else
+					displays[i].dual_pipe = false;
+			} else {
+				gcdb_display_init(panel[i], MDP_REV_50, (void *)MIPI_FB_ADDR);
+				if ((!strcmp(panel[i], "adv7533_1080p_dsi0_video")) ||
+					(!strcmp(panel[i], "adv7533_1080p_dsi1_video")) ||
+					(!strcmp(panel[i], "adv7533_1080p_video")) ||
+					(!strcmp(panel[i], "adv7533_1080p"))) {
+					displays[i].width = 1920;
+					displays[i].height = 1080;
+				} else if ((!strcmp(panel[i], "adv7533_720p_dsi0_video"))||
+					(!strcmp(panel[i], "adv7533_720p_dsi1_video")) ||
+					(!strcmp(panel[i], "adv7533_720p_video")) ||
+					(!strcmp(panel[i], "adv7533_720p"))) {
+					displays[i].width = 1280;
+					displays[i].height = 720;
+				}
+			}
+		}
+		goto target_display_init_end;
 	}
 
 	if (gcdb_display_init(oem.panel, MDP_REV_50, (void *)MIPI_FB_ADDR)) {

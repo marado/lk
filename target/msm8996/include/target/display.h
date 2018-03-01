@@ -92,11 +92,11 @@ static const uint32_t panel_physical_ctrl[] = { };
 #define NUM_TARGET_DISPLAYS          3
 #define NUM_TARGET_LAYERS            10
 
-#define NUM_VIG_PIPES                1
-#define VIG_ID_START                 3
-#define VIG_PIPE_START               7
+#define NUM_VIG_PIPES                4
+#define VIG_ID_START                 4
+#define VIG_PIPE_START               4
 
-#define NUM_RGB_PIPES                3
+#define NUM_RGB_PIPES                4
 #define RGB_ID_START                 0
 #define RGB_PIPE_START               0
 
@@ -151,6 +151,7 @@ struct target_display {
   uint32_t width;
   uint32_t height;
   float    fps;
+  bool     dual_pipe;
 };
 
 struct target_layer_int {
