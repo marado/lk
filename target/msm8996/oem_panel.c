@@ -83,6 +83,7 @@ enum {
 	ADV7533_720P_VIDEO_DSI0_PANEL,
 	ADV7533_720P_VIDEO_DSI1_PANEL,
 	DUAL_720P_SINGLE_HDMI_PANELS,
+	DUAL_1080P_SINGLE_HDMI_PANELS,
 	SINGLE_720P_SINGLE_HDMI_PANELS,
 	DSI0_600P_DSI1_720P_HDMI_PANELS,
 	ADV7533_1080P_VIDEO_PANEL,
@@ -113,10 +114,13 @@ static struct panel_list supp_panels[] = {
 	{"adv7533_720p_dsi0_video", ADV7533_720P_VIDEO_DSI0_PANEL},
 	{"adv7533_720p_dsi1_video", ADV7533_720P_VIDEO_DSI1_PANEL},
 	{"dual_720p_single_hdmi_video", DUAL_720P_SINGLE_HDMI_PANELS},
+	{"dual_1080p_single_hdmi_video", DUAL_1080P_SINGLE_HDMI_PANELS},
 	{"single_720p_single_hdmi_video", SINGLE_720P_SINGLE_HDMI_PANELS},
 	{"dsi0_600p_dsi1_720p_hdmi_video", DSI0_600P_DSI1_720P_HDMI_PANELS},
 	{"adv7533_1080p_video", ADV7533_1080P_VIDEO_PANEL},
 	{"adv7533_720p_video", ADV7533_720P_VIDEO_PANEL},
+	{"adv7533_1080p", ADV7533_1080P_VIDEO_PANEL},
+	{"adv7533_720p", ADV7533_720P_VIDEO_PANEL},
 	{"truly_fwvga_video", TRULY_FWVGA_VIDEO_PANEL},
 	{"truly_1080p_video", TRULY_1080P_VIDEO_PANEL},
 	{"truly_1080p_cmd", TRULY_1080P_CMD_PANEL}
@@ -697,6 +701,7 @@ static bool init_panel_data(struct panel_struct *panelstruct,
 				adv7533_1080p_thulium_video_timings,
 				MAX_TIMING_CONFIG * sizeof(uint32_t));
 		break;
+	case DUAL_1080P_SINGLE_HDMI_PANELS:
 	case ADV7533_1080P_VIDEO_DSI1_PANEL:
 		pan_type = PANEL_TYPE_DSI;
 		panelstruct->paneldata    = &adv7533_1080p_DSI1_video_panel_data;
@@ -861,7 +866,7 @@ int oem_panel_bridge_chip_init(struct msm_panel_info *pinfo) {
 	target_set_switch_gpio(1);
 	/* ADV7533 DSI to HDMI Bridge Chip Connected */
 	mipi_dsi_i2c_device_init(BLSP_ID_2, QUP_ID_1);
-	if ((pinfo->mipi.dual_dsi) && (pinfo->dest == DISPLAY_2)) {
+	if (pinfo->dest == DISPLAY_2) {
 		pinfo->adv7533.i2c_main_addr = TARGET_ADV7533_MAIN_INST_1;
 		pinfo->adv7533.i2c_cec_addr = TARGET_ADV7533_CEC_DSI_INST_1;
 		pinfo->adv7533.program_i2c_addr = false;
@@ -915,6 +920,7 @@ int oem_panel_select(const char *panel_name, struct panel_struct *panelstruct,
 					panel_name);
 			switch(panel_id) {
 			case DUAL_720P_SINGLE_HDMI_PANELS:
+			case DUAL_1080P_SINGLE_HDMI_PANELS:
 			case DSI0_600P_DSI1_720P_HDMI_PANELS:
 			case ADV7533_1024_600P_VIDEO_DSI0_PANEL:
 			case ADV7533_1080P_VIDEO_PANEL:
