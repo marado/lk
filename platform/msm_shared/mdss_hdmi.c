@@ -168,6 +168,8 @@ enum edid_data_block_type {
 #define HDMI_VFRMT_640x480p60_4_3       1
 #define HDMI_VFRMT_1280x720p60_16_9     4
 #define HDMI_VFRMT_1920x1080p60_16_9    16
+#define HDMI_VFRMT_3840x2160p30_16_9    95
+#define HDMI_VFRMT_3840x2160p60_16_9    97
 #define HDMI_VFRMT_4096x2160p24_256_135 98
 #define HDMI_VFRMT_4096x2160p25_256_135 99
 #define HDMI_VFRMT_4096x2160p30_256_135 100
@@ -176,7 +178,7 @@ enum edid_data_block_type {
 #define HDMI_VFRMT_3840x2160p30_64_27   105
 #define HDMI_EVFRMT_4096x2160p24_16_9   131
 #define HDMI_VFRMT_4096x2160p60_256_135 102
-#define HDMI_VFRMT_COUNT                11
+#define HDMI_VFRMT_COUNT                13
 #define HDMI_VFRMT_END                  127
 #define HDMI_VSDB_3D_EVF_DATA_OFFSET(vsd) \
 	(!((vsd)[8] & BIT(7)) ? 9 : (!((vsd)[8] & BIT(6)) ? 11 : 13))
@@ -198,6 +200,7 @@ enum edid_data_block_type {
 static uint8_t mdss_hdmi_video_formats[HDMI_VFRMT_COUNT];
 static uint8_t mdss_hdmi_mode_count;
 
+/* Use DEFAULT_RESOLUTION to change HDMI resolution */
 #define DEFAULT_RESOLUTION HDMI_VFRMT_1920x1080p60_16_9
 static uint8_t mdss_hdmi_video_fmt = HDMI_VFRMT_UNKNOWN;
 static uint8_t mdss_hdmi_pref_fmt  = HDMI_VFRMT_UNKNOWN;
@@ -330,6 +333,15 @@ struct mdss_hdmi_timing_info {
 	{HDMI_VFRMT_1920x1080p60_16_9, 1920, 88, 44, 148, false,	\
 	 1080, 4, 5, 36, false, 148500, 60000, false, true, HDMI_RES_AR_16_9}
 
+#define HDMI_VFRMT_3840x2160p30_16_9_TIMING				\
+	{HDMI_VFRMT_3840x2160p30_16_9, 3840, 176, 88, 296, false,	\
+	 2160, 8, 10, 72, false, 297000, 30000, false, true, HDMI_RES_AR_16_9}
+
+#define HDMI_VFRMT_3840x2160p60_16_9_TIMING						\
+	{HDMI_VFRMT_3840x2160p60_16_9, 3840, 176, 88, 296, false,	\
+	 2160, 8, 10, 72, false, 594000, 60000, false, true,		\
+		HDMI_RES_AR_16_9}
+
 #define HDMI_VFRMT_4096x2160p24_256_135_TIMING				\
 	{HDMI_VFRMT_4096x2160p24_256_135, 4096, 1020, 88, 296, false,	\
 	 2160, 8, 10, 72, false, 297000, 24000, false, true, 		\
@@ -391,6 +403,14 @@ static inline int mdss_hdmi_get_timing_info(
 
 	case HDMI_VFRMT_1920x1080p60_16_9:
 		MSM_HDMI_MODES_GET_DETAILS(mode, HDMI_VFRMT_1920x1080p60_16_9);
+		break;
+
+	case HDMI_VFRMT_3840x2160p30_16_9:
+		MSM_HDMI_MODES_GET_DETAILS(mode, HDMI_VFRMT_3840x2160p30_16_9);
+		break;
+
+	case HDMI_VFRMT_3840x2160p60_16_9:
+		MSM_HDMI_MODES_GET_DETAILS(mode, HDMI_VFRMT_3840x2160p60_16_9);
 		break;
 
 	case HDMI_VFRMT_4096x2160p24_256_135:
