@@ -1,4 +1,4 @@
-/* Copyright (c) 2013-2016, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2013-2016, 2018, The Linux Foundation. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -89,6 +89,8 @@ enum {
 	DSI0_600P_DSI1_720P_HDMI_PANELS,
 	ADV7533_1080P_VIDEO_PANEL,
 	ADV7533_720P_VIDEO_PANEL,
+	SPLIT_ADV7533_2560_720P_VIDEO_PANEL,
+	SPLIT_ADV7533_3840_1080P_VIDEO_PANEL,
 	TRULY_FWVGA_VIDEO_PANEL,
 	TRULY_1080P_VIDEO_PANEL,
 	TRULY_1080P_CMD_PANEL,
@@ -123,6 +125,8 @@ static struct panel_list supp_panels[] = {
 	{"adv7533_720p_video", ADV7533_720P_VIDEO_PANEL},
 	{"adv7533_1080p", ADV7533_1080P_VIDEO_PANEL},
 	{"adv7533_720p", ADV7533_720P_VIDEO_PANEL},
+	{"adv7533_2560w",SPLIT_ADV7533_2560_720P_VIDEO_PANEL},
+	{"adv7533_3840w",SPLIT_ADV7533_3840_1080P_VIDEO_PANEL},
 	{"truly_fwvga_video", TRULY_FWVGA_VIDEO_PANEL},
 	{"truly_1080p_video", TRULY_1080P_VIDEO_PANEL},
 	{"truly_1080p_cmd", TRULY_1080P_CMD_PANEL}
@@ -823,6 +827,58 @@ static bool init_panel_data(struct panel_struct *panelstruct,
 				adv7533_720p_thulium_video_timings,
 				MAX_TIMING_CONFIG * sizeof(uint32_t));
 		break;
+	case SPLIT_ADV7533_2560_720P_VIDEO_PANEL:
+		pan_type = PANEL_TYPE_DSI;
+		panelstruct->paneldata    = &adv7533_2560_720p_video_panel_data;
+		panelstruct->panelres     = &adv7533_2560_720p_video_panel_res;
+		panelstruct->color        = &adv7533_720p_video_color;
+		panelstruct->videopanel   = &adv7533_720p_video_video_panel;
+		panelstruct->commandpanel = &adv7533_720p_video_command_panel;
+		panelstruct->state        = &adv7533_720p_video_state;
+		panelstruct->laneconfig   = &adv7533_720p_video_lane_config;
+		panelstruct->paneltiminginfo
+					= &adv7533_720p_video_timing_info;
+		pinfo->adv7533.dsi_tg_i2c_cmd = adv7533_720p_tg_i2c_command;
+		pinfo->adv7533.num_of_tg_i2c_cmds = ADV7533_720P_TG_COMMANDS;
+		pinfo->adv7533.dsi_setup_cfg_i2c_cmd = adv7533_720p_common_cfg;
+		pinfo->adv7533.num_of_cfg_i2c_cmds = ADV7533_720P_CONFIG_COMMANDS;
+		pinfo->pipe_type = MDSS_MDP_PIPE_TYPE_RGB;
+		pinfo->pipe_id = 0;
+		pinfo->zorder = 2;
+		pinfo->lcdc.split_display = true;
+		memcpy(phy_db->timing,
+				adv7533_720p_thulium_video_timings,
+				MAX_TIMING_CONFIG * sizeof(uint32_t));
+		pinfo->lm_split[0] = 1280;
+		pinfo->lm_split[1] = 1280;
+		panelstruct->paneldata->panel_operating_mode &= ~DUAL_PIPE_FLAG;
+		break;
+	case SPLIT_ADV7533_3840_1080P_VIDEO_PANEL:
+		pan_type = PANEL_TYPE_DSI;
+		panelstruct->paneldata    = &adv7533_3840_1080p_video_panel_data;
+		panelstruct->panelres     = &adv7533_3840_1080p_video_panel_res;
+		panelstruct->color        = &adv7533_1080p_video_color;
+		panelstruct->videopanel   = &adv7533_1080p_video_video_panel;
+		panelstruct->commandpanel = &adv7533_1080p_video_command_panel;
+		panelstruct->state        = &adv7533_1080p_video_state;
+		panelstruct->laneconfig   = &adv7533_1080p_video_lane_config;
+		panelstruct->paneltiminginfo
+					= &adv7533_1080p_video_timing_info;
+		pinfo->adv7533.dsi_tg_i2c_cmd = adv7533_1080p_tg_i2c_command;
+		pinfo->adv7533.num_of_tg_i2c_cmds = ADV7533_1080P_TG_COMMANDS;
+		pinfo->adv7533.dsi_setup_cfg_i2c_cmd = adv7533_1080p_common_cfg;
+		pinfo->adv7533.num_of_cfg_i2c_cmds = ADV7533_1080P_CONFIG_COMMANDS;
+		pinfo->pipe_type = MDSS_MDP_PIPE_TYPE_RGB;
+		pinfo->pipe_id = 0;
+		pinfo->zorder = 2;
+		pinfo->lcdc.split_display = true;
+		memcpy(phy_db->timing,
+				adv7533_1080p_thulium_video_timings,
+				MAX_TIMING_CONFIG * sizeof(uint32_t));
+		pinfo->lm_split[0] = 1920;
+		pinfo->lm_split[1] = 1920;
+		panelstruct->paneldata->panel_operating_mode &= ~DUAL_PIPE_FLAG;
+		break;
 //	case DSI0_600P_DSI1_720P_HDMI_PANELS:
 	case ADV7533_1024_600P_VIDEO_DSI0_PANEL:
 		pan_type = PANEL_TYPE_DSI;
@@ -893,7 +949,18 @@ int oem_panel_bridge_chip_init(struct msm_panel_info *pinfo) {
 			return PANEL_TYPE_UNKNOWN;
 		}
 	}
-
+	if (pinfo->lcdc.split_display) {
+		pinfo->sadv7533.i2c_main_addr = TARGET_ADV7533_MAIN_INST_1;
+		pinfo->sadv7533.i2c_cec_addr = TARGET_ADV7533_CEC_DSI_INST_1;
+		pinfo->sadv7533.program_i2c_addr = false;
+		/* Read ADV Chip ID */
+		if (!mipi_dsi_i2c_read_byte(TARGET_ADV7533_MAIN_INST_1, 0x00, &rev)) {
+			dprintf(SPEW, "second ADV7533 Rev ID: 0x%x\n",rev);
+		} else {
+			dprintf(CRITICAL, "error reading Rev ID from bridge chip\n");
+			return PANEL_TYPE_UNKNOWN;
+		}
+	}
 	return NO_ERROR;
 }
 
@@ -932,6 +999,8 @@ int oem_panel_select(const char *panel_name, struct panel_struct *panelstruct,
 			case ADV7533_720P_VIDEO_PANEL:
 			case ADV7533_720P_VIDEO_DSI0_PANEL:
 			case ADV7533_720P_VIDEO_DSI1_PANEL:
+			case SPLIT_ADV7533_2560_720P_VIDEO_PANEL:
+			case SPLIT_ADV7533_3840_1080P_VIDEO_PANEL:
 				pinfo->has_bridge_chip = true;
 			}
 			goto panel_init;

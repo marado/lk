@@ -1,4 +1,4 @@
-/* Copyright (c) 2015-2016, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2015-2016, 2018, The Linux Foundation. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -30,7 +30,7 @@
 #define _TARGET_CAMERA_H
 
 //#define BRIDGE_REV_1  // For adashub rev 1 of TI 960 Bridge chip.
-#define DISPLAY_ID 0 // Use dsi 0
+#define RVC_DISPLAY_ID 0 // Use primary display
 
 #define MAX_REV_ID 2
 

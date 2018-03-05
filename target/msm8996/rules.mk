@@ -30,6 +30,9 @@ else
 ifeq ($(ENABLE_DISPLAY),1)
  DEFINES += ENABLE_DISPLAY=1
  DEFINES += DISPLAY_SPLASH_SCREEN=1
+ifeq ($(ENABLE_QSEED_SCALAR),1)
+ DEFINES += ENABLE_QSEED_SCALAR=1
+endif
 endif
 endif
 
@@ -65,6 +68,7 @@ OBJS += \
 	$(LOCAL_DIR)/meminfo.o \
 	$(LOCAL_DIR)/target_display.o \
 	$(LOCAL_DIR)/oem_panel.o
+
 
 ifeq ($(ENABLE_EARLYDOMAIN_SUPPORT),1)
 OBJS += \
