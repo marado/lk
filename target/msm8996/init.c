@@ -1079,6 +1079,10 @@ int animated_splash() {
 			return -1;
 		}
 		fb = target_display_get_fb(j);
+		if (fb == NULL){
+			dprintf(CRITICAL, "frame buffer acquire failed\n");
+			return -1;
+		}
 
 		layer[j].layer = layer_ptr;
 		layer[j].z_order = 2;
