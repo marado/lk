@@ -1,4 +1,4 @@
-/* Copyright (c) 2015, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2015,2018, The Linux Foundation. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -54,12 +54,23 @@ static struct panel_config adv7533_720p_video_DSI1_panel_data = {
 	10, 0, "DISPLAY_2", 0, 0, 60, 0, 0, 0, 0, 0, 0, 0, 0, DUAL_DSI_FLAG, 0, 0, "NONE"
 };
 
+// This structure is for split DSI setup, 720p video panel @ DSI0
+static struct panel_config adv7533_2560_720p_video_panel_data = {
+	"qcom,mdss_dsi_adv7533_2560_720p", "dsi:0:", "qcom,mdss-dsi-panel",
+	10, 0, "DISPLAY_1", 0, 0, 60, 0, 0, 0, 0, 0, 0, 0, 0, SPLIT_DISPLAY_FLAG | DUAL_DSI_FLAG, 0, 0, "NONE"
+};
+
 /*---------------------------------------------------------------------------*/
 /* Panel resolution                                                          */
 /*---------------------------------------------------------------------------*/
 static struct panel_resolution adv7533_720p_video_panel_res = {
 	1280, 720, 110, 220, 40, 0, 5, 20, 5, 0, 0, 0, 0, 0, 0, 0, 0, 0
 };
+
+static struct panel_resolution adv7533_2560_720p_video_panel_res = {
+	2560, 720, 110, 220, 40, 0, 5, 20, 5, 0, 0, 0, 0, 0, 0, 0, 0, 0
+};
+
 
 /*---------------------------------------------------------------------------*/
 /* Panel color information                                                   */
