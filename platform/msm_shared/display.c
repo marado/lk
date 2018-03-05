@@ -1,4 +1,4 @@
-/* Copyright (c) 2012-2016, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2012-2016, 2018, The Linux Foundation. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -39,9 +39,20 @@
 #ifdef DISPLAY_TYPE_MDSS
 #include <target/display.h>
 #endif
+#if ENABLE_QSEED_SCALAR
+#include <target/scalar.h>
+#endif
+
+/* splash memory size is 35 MiB */
+#define SPLASH_BUFFER_SIZE 36700160
 
 static struct msm_fb_panel_data *panel;
-static struct msm_fb_panel_data *panel_array= NULL;
+#ifdef NUM_TARGET_DISPLAYS
+static struct msm_fb_panel_data panel_array[NUM_TARGET_DISPLAYS];
+#else
+static struct msm_fb_panel_data panel_array[1];
+#endif
+
 static uint32_t num_panel = 0;
 
 extern int lvds_on(struct msm_fb_panel_data *pdata);
@@ -57,7 +68,7 @@ static int msm_fb_alloc(struct fbcon_config *fb)
 	if (target_animated_splash_screen()) {
 		/* Static splash + animated splash buffers */
 		dprintf(SPEW, "Allocate extra buffers for animates splash\n");
-		num_buffers = 13;
+		num_buffers =  SPLASH_BUFFER_SIZE / (fb->width * fb->height * (fb->bpp / 8));
 	}
 
 	if (fb->base == NULL)
@@ -297,7 +308,7 @@ int msm_display_update(struct fbcon_config *fb, uint32_t pipe_id, uint32_t pipe_
 	struct msm_panel_info *pinfo;
 	struct msm_fb_panel_data *panel_local;
 	int ret = 0;
-	if (!panel_array || !fb) {
+	if (!fb) {
 		dprintf(CRITICAL, "Error! Inalid args\n");
 		return ERR_INVALID_ARGS;
 	}
@@ -305,6 +316,7 @@ int msm_display_update(struct fbcon_config *fb, uint32_t pipe_id, uint32_t pipe_
 	panel_local->fb = *fb;
 	pinfo = &(panel_local->panel_info);
 	pinfo->pipe_type = pipe_type;
+	pinfo->pipe_id = pipe_id;
 	pinfo->zorder = zorder;
 	pinfo->border_top = fb->height/2 - height/2;
 	pinfo->border_bottom = pinfo->border_top;
@@ -352,7 +364,7 @@ int msm_display_update_pipe(struct fbcon_config *fb, uint32_t pipe_id, uint32_t 
 	struct msm_panel_info *pinfo;
 	struct msm_fb_panel_data *panel_local;
 	int ret = 0;
-	if (!panel_array || !fb) {
+	if (!fb) {
 		dprintf(CRITICAL, "Error! Inalid args\n");
 		return ERR_INVALID_ARGS;
 	}
@@ -412,10 +424,7 @@ int msm_display_remove_pipe(uint32_t pipe_id, uint32_t pipe_type, uint32_t disp_
 	int ret = 0;
 	panel_local = &(panel_array[disp_id]);
 
-	if (!panel_array) {
-		dprintf(CRITICAL, "Error! Inalid args\n");
-		return ERR_INVALID_ARGS;
-	}
+
 	pinfo = &(panel_local->panel_info);
 	pinfo->pipe_type = pipe_type;
 	pinfo->pipe_id = pipe_id;
@@ -436,11 +445,6 @@ int msm_display_init(struct msm_fb_panel_data *pdata)
 {
 	int ret = NO_ERROR;
 
-	if (panel_array == NULL) {
-		int num_target_display;
-		num_target_display = target_get_max_display();
-		panel_array = malloc(num_target_display * sizeof(struct  msm_fb_panel_data));
-	}
 	panel = pdata;
 	if (!panel) {
 		ret = ERR_INVALID_ARGS;
@@ -534,7 +538,7 @@ int msm_display_init(struct msm_fb_panel_data *pdata)
 
 	// if panel init correctly, save the panel struct in the array
 	memcpy((void*) &panel_array[num_panel], (void*) panel, sizeof(struct  msm_fb_panel_data));
-	dprintf (SPEW, "Panel %d init, width:%d height:%d\n", num_panel, panel->fb.width, panel->fb.height);
+	dprintf (SPEW, "Panel %d init, width:%d height:%d\n", num_panel, panel_array[num_panel].fb.width, panel_array[num_panel].fb.height);
 	num_panel ++;
 
 msm_display_init_out:

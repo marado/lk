@@ -1,4 +1,4 @@
-/* Copyright (c) 2012-2016, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2012-2016, 2018, The Linux Foundation. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -62,6 +62,10 @@
 #define PIPE_COMP0_3_PHASE_STEP_Y               0x214
 #define PIPE_COMP1_2_PHASE_STEP_X               0x218
 #define PIPE_COMP1_2_PHASE_STEP_Y               0x21c
+#define PIPE_COMP0_3_INIT_PHASE_X               0x220
+#define PIPE_COMP0_3_INIT_PHASE_Y               0x224
+#define PIPE_COMP1_2_INIT_PHASE_X               0x228
+#define PIPE_COMP1_2_INIT_PHASE_Y               0x22C
 #define PIPE_VP_0_OP_MODE                       0x200
 #define PIPE_VP_0_QSEEP2_CONFIG                 0x204
 #define PIPE_VP_0_QSEEP2_SHARP_SMOOTH_STRENGTH  0x230
@@ -165,6 +169,7 @@
 #define CTL_LAYER_0                             0x00
 #define CTL_LAYER_1                             0x04
 #define CTL_LAYER_2                             0x08
+#define CTL_LAYER_5                             0x24
 #define CTL_TOP                                 0x14
 #define CTL_FLUSH                               0x18
 #define CTL_START                               0x1C

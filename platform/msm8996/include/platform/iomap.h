@@ -1,4 +1,4 @@
-/* Copyright (c) 2014-2016, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2014-2016,2018, The Linux Foundation. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -367,6 +367,16 @@ unsigned int usb_phy_bcr();
 #endif
 #define MDP_CTL_2_BASE				REG_MDP(0x2400)
 
+#ifdef MDP_CTL_3_BASE
+#undef MDP_CTL_3_BASE
+#endif
+#define MDP_CTL_3_BASE				REG_MDP(0x2600)
+
+#ifdef MDP_CTL_4_BASE
+#undef MDP_CTL_4_BASE
+#endif
+#define MDP_CTL_4_BASE				REG_MDP(0x2800)
+
 #ifdef MDP_REG_SPLIT_DISPLAY_EN
 #undef MDP_REG_SPLIT_DISPLAY_EN
 #endif
@@ -570,6 +580,7 @@ unsigned int usb_phy_bcr();
 #define MDP_VP_0_MIXER_0_BASE                   REG_MDP(0x45000)
 #define MDP_VP_0_MIXER_1_BASE                   REG_MDP(0x46000)
 #define MDP_VP_0_MIXER_2_BASE                   REG_MDP(0x47000)
+#define MDP_VP_0_MIXER_5_BASE                   REG_MDP(0x4A000)
 
 #define DMA_CMD_OFFSET              0x048
 #define DMA_CMD_LENGTH              0x04C
