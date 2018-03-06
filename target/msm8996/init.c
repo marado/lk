@@ -179,6 +179,7 @@ int target_volume_up()
 	static uint8_t first_time = 0;
 	uint8_t status = 0;
 	struct pm8x41_gpio gpio;
+	memset(&gpio, 0, sizeof(struct pm8x41_gpio));
 
 	if (!first_time) {
 		/* Configure the GPIO */

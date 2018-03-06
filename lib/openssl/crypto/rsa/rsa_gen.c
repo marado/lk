@@ -99,7 +99,10 @@ static int rsa_builtin_keygen(RSA *rsa, int bits, BIGNUM *e_value, BN_GENCB *cb)
 	r1 = BN_CTX_get(ctx);
 	r2 = BN_CTX_get(ctx);
 	r3 = BN_CTX_get(ctx);
-	if (r3 == NULL) goto err;
+	if (r0 == NULL ||
+	    r1 == NULL ||
+	    r2 == NULL ||
+	    r3 == NULL) goto err;
 
 	bitsp=(bits+1)/2;
 	bitsq=bits-bitsp;
