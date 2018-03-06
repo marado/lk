@@ -1615,9 +1615,16 @@ static void early_camera_setup_layer(int display_id)
 
 
 	if (layer_cam_ptr == NULL){
-		dprintf(CRITICAL, "Layer acquire failed\n");
+		dprintf(CRITICAL, "Camera Layer acquire failed\n");
+		layer_cam.layer = NULL;
+		return;
 	}
 	fb = target_display_get_fb(DISPLAY_ID);
+	if (fb == NULL){
+		dprintf(CRITICAL, "Display FB acquire failed\n");
+		layer_cam.fb = NULL;
+		return;
+	}
 	layer_cam.layer = layer_cam_ptr;
 	layer_cam.z_order = 1;
 	update_cam.disp = disp_ptr;
@@ -1841,13 +1848,15 @@ void early_camera_flip(void)
 					early_camera_setup_layer(DISPLAY_ID);
 				}
 
-				if(ping)
-					layer_cam.fb->base = (void *)VFE_PING_ADDR;
-				else
-					layer_cam.fb->base = (void *)VFE_PONG_ADDR;
-				layer_cam.z_order = 1;
-				layer_cam.fb->format = kFormatYCbCr422H2V1Packed;
-				target_display_update(&update_cam,1,DISPLAY_ID);
+				if (layer_cam.fb) {
+					if(ping)
+						layer_cam.fb->base = (void *)VFE_PING_ADDR;
+					else
+						layer_cam.fb->base = (void *)VFE_PONG_ADDR;
+					layer_cam.z_order = 1;
+					layer_cam.fb->format = kFormatYCbCr422H2V1Packed;
+					target_display_update(&update_cam,1,DISPLAY_ID);
+				}
 			} else {
 				if(toggle ==1) {
 					layer_cam.z_order = 0;
