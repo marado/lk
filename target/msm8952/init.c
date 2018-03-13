@@ -555,7 +555,7 @@ int target_cont_splash_screen()
 		case HW_PLATFORM_SURF:
 		case HW_PLATFORM_RCM:
 		case HW_PLATFORM_QRD:
-			splash_screen = 1;
+			splash_screen = 0;
 			break;
 		default:
 			splash_screen = 0;
