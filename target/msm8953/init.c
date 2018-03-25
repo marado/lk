@@ -374,7 +374,6 @@ void target_init(void)
 	if (target_use_signed_kernel())
 		target_crypto_init_params();
 
-#if VERIFIED_BOOT
 	if (VB_M <= target_get_vb_version())
 	{
 		clock_ce_enable(CE1_INSTANCE);
@@ -408,7 +407,6 @@ void target_init(void)
 			ASSERT(0);
 		}
 	}
-#endif
 
 #if SMD_SUPPORT
 	rpm_smd_init();
@@ -514,6 +512,10 @@ unsigned target_pause_for_battery_charge(void)
 
 void target_uninit(void)
 {
+#if PON_VIB_SUPPORT
+	if(target_is_pmi_enabled())
+		turn_off_vib_early();
+#endif
 	mmc_put_card_to_sleep(dev);
 	sdhci_mode_disable(&dev->host);
 	if (crypto_initialized())
@@ -522,7 +524,6 @@ void target_uninit(void)
 	if (target_is_ssd_enabled())
 		clock_ce_disable(CE1_INSTANCE);
 
-#if VERIFIED_BOOT
 	if (VB_M <= target_get_vb_version())
 	{
 		if (is_sec_app_loaded())
@@ -542,7 +543,6 @@ void target_uninit(void)
 
 		clock_ce_disable(CE1_INSTANCE);
 	}
-#endif
 
 #if SMD_SUPPORT
 	rpm_smd_uninit();
