@@ -495,9 +495,10 @@ static void dtb_read_find_match(dt_info *current_dtb_info, dt_info *best_dtb_inf
 					curr_pmic_info.dt_match_val |= BIT(PMIC_MATCH_EXACT_REV_IDX0 + idx * PMIC_SHIFT_IDX);
 				else if (curr_pmic_info.dt_pmic_rev[idx] < (board_pmic_target(idx) & PMIC_REV_MASK))
 					curr_pmic_info.dt_match_val |= BIT(PMIC_MATCH_BEST_REV_IDX0 + idx * PMIC_SHIFT_IDX);
-				else
+				else {
 					dprintf(SPEW, "PMIC revision doesn't match\n");
 					break; /* go to next pmic entry */
+				}
 			}
 
 			dprintf(SPEW, "Bestpmicinfo.dtmatchval : %x | cur_pmic_info.dtmatchval: %x\n",
@@ -1957,6 +1958,10 @@ int update_device_tree(void *fdt, const char *cmdline,
 #if ENABLE_KASLRSEED_SUPPORT
 	uintptr_t kaslrseed;
 #endif
+	uint32_t cmdline_len = 0;
+
+	if (cmdline)
+		cmdline_len = strlen(cmdline);
 
 	/* Check the device tree header */
 	ret = fdt_check_header(fdt) || fdt_check_header_ext(fdt);
@@ -1967,13 +1972,13 @@ int update_device_tree(void *fdt, const char *cmdline,
 	}
 
 	if (check_aboot_addr_range_overlap((uint32_t)fdt,
-				(fdt_totalsize(fdt) + DTB_PAD_SIZE + strlen(cmdline)))) {
+				(fdt_totalsize(fdt) + DTB_PAD_SIZE + cmdline_len))) {
 		dprintf(CRITICAL, "Error: Fdt addresses overlap with aboot addresses.\n");
 		return ret;
 	}
 
 	/* Add padding to make space for new nodes and properties. */
-	ret = fdt_open_into(fdt, fdt, fdt_totalsize(fdt) + DTB_PAD_SIZE + strlen(cmdline));
+	ret = fdt_open_into(fdt, fdt, fdt_totalsize(fdt) + DTB_PAD_SIZE + cmdline_len);
 	if (ret!= 0)
 	{
 		dprintf(CRITICAL, "Failed to move/resize dtb buffer: %d\n", ret);
