@@ -203,7 +203,7 @@ void target_init(void)
 	spmi_init(PMIC_ARB_CHANNEL_NUM, PMIC_ARB_OWNER_ID);
 
 	board_id = target_get_board_id();
-	dprintf(INFO, "Found board ID = %d \n",board_id);
+	dprintf(INFO, "Found board ID = %d [%s]\n",board_id,(BOARD_DB410C_GEN_1 == board_id)?"BOARD_DB410C_V1":((BOARD_DB410C_GEN_2 == board_id)?"BOARD_DB410C_V2":"UNKNOWN"));
 
 	target_keystatus();
 
@@ -220,9 +220,9 @@ void target_init(void)
 		dprintf(CRITICAL, "Error reading stored settings\n");
 	}
 #endif
-
 	pm8x41_get_pon_set_trigger(CBLPWR_N,false);
-	pm8x41_get_pon_set_trigger(USB_CHG,false);
+	if (BOARD_DB410C_GEN_1 == board_id)
+		pm8x41_get_pon_set_trigger(USB_CHG,false);
 	pm8x41_powerkey_configure(PON_PSHOLD_SHUTDOWN);
 	pm8x41_reset_configure(PON_PSHOLD_WARM_RESET);
 
