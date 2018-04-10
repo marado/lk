@@ -283,6 +283,13 @@
 #define CDM_CDWN2_CLAMP_OUT 		REG_MDP(0x7A304)
 #define CDM_CSC_10_OP_MODE 		REG_MDP(0x7A200)
 
+#define DSI0_ERR_INT_MASK		REG_MDP(0x9410c)
+#define DSI1_ERR_INT_MASK		REG_MDP(0x9610C)
+#define DSI_ERR_INT_RESET_STATUS	0x7FFF3BFF
+#define DSI0_INT_CTRL			REG_MDP(0x94110)
+#define DSI1_INT_CTRL			REG_MDP(0x96110)
+#define DSI_INT_CTRL_RESET_STATUS	0x51115501
+
 void mdp_set_revision(int rev);
 int mdp_get_revision();
 int mdp_dsi_video_config(struct msm_panel_info *pinfo, struct fbcon_config *fb);
