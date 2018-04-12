@@ -240,6 +240,7 @@
 enum part_access_type
 {
 	PART_ACCESS_DEFAULT = 0x0,
+	PART_ACCESS_BOOT1 = 0x1,
 	PART_ACCESS_BOOT2 = 0x2,
 	PART_ACCESS_RPMB = 0x3,
 };
