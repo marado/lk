@@ -136,7 +136,7 @@ struct fastboot_cmd_desc {
 #endif
 
 #define MAX_TAGS_SIZE   1024
-
+#define PLL_CODES_OFFSET 4096
 /* make 4096 as default size to ensure EFS,EXT4's erasing */
 #define DEFAULT_ERASE_SIZE  4096
 #define MAX_PANEL_BUF_SIZE 196
@@ -1813,6 +1813,7 @@ int boot_linux_from_flash(void)
 	unsigned dt_table_offset;
 	uint32_t dt_actual;
 	uint32_t dt_hdr_size = 0;
+	uint32_t dtb_offset = 0;
 	unsigned int dtb_size = 0;
 	unsigned char *best_match_dt_addr = NULL;
 #endif
@@ -2038,7 +2039,27 @@ int boot_linux_from_flash(void)
 		best_match_dt_addr = (unsigned char *)table + dt_entry.offset;
 		dtb_size = dt_entry.size;
 		memmove((void *)hdr->tags_addr, (char *)best_match_dt_addr, dtb_size);
-	}
+
+	} else {
+		/* Validate the tags_addr */
+		if (check_aboot_addr_range_overlap(hdr->tags_addr, kernel_actual) ||
+	        check_ddr_addr_range_bound(hdr->tags_addr, kernel_actual))
+		{
+			dprintf(CRITICAL, "Device tree addresses are not valid.\n");
+			return -1;
+		}
+		/*
+		 * If appended dev tree is found, update the atags with
+		 * memory address to the DTB appended location on RAM.
+		 * Else update with the atags address in the kernel header
+		 */
+		void *dtb = NULL;
+		dtb = dev_tree_appended((void*)(image_addr + page_size ),hdr->kernel_size, dtb_offset, (void *)hdr->tags_addr);
+		if (!dtb) {
+			dprintf(CRITICAL, "ERROR: Appended Device Tree Blob not found\n");
+			return -1;
+		}
+         }
 #endif
 	if(target_use_signed_kernel() && (!device.is_unlocked))
 	{
@@ -3172,7 +3193,7 @@ static void get_partition_type(const char *arg, char *response)
 	}
 
 	/* By default copy raw to response */
-	strncpy(response, RAW_STR, strlen(RAW_STR));
+	strlcpy(response, RAW_STR, MAX_RSP_SIZE);
 
 	/* Mark partiton type for known paritions only */
 	for (n=0; n < ARRAY_SIZE(part_type_known); n++)
@@ -3184,13 +3205,13 @@ static void get_partition_type(const char *arg, char *response)
 			switch (fs_signature)
 			{
 				case EXT_FS_SIGNATURE:
-					strncpy(response, EXT_STR, strlen(EXT_STR));
+					strlcpy(response, EXT_STR, MAX_RSP_SIZE);
 					break;
 				case EXT_F2FS_SIGNATURE:
-					strncpy(response, F2FS_STR, strlen(F2FS_STR));
+					strlcpy(response, F2FS_STR, MAX_RSP_SIZE);
 					break;
 				case NO_FS:
-					strncpy(response, part_type_known[n].type_response, MAX_RSP_SIZE);
+					strlcpy(response, part_type_known[n].type_response, MAX_RSP_SIZE);
 			}
 		}
 	}
@@ -4351,7 +4372,7 @@ int splash_screen_mmc()
 
 	base = (uint8_t *) fb_display->base;
 
-	if (mmc_read(ptn, (uint32_t *)(base + LOGO_IMG_OFFSET), blocksize)) {
+	if (mmc_read(ptn + PLL_CODES_OFFSET, (uint32_t *)(base + LOGO_IMG_OFFSET), blocksize)) {
 		dprintf(CRITICAL, "ERROR: Cannot read splash image header\n");
 		return -1;
 	}
@@ -4383,7 +4404,7 @@ int splash_screen_mmc()
 				return -1;
 			}
 
-			if (mmc_read(ptn + blocksize, (uint32_t *)(base + blocksize), readsize)) {
+			if (mmc_read(ptn + PLL_CODES_OFFSET + blocksize, (uint32_t *)(base + blocksize), readsize)) {
 				dprintf(CRITICAL, "ERROR: Cannot read splash image from partition\n");
 				return -1;
 			}
@@ -4400,13 +4421,13 @@ int splash_screen_mmc()
 			readsize =  ROUNDUP((realsize + LOGO_IMG_HEADER_SIZE), blocksize) - blocksize;
 
 			if (blocksize == LOGO_IMG_HEADER_SIZE) { /* read the content directly */
-				if (mmc_read((ptn + LOGO_IMG_HEADER_SIZE), (uint32_t *)base, readsize)) {
+				if (mmc_read((ptn + PLL_CODES_OFFSET + LOGO_IMG_HEADER_SIZE), (uint32_t *)base, readsize)) {
 					fbcon_clear();
 					dprintf(CRITICAL, "ERROR: Cannot read splash image from partition\n");
 					return -1;
 				}
 			} else {
-				if (mmc_read(ptn + blocksize ,
+				if (mmc_read(ptn + PLL_CODES_OFFSET + blocksize ,
 						(uint32_t *)(base + LOGO_IMG_OFFSET + blocksize), readsize)) {
 					dprintf(CRITICAL, "ERROR: Cannot read splash image from partition\n");
 					return -1;
