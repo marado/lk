@@ -83,8 +83,9 @@ enum {
 	ADV7533_720P_VIDEO_DSI0_PANEL,
 	ADV7533_720P_VIDEO_DSI1_PANEL,
 	DUAL_720P_SINGLE_HDMI_PANELS,
-	DUAL_1080P_SINGLE_HDMI_PANELS,
 	SINGLE_720P_SINGLE_HDMI_PANELS,
+	DUAL_1080P_SINGLE_HDMI_PANELS,
+	SINGLE_1080P_SINGLE_HDMI_PANELS,
 	DSI0_600P_DSI1_720P_HDMI_PANELS,
 	ADV7533_1080P_VIDEO_PANEL,
 	ADV7533_720P_VIDEO_PANEL,
@@ -114,8 +115,9 @@ static struct panel_list supp_panels[] = {
 	{"adv7533_720p_dsi0_video", ADV7533_720P_VIDEO_DSI0_PANEL},
 	{"adv7533_720p_dsi1_video", ADV7533_720P_VIDEO_DSI1_PANEL},
 	{"dual_720p_single_hdmi_video", DUAL_720P_SINGLE_HDMI_PANELS},
-	{"dual_1080p_single_hdmi_video", DUAL_1080P_SINGLE_HDMI_PANELS},
 	{"single_720p_single_hdmi_video", SINGLE_720P_SINGLE_HDMI_PANELS},
+	{"dual_1080p_single_hdmi_video", DUAL_1080P_SINGLE_HDMI_PANELS},
+	{"single_1080p_single_hdmi_video", SINGLE_1080P_SINGLE_HDMI_PANELS},
 	{"dsi0_600p_dsi1_720p_hdmi_video", DSI0_600P_DSI1_720P_HDMI_PANELS},
 	{"adv7533_1080p_video", ADV7533_1080P_VIDEO_PANEL},
 	{"adv7533_720p_video", ADV7533_720P_VIDEO_PANEL},
@@ -658,6 +660,7 @@ static bool init_panel_data(struct panel_struct *panelstruct,
 			MAX_TIMING_CONFIG * sizeof(uint32_t));
 		break;
 	case ADV7533_1080P_VIDEO_PANEL:
+	case SINGLE_1080P_SINGLE_HDMI_PANELS:
 		pan_type = PANEL_TYPE_DSI;
 		panelstruct->paneldata    = &adv7533_1080p_video_panel_data;
 		panelstruct->panelres     = &adv7533_1080p_video_panel_res;
