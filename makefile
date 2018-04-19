@@ -50,7 +50,7 @@ ifeq ($(ENABLE_TRUSTZONE),1)
 endif
 
 INCLUDES := -I$(BUILDDIR) -Iinclude
-CFLAGS := -O2 -g -fno-builtin -finline -W -Wall -Wno-multichar -Wno-unused-parameter -Wno-unused-function -include $(CONFIGHEADER)
+CFLAGS := -O2 -g -fno-builtin -finline -W -Wall -Wno-multichar -Wno-unused-parameter -Wno-unused-function $(LKLE_CFLAGS) -include $(CONFIGHEADER)
 #CFLAGS += -Werror
 ifeq ($(EMMC_BOOT),1)
   CFLAGS += -D_EMMC_BOOT=1
@@ -121,6 +121,10 @@ ifeq ($(VERIFIED_BOOT_LE),1)
   ifeq ($(DEFAULT_UNLOCK),true)
     DEFINES += DEFAULT_UNLOCK=1
   endif
+endif
+ifeq ($(VERIFIED_BOOT_2),1)
+  DEFINES += VERIFIED_BOOT_2=1
+  DEFINES += _SIGNED_KERNEL=1
 endif
 
 ifeq ($(OSVERSION_IN_BOOTIMAGE),1)
