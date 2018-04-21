@@ -346,6 +346,62 @@ msm_display_update_out:
 	return ret;
 }
 
+int msm_display_update_pipe(struct fbcon_config *fb, uint32_t pipe_id, uint32_t pipe_type,
+	uint32_t zorder, uint32_t width, uint32_t height, uint32_t disp_id)
+{
+	struct msm_panel_info *pinfo;
+	struct msm_fb_panel_data *panel_local;
+	int ret = 0;
+	if (!panel_array || !fb) {
+		dprintf(CRITICAL, "Error! Inalid args\n");
+		return ERR_INVALID_ARGS;
+	}
+	panel_local = &(panel_array[disp_id]);
+	panel_local->fb = *fb;
+	pinfo = &(panel_local->panel_info);
+	pinfo->pipe_type = pipe_type;
+	pinfo->zorder = zorder;
+	pinfo->border_top = fb->height/2 - height/2;
+	pinfo->border_bottom = pinfo->border_top;
+	pinfo->border_left = fb->width/2 - width/2;
+	pinfo->border_right = pinfo->border_left;
+
+	switch (pinfo->type) {
+		case MIPI_VIDEO_PANEL:
+			ret = mdp_dsi_video_config_pipe(pinfo, fb);
+			if (ret) {
+				dprintf(CRITICAL, "ERROR in DSI pipe config\n");
+				goto msm_display_update_out;
+			}
+
+			ret = mdp_dsi_video_update_pipe(pinfo);
+			if (ret) {
+				dprintf(CRITICAL, "ERROR in DSI pipe upate\n");
+				goto msm_display_update_out;
+			}
+			break;
+		case HDMI_PANEL:
+			ret = mdss_hdmi_config_pipe(pinfo, fb);
+			if (ret) {
+				dprintf(CRITICAL, "ERROR in HDMI pipe config\n");
+				goto msm_display_update_out;
+			}
+			ret = mdss_hdmi_update_pipe(pinfo);
+			if (ret) {
+				dprintf(CRITICAL, "ERROR in HDMI pipe upate\n");
+				goto msm_display_update_out;
+			}
+			break;
+		default:
+			dprintf(CRITICAL, "Update not supported right now\n");
+			break;
+	}
+
+msm_display_update_out:
+	return ret;
+}
+
+
 int msm_display_remove_pipe(uint32_t pipe_id, uint32_t pipe_type, uint32_t disp_id)
 {
 	struct msm_panel_info *pinfo;
