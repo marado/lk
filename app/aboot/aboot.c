@@ -532,8 +532,9 @@ unsigned char *update_cmdline(const char * cmdline)
 	if (partition_multislot_is_supported())
 	{
 		current_active_slot = partition_find_active_slot();
-		cmdline_len += (strlen(androidboot_slot_suffix)+
-					strlen(SUFFIX_SLOT(current_active_slot)));
+		if (current_active_slot != INVALID)
+		  	cmdline_len += (strlen(androidboot_slot_suffix)+
+				strlen(SUFFIX_SLOT(current_active_slot)));
 
 		system_ptn_index = partition_get_index("system");
 		if (platform_boot_dev_isemmc())
@@ -771,7 +772,8 @@ unsigned char *update_cmdline(const char * cmdline)
 				--dst;
 				while ((*dst++ = *src++));
 				--dst;
-				src = SUFFIX_SLOT(current_active_slot);
+				if (current_active_slot != INVALID)
+				        src = SUFFIX_SLOT(current_active_slot);
 				while ((*dst++ = *src++));
 
 				if (!boot_into_recovery)
