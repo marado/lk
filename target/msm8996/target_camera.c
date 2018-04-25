@@ -74,6 +74,7 @@ int gpio_triggered = 0;
 int toggle =0;
 int delay_to_attach_t32 = 0;
 static bool early_camera_enabled = FALSE;
+int pingpong_buffer_updated = 0;
 
 enum msm_camera_i2c_reg_addr_type {
 	MSM_CAMERA_I2C_BYTE_ADDR = 1,
@@ -1855,7 +1856,12 @@ void early_camera_flip(void)
 						layer_cam.fb->base = (void *)VFE_PONG_ADDR;
 					layer_cam.z_order = 1;
 					layer_cam.fb->format = kFormatYCbCr422H2V1Packed;
-					target_display_update(&update_cam,1,DISPLAY_ID);
+
+					if (pingpong_buffer_updated < 2) {
+						target_display_update(&update_cam,1,DISPLAY_ID);
+						pingpong_buffer_updated++;
+					} else
+						target_display_update_pipe(&update_cam,1,DISPLAY_ID);
 				}
 			} else {
 				if(toggle ==1) {
@@ -1864,6 +1870,7 @@ void early_camera_flip(void)
 					layer_cam_ptr = NULL;
 					layer_cam.layer = layer_cam_ptr;
 					toggle = 0;
+					pingpong_buffer_updated = 0;
 				}
 			}
 			if (firstframe == 0) {
