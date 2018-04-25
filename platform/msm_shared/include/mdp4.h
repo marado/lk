@@ -112,6 +112,7 @@ int mdp_dma_on(struct msm_panel_info *pinfo);
 int mdp_dsi_video_config(struct msm_panel_info *pinfo, struct fbcon_config *fb);
 int mdp_dsi_video_config_pipe(struct msm_panel_info *pinfo, struct fbcon_config *fb);
 int mdp_dsi_video_update_pipe(struct msm_panel_info *pinfo);
+int mdp_dsi_video_reset_interrupt_status(void);
 int mdp_dsi_cmd_config(struct msm_panel_info *pinfo, struct fbcon_config *fb);
 int mdp_lcdc_config(struct msm_panel_info *pinfo, struct fbcon_config *fb);
 int mdp_lcdc_on();

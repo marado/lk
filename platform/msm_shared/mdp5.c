@@ -1679,6 +1679,16 @@ int mdp_dsi_video_update(struct msm_panel_info *pinfo)
 	return NO_ERROR;
 }
 
+int mdp_dsi_video_reset_interrupt_status(void)
+{
+	writel(~DSI_ERR_INT_RESET_STATUS, DSI0_ERR_INT_MASK);
+	writel(~DSI_INT_CTRL_RESET_STATUS, DSI0_INT_CTRL);
+	writel(~DSI_ERR_INT_RESET_STATUS, DSI1_ERR_INT_MASK);
+	writel(~DSI_INT_CTRL_RESET_STATUS, DSI1_INT_CTRL);
+
+	return 0;
+}
+
 int mdp_dsi_video_update_pipe(struct msm_panel_info *pinfo)
 {
 	uint32_t ctl0_reg_val = 0, ctl1_reg_val = 0;
@@ -1862,9 +1872,6 @@ int mdss_hdmi_on(struct msm_panel_info *pinfo)
 	}
 
 	writel(ctl0_reg_val, ctl_base_addr + CTL_FLUSH);
-
-	//clear and disable HDMI interrupt
-	writel(0x2, HDMI_DDC_INT_CTRL);
 
 	writel(0x01, MDP_INTF_3_TIMING_ENGINE_EN + mdss_mdp_intf_offset());
 

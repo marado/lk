@@ -347,7 +347,7 @@ msm_display_update_out:
 }
 
 int msm_display_update_pipe(struct fbcon_config *fb, uint32_t pipe_id, uint32_t pipe_type,
-	uint32_t zorder, uint32_t width, uint32_t height, uint32_t disp_id)
+	uint32_t zorder, uint32_t width, uint32_t height, uint32_t disp_id, bool intr_restored)
 {
 	struct msm_panel_info *pinfo;
 	struct msm_fb_panel_data *panel_local;
@@ -368,6 +368,9 @@ int msm_display_update_pipe(struct fbcon_config *fb, uint32_t pipe_id, uint32_t 
 
 	switch (pinfo->type) {
 		case MIPI_VIDEO_PANEL:
+			if (intr_restored)
+				mdp_dsi_video_reset_interrupt_status();
+
 			ret = mdp_dsi_video_config_pipe(pinfo, fb);
 			if (ret) {
 				dprintf(CRITICAL, "ERROR in DSI pipe config\n");
