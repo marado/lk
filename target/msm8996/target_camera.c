@@ -75,6 +75,7 @@ int toggle =0;
 int delay_to_attach_t32 = 0;
 static bool early_camera_enabled = FALSE;
 int pingpong_buffer_updated = 0;
+static bool disp_intr_cleared = false;
 
 enum msm_camera_i2c_reg_addr_type {
 	MSM_CAMERA_I2C_BYTE_ADDR = 1,
@@ -1860,8 +1861,11 @@ void early_camera_flip(void)
 					if (pingpong_buffer_updated < 2) {
 						target_display_update(&update_cam,1,DISPLAY_ID);
 						pingpong_buffer_updated++;
-					} else
-						target_display_update_pipe(&update_cam,1,DISPLAY_ID);
+					} else {
+						target_display_update_pipe(&update_cam, 1,
+									DISPLAY_ID, !disp_intr_cleared);
+						disp_intr_cleared = true;
+					}
 				}
 			} else {
 				if(toggle ==1) {
@@ -1871,6 +1875,7 @@ void early_camera_flip(void)
 					layer_cam.layer = layer_cam_ptr;
 					toggle = 0;
 					pingpong_buffer_updated = 0;
+					disp_intr_cleared = false;
 				}
 			}
 			if (firstframe == 0) {
