@@ -398,6 +398,10 @@ void toggle_neutrino(void) {
                 .out_strength = PM_GPIO_OUT_DRIVE_LOW,
     };
 
+    gpio_tlmm_config(69, 0, GPIO_OUTPUT, GPIO_PULL_DOWN,
+                        GPIO_8MA,GPIO_DISABLE );
+    gpio_set(69, 0);
+
     pm8x41_gpio_config(13, &gpio);
 	pm8x41_gpio_set(13, 1);
 	mdelay(10);
