@@ -98,8 +98,10 @@
 #define PMIC_ARB_CHANNEL_NUM    0
 #define PMIC_ARB_OWNER_ID       0
 
-/* Run Early camera for 30 seconds i.e 900 frames incase of no gpio */
-#define EARLYCAM_NO_GPIO_FRAME_LIMIT 900
+/* As now early camera's handoff is supported, so
+ * set frame limit to 2400 frames incase of no gpio
+ */
+#define EARLYCAM_NO_GPIO_FRAME_LIMIT 2400
 
 static int early_camera_enabled = 1;
 static int early_audio_enabled = 1;
