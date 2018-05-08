@@ -1054,6 +1054,7 @@ int animated_splash() {
 	uint32_t reg_value;
 	bool camera_on = FALSE;
 	bool camera_frame_on = false;
+	bool stop_display_splash = false;
 #if EARLYCAMERA_NO_GPIO
 	uint32_t frame_count = 0;
 #endif
@@ -1130,6 +1131,10 @@ int animated_splash() {
 			else if ((1 == early_camera_enabled) &&
 					(FALSE == camera_on) && (false == camera_frame_on))
 				break;
+			else {
+				/* early RVC is still on while splash display needs to be stopped */
+				stop_display_splash = true;
+			}
 		}
 
 		for (j = 0; j < disp_cnt; j++) {
@@ -1150,6 +1155,18 @@ int animated_splash() {
 					}
 				}
 			}
+
+			/* if stop_display_splash is true, that means kernel has set 0xDEADDEAD to
+			 * scratch register to stop early display, so release display layer.
+			 */
+			if (stop_display_splash) {
+				if(layer[j].layer) {
+					target_release_layer(&layer[j]);
+					layer[j].layer = NULL;
+				}
+				continue;
+			}
+
 			layer[j].fb->base = buffers[j][frame_cnt[j]];
 			layer[j].fb->format = kFormatRGB888;
 			layer[j].fb->bpp = 24;
