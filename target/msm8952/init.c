@@ -192,7 +192,8 @@ int target_volume_up()
 
 	if(platform_is_msm8956())
 		vol_up_gpio = TLMM_VOL_UP_BTN_GPIO_8956;
-	else if(platform_is_msm8937() || platform_is_msm8917())
+	else if(platform_is_msm8937() || platform_is_msm8917() ||
+		    platform_is_sdm429() || platform_is_sdm439())
 		vol_up_gpio = TLMM_VOL_UP_BTN_GPIO_8937;
 	else
 		vol_up_gpio = TLMM_VOL_UP_BTN_GPIO;
@@ -287,12 +288,13 @@ void target_init(void)
 
 	if(target_is_pmi_enabled())
 	{
-		if(platform_is_msm8937() || platform_is_msm8917())
+		if(platform_is_msm8937() || platform_is_msm8917() ||
+		   platform_is_sdm429() || platform_is_sdm439())
 		{
 			uint8_t pmi_rev = 0;
 			uint32_t pmi_type = 0;
 
-			pmi_type = board_pmic_target(1) & 0xffff;
+			pmi_type = board_pmic_target(1) & PMIC_TYPE_MASK;
 			if(pmi_type == PMIC_IS_PMI8950)
 			{
 				/* read pmic spare register for rev */
@@ -405,6 +407,8 @@ void target_baseband_detect(struct board_data *board)
 	case MSM8920:
 	case MSM8217:
 	case MSM8617:
+	case SDM429:
+	case SDM439:
 		board->baseband = BASEBAND_MSM;
 		break;
 	case APQ8052:
@@ -412,6 +416,8 @@ void target_baseband_detect(struct board_data *board)
 	case APQ8076:
 	case APQ8037:
 	case APQ8017:
+	case SDA429:
+	case SDA439:
 		board->baseband = BASEBAND_APQ;
 		break;
 	default:
@@ -721,7 +727,7 @@ int get_target_boot_params(const char *cmdline, const char *part, char **buf)
 uint32_t target_get_pmic()
 {
 	if (target_is_pmi_enabled()) {
-		uint32_t pmi_type = board_pmic_target(1) & 0xffff;
+		uint32_t pmi_type = board_pmic_target(1) & PMIC_TYPE_MASK;
 		if (pmi_type == PMIC_IS_PMI632)
 			return PMIC_IS_PMI632;
 		else

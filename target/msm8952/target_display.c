@@ -53,6 +53,9 @@
 #include "include/display_resource.h"
 #include "gcdb_display.h"
 
+#define PWM_DUTY_US 13
+#define PWM_PERIOD_US 27
+
 #define TRULY_720P_VID_PANEL "truly_720p_video"
 #define TRULY_720P_CMD_PANEL "truly_720p_cmd"
 
@@ -276,6 +279,19 @@ static int msm8952_wled_backlight_ctrl(uint8_t enable)
 	return NO_ERROR;
 }
 
+static int pwm_backlight_ctrl(uint8_t enable)
+{
+	if (enable) {
+		pm_pwm_enable(false);
+		pm_pwm_config(PWM_DUTY_US, PWM_PERIOD_US);
+		pm_pwm_enable(true);
+	} else {
+		pm_pwm_enable(false);
+	}
+
+	return NO_ERROR;
+}
+
 int target_backlight_ctrl(struct backlight *bl, uint8_t enable)
 {
 	uint32_t ret = NO_ERROR;
@@ -283,8 +299,12 @@ int target_backlight_ctrl(struct backlight *bl, uint8_t enable)
 	if (bl->bl_interface_type == BL_DCS)
 		return ret;
 
-	ret = msm8952_wled_backlight_ctrl(enable);
-
+	if ((target_get_pmic() == PMIC_IS_PMI632) &&
+		(bl->bl_interface_type == BL_PWM)) {
+		ret = pwm_backlight_ctrl(enable);
+	} else {
+		ret = msm8952_wled_backlight_ctrl(enable);
+	}
 	return ret;
 }
 
@@ -593,10 +613,11 @@ bool target_display_panel_node(char *pbuf, uint16_t buf_size)
 	bool ret = true;
 	struct oem_panel_data oem = mdss_dsi_get_oem_data();
 	uint32_t platform_subtype = board_hardware_subtype();
+	uint32_t platform = board_platform_id();
 
 	/* default to hdmi for apq iot */
-	if ((HW_PLATFORM_SUBTYPE_SAP == platform_subtype) ||
-		(HW_PLATFORM_SUBTYPE_SAP_NOPMI == platform_subtype)) {
+	if ((APQ8017 == platform) && ((HW_PLATFORM_SUBTYPE_SAP == platform_subtype) ||
+		(HW_PLATFORM_SUBTYPE_SAP_NOPMI == platform_subtype))) {
 		if (!strcmp(oem.panel, "")) {
 			if (buf_size < (prefix_string_len +
 				strlen(HDMI_ADV_PANEL_STRING))) {
@@ -646,6 +667,7 @@ void target_display_init(const char *panel_name)
 	int32_t ret = 0;
 	uint32_t panel_loop = 0;
 	uint32_t platform_subtype = board_hardware_subtype();
+	uint32_t platform = board_platform_id();
 
 	set_panel_cmd_string(panel_name);
 	oem = mdss_dsi_get_oem_data();
@@ -659,8 +681,8 @@ void target_display_init(const char *panel_name)
 		oem.cont_splash = false;
 	}
 
-	if ((HW_PLATFORM_SUBTYPE_SAP == platform_subtype) ||
-		(HW_PLATFORM_SUBTYPE_SAP_NOPMI == platform_subtype)) {
+	if ((APQ8017 == platform) && ((HW_PLATFORM_SUBTYPE_SAP == platform_subtype) ||
+		(HW_PLATFORM_SUBTYPE_SAP_NOPMI == platform_subtype))) {
 		dprintf(INFO, "%s: Platform subtype %d\n",
 			__func__, platform_subtype);
 		return;
