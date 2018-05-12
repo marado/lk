@@ -1009,6 +1009,22 @@ void target_display_init(const char *panel_name)
 		displays[2].width = 0;
 		displays[2].height = 0;
 		goto target_display_init_end;
+	} else if (!strcmp(oem.panel, "single_1080p_single_hdmi_video")) {
+		//Single display panel init, init DSI0 only
+		gcdb_display_init("adv7533_1080p_video", MDP_REV_50,
+				(void *)MIPI_FB_ADDR);
+		mdss_hdmi_display_init(MDP_REV_50, (void *) HDMI_FB_ADDR);
+		displays[0].width = 1920;
+		displays[0].height = 1080;
+		// Get HDMI resolution
+		target_display_HDMI_resolution (&displays[1].width, &displays[1].height);
+		if (displays[1].width > 2560)
+			displays[1].dual_pipe = true;
+		else
+			displays[1].dual_pipe = false;
+		displays[2].width = 0;
+		displays[2].height = 0;
+		goto target_display_init_end;
 	} else if (!strcmp(oem.panel, "dsi0_600p_dsi1_720p_hdmi_video")) {
 		// Initialize DSI0 in 1024x600 resolution
 		gcdb_display_init("adv7533_1024_600p_dsi0_video", MDP_REV_50,
