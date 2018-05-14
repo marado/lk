@@ -292,7 +292,7 @@ static struct lane_configuration hx8399c_fhd_pluse_video_lane_config = {
 /* Panel timing                                                              */
 /*---------------------------------------------------------------------------*/
 static const uint32_t hx8399c_fhd_pluse_video_timings[] = {
-	0x7E, 0x48, 0x3C, 0x00, 0x64, 0x59, 0x3B, 0x4A, 0x2E, 0x03, 0x04, 0x00
+	0x24, 0x1C, 0x34, 0x00, 0x58, 0x4d, 0x36, 0x3f, 0x53, 0x03, 0x04, 0x00
 };
 
 static const uint32_t hx8399c_fhd_pluse_14nm_video_timings[] = {
@@ -321,7 +321,7 @@ static struct panel_reset_sequence hx8399c_fhd_pluse_video_panel_reset_seq = {
 /* Backlight setting                                                         */
 /*---------------------------------------------------------------------------*/
 static struct backlight hx8399c_fhd_pluse_video_backlight = {
-	0, 1, 4095, 100, 1, "PMIC_8941"
+	1, 1, 4095, 100, 1, "PMIC_8941"
 };
 
 #define HX8399C_FHD_PLUSE_VIDEO_SIGNATURE 0xA0000
