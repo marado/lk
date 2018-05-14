@@ -110,17 +110,6 @@ BOOLEAN VerifiedBootEnabled()
 	return (GetAVBVersion() > NO_AVB);
 }
 
-static int GetCurrentSlotSuffix(Slot *CurrentSlot)
-{
-	if (!partition_multislot_is_supported())
-		return ERR_INVALID_ARGS;
-
-	strncpy(CurrentSlot->Suffix,
-			SUFFIX_SLOT(partition_find_active_slot()),
-			MAX_SLOT_SUFFIX_SZ);
-	return 0;
-}
-
 static int check_img_header(void *ImageHdrBuffer, uint32_t ImageHdrSize, uint32_t *imgsizeActual)
 {
     /* These checks are already done before calling auth remove from here */
@@ -128,50 +117,6 @@ static int check_img_header(void *ImageHdrBuffer, uint32_t ImageHdrSize, uint32_
 	boot_verifier_init();
 #endif
 	return 0;
-}
-
-static int GetActiveSlot(Slot *ActiveSlot)
-{
-	if (!partition_multislot_is_supported())
-		return ERR_INVALID_ARGS;
-	int idx = partition_find_active_slot();
-	if (idx != INVALID)
-	{
-		strncpy(ActiveSlot->Suffix,
-			SUFFIX_SLOT(partition_find_active_slot()),
-			MAX_SLOT_SUFFIX_SZ);
-		return 0;
-	}
-	return ERR_NOT_FOUND;
-}
-
-static int FindBootableSlot(Slot *BootableSlot)
-{
-   int Status = 0;
-
-   if (BootableSlot == NULL) {
-       dprintf(CRITICAL,"FindBootableSlot: input parameter invalid\n");
-       return -ERR_INVALID_ARGS;
-   }
-
-   Status = GetActiveSlot(BootableSlot);
-   if (Status != 0) {
-       /* clear bootable slot */
-       BootableSlot->Suffix[0] = '\0';
-   }
-   return Status;
-}
-
-bool IsSuffixEmpty(Slot *CheckSlot)
-{
-	if (CheckSlot == NULL) {
-		return TRUE;
-	}
-
-	if (strlen((char *)CheckSlot->Suffix) == 0) {
-		return TRUE;
-	}
-	return FALSE;
 }
 
 static int HandleActiveSlotUnbootable()
@@ -193,11 +138,9 @@ uint32_t GetSystemPath(char **SysPath)
 	INT32 Index;
 	UINT32 Lun;
 	CHAR8 PartitionName[MAX_GPT_NAME_SIZE];
-	Slot CurSlot;
 	CHAR8 LunCharMapping[] = { 'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h'};
-
-	if (GetCurrentSlotSuffix(&CurSlot))
-		return 0;
+	const char *current_slot_suffix;
+	int current_active_slot;
 
 	*SysPath = malloc(sizeof(char) * MAX_PATH_SIZE);
 	if (!*SysPath) {
@@ -205,8 +148,14 @@ uint32_t GetSystemPath(char **SysPath)
 		return 0;
 	}
 
-	strncpy(PartitionName, "system", strlen("system") + 1);
-	strncat(PartitionName, CurSlot.Suffix, MAX_GPT_NAME_SIZE - 1);
+	strlcpy(PartitionName, "system", strlen("system") + 1);
+	current_active_slot = partition_find_active_slot();
+	if (partition_multislot_is_supported()) {
+		if (current_active_slot == INVALID)
+			return 0;
+		current_slot_suffix = SUFFIX_SLOT(current_active_slot);
+		strncat(PartitionName, current_slot_suffix, MAX_GPT_NAME_SIZE - 1);
+	}
 
 	Index = partition_get_index(PartitionName);
 	if (Index == INVALID_PTN || Index >= NUM_PARTITIONS) {
@@ -304,7 +253,7 @@ static EFI_STATUS LoadImageNoAuth(bootinfo *Info)
 	}
 	Info->num_loaded_images = 1;
 	Info->images[0].name = malloc(strlen(Info->pname) + 1);
-	strncpy(Info->images[0].name, Info->pname, strlen(Info->pname)); //FIXME
+	strlcpy(Info->images[0].name, Info->pname, strlen(Info->pname)); //FIXME
 	return Status;
 }
 
@@ -325,13 +274,13 @@ static EFI_STATUS load_image_and_authVB1(bootinfo *Info)
 	DevInfo_vb.is_unlocked = !is_device_locked();
 	DevInfo_vb.is_unlock_critical = !is_device_locked_critical();
 
-	strncpy(StrPname, "/", strlen("/"));
-	strncpy(Pname, Info->pname, strlen(Info->pname));
+	strlcpy(StrPname, "/", strlen("/"));
+	strlcpy(Pname, Info->pname, strlen(Info->pname));
 	if (Info->multi_slot_boot) {
-		strncat(StrPname, Pname,
+		strlcat(StrPname, Pname,
 	              strlen(Pname) - (MAX_SLOT_SUFFIX_SZ - 1));
 	} else {
-		strncat(StrPname, Pname, strlen(Pname));
+		strlcat(StrPname, Pname, strlen(Pname));
 	}
 
 	Status = boot_verify_image((UINT8 *)Info->images[0].image_buffer,
@@ -432,8 +381,10 @@ static EFI_STATUS load_image_and_authVB2(bootinfo *Info)
 		Status = EFI_OUT_OF_RESOURCES;
 		goto out;
 	}
+	UserData->IsMultiSlot = Info->multi_slot_boot;
+
 	if(Info->multi_slot_boot) {
-	strncpy(Pname, Info->pname, strlen(Info->pname));
+	strlcpy(Pname, Info->pname, strlen(Info->pname));
 	if ((MAX_SLOT_SUFFIX_SZ + 1) > strlen(Pname)) {
 		dprintf(CRITICAL, "ERROR: Can not determine slot suffix\n");
 		Status = EFI_INVALID_PARAMETER;
@@ -483,6 +434,11 @@ static EFI_STATUS load_image_and_authVB2(bootinfo *Info)
 		       "ERROR: Device State %s, AvbSlotVerify returned %s\n",
 		       AllowVerificationError ? "Unlocked" : "Locked",
 		       avb_slot_verify_result_to_string(Result));
+		Status = EFI_LOAD_ERROR;
+		Info->boot_state = RED;
+		goto out;
+	}
+	if (SlotData == NULL) {
 		Status = EFI_LOAD_ERROR;
 		Info->boot_state = RED;
 		goto out;
@@ -651,13 +607,13 @@ static EFI_STATUS DisplayVerifiedBootScreen(bootinfo *Info)
 			if (ffbm_mode_string[0] != '\0' && !target_build_variant_user()) {
 				dprintf(DEBUG, "Device will boot into FFBM mode\n");
 			} else {
-				//display_bootverify_menu(DISPLAY_MENU_ORANGE);
-				//if (Status == EFI_SUCCESS) {
-				//	wait_for_users_action();
-				//} else {
+				display_bootverify_menu(DISPLAY_MENU_ORANGE);
+				if (Status == EFI_SUCCESS) {
+					wait_for_users_action();
+				} else {
 					dprintf(INFO, "Device is unlocked, Skipping boot verification\n");
 					udelay(5000000);
-				//}
+				}
 			}
 			break;
 		default:
@@ -672,6 +628,8 @@ EFI_STATUS load_image_and_auth(bootinfo *Info)
 	BOOLEAN MdtpActive = FALSE;
 	UINT32 AVBVersion = NO_AVB;
 	mdtp_ext_partition_verification_t ext_partition;
+	const char *current_slot_suffix;
+	int current_active_slot;
 
 	if (Info == NULL) {
 		dprintf(CRITICAL, "Invalid parameter Info\n");
@@ -681,21 +639,22 @@ EFI_STATUS load_image_and_auth(bootinfo *Info)
 	if (!Info->multi_slot_boot) {
 		if (Info->bootinto_recovery) {
 			dprintf(INFO, "Booting Into Recovery Mode\n");
-			strncpy(Info->pname, "recovery", strlen("recovery"));
+			strlcpy(Info->pname, "recovery", strlen("recovery"));
 		} else {
 			dprintf(INFO, "Booting Into Mission Mode\n");
-			strncpy(Info->pname, "boot", strlen("boot"));
+			strlcpy(Info->pname, "boot", strlen("boot"));
 		}
 	} else {
-		Slot CurrentSlot = {{0}};
-
-		GUARD(FindBootableSlot(&CurrentSlot));
-		if (IsSuffixEmpty(&CurrentSlot)) {
-			dprintf(CRITICAL, "No bootable slot\n");
-			return EFI_LOAD_ERROR;
+		strlcpy(Info->pname, "boot", strlen("boot"));
+		current_active_slot = partition_find_active_slot();
+		if (current_active_slot != INVALID ) {
+			current_slot_suffix = SUFFIX_SLOT(current_active_slot);
+			if (strlen(current_slot_suffix) == 0) {
+				dprintf(CRITICAL, "No bootable slot\n");
+				return EFI_LOAD_ERROR;
+			}
+			strlcat(Info->pname, current_slot_suffix, strlen(current_slot_suffix));
 		}
-		strncpy(Info->pname, "boot", strlen("boot"));
-		strncat(Info->pname, CurrentSlot.Suffix, strlen(CurrentSlot.Suffix));
 	}
 
 	dprintf(DEBUG, "MultiSlot %s, partition name %s\n",

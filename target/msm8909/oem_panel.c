@@ -1,4 +1,4 @@
-/* Copyright (c) 2014-2015, 2017, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2014-2015, 2017-2018, The Linux Foundation. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -431,6 +431,7 @@ static int init_panel_data(struct panel_struct *panelstruct,
 		pinfo->mipi.num_of_panel_off_cmds
 					= AUO_390P_CMD_OFF_COMMAND;
 		memcpy(phy_db->timing, auo_390p_cmd_timings, TIMING_SIZE);
+		panelstruct->paneldata->panel_with_enable_gpio = 1;
 		break;
 	case ST7789v2_QVGA_SPI_CMD_PANEL:
 		panelstruct->paneldata		= &st7789v2_qvga_cmd_panel_data;
@@ -472,6 +473,7 @@ int oem_panel_select(const char *panel_name, struct panel_struct *panelstruct,
 			struct mdss_dsi_phy_ctrl *phy_db)
 {
 	uint32_t hw_id = board_hardware_id();
+	uint32_t platform_type = board_platform_id();
 	uint32_t platform_subtype = board_hardware_subtype();
 	int32_t panel_override_id;
 
@@ -499,7 +501,20 @@ int oem_panel_select(const char *panel_name, struct panel_struct *panelstruct,
 		case HW_PLATFORM_SUBTYPE_8909_PM660_V1:
 		case HW_PLATFORM_SUBTYPE_8909_PM660:
 		case HW_PLATFORM_SUBTYPE_8909_COMPAL_ALPHA:
-			panel_id = AUO_390P_CMD_PANEL;
+			if ((platform_type == MSM8909W) ||
+				(platform_type == APQ8009W))
+				panel_id = AUO_390P_CMD_PANEL;
+			break;
+		case HW_PLATFORM_SUBTYPE_SWOC_TP_CIRC:
+		case HW_PLATFORM_SUBTYPE_SWOC_NOWGR_CIRC:
+			if ((platform_type == MSM8909W) ||
+				(platform_type == APQ8009W))
+				panel_id = AUO_400P_CMD_PANEL;
+			break;
+		case HW_PLATFORM_SUBTYPE_SWOC_WEAR:
+			if ((platform_type == MSM8909W) ||
+				(platform_type == APQ8009W))
+				panel_id = AUO_CX_QVGA_CMD_PANEL;
 			break;
 		default:
 			panel_id = HX8394D_720P_VIDEO_PANEL;
