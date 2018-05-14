@@ -29,7 +29,7 @@
 #include <debug.h>
 #include <err.h>
 #include <msm_panel.h>
-#include <mdp4.h>
+#include <mdp5.h>
 #include <mipi_dsi.h>
 #include <boot_stats.h>
 #include <platform.h>
