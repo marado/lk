@@ -298,10 +298,22 @@
 void mdp_set_revision(int rev);
 int mdp_get_revision();
 int mdp_dsi_video_config(struct msm_panel_info *pinfo, struct fbcon_config *fb);
+int mdp_dsi_video_config_pipe(struct msm_panel_info *pinfo, struct fbcon_config *fb);
+int mdp_dsi_video_update_pipe(struct msm_panel_info *pinfo);
+int mdp_dsi_video_reset_interrupt_status(void);
 int mdp_dsi_cmd_config(struct msm_panel_info *pinfo, struct fbcon_config *fb);
 int mipi_dsi_cmd_config(struct fbcon_config mipi_fb_cfg,
 			unsigned short num_of_lanes);
+int mdp_dsi_cmd_off(void);
+
 int mdp_dsi_video_on(struct msm_panel_info *pinfo);
+int mdp_dsi_video_update(struct msm_panel_info *pinfo);
+int mdp_dsi_video_off();
+
+int mdp_lcdc_config(struct msm_panel_info *pinfo, struct fbcon_config *fb);
+int mdp_lcdc_on();
+int mdp_lcdc_off();
+
 int mdp_dma_on(struct msm_panel_info *pinfo);
 int mdp_edp_config(struct msm_panel_info *pinfo, struct fbcon_config *fb);
 int mdp_edp_on(struct msm_panel_info *pinfo);
@@ -320,6 +332,9 @@ void mdss_hdmi_display_init(uint32_t rev, void *base);
 int mdss_hdmi_on(struct msm_panel_info *pinfo);
 int mdss_hdmi_off(struct msm_panel_info *pinfo);
 int mdss_hdmi_config(struct msm_panel_info *pinfo, struct fbcon_config *fb);
+int mdss_hdmi_update(struct msm_panel_info *pinfo);
+int mdss_hdmi_update_pipe(struct msm_panel_info *pinfo);
+int mdss_hdmi_config_pipe(struct msm_panel_info *pinfo, struct fbcon_config *fb);
 void mdss_hdmi_get_vic(char *buf);
 void hdmi_phy_init(void);
 int msm_display_off();
@@ -332,4 +347,5 @@ void mdss_dsc_mdp_config(struct msm_panel_info *pinfo,
 	unsigned int pp_base, unsigned int dsc_base,
 	bool mux, bool split_mode);
 
+int mdss_layer_mixer_remove_pipe(struct msm_panel_info *pinfo);
 #endif
