@@ -325,6 +325,13 @@ int msm_display_update(struct fbcon_config *fb, uint32_t pipe_id, uint32_t pipe_
 
 	switch (pinfo->type) {
 		case MIPI_VIDEO_PANEL:
+			/*
+			 * Kernel will enable interrupts for the case LK and Kernel
+			 * access hardware at the same time, so LK can't disable
+			 * interrupts.
+			 */
+			mdp_dsi_video_reset_interrupt_status();
+
 			ret = mdp_dsi_video_config(pinfo, fb);
 			if (ret) {
 				dprintf(CRITICAL, "ERROR in display config\n");
@@ -359,7 +366,7 @@ msm_display_update_out:
 }
 
 int msm_display_update_pipe(struct fbcon_config *fb, uint32_t pipe_id, uint32_t pipe_type,
-	uint32_t zorder, uint32_t width, uint32_t height, uint32_t disp_id, bool intr_restored)
+	uint32_t zorder, uint32_t width, uint32_t height, uint32_t disp_id)
 {
 	struct msm_panel_info *pinfo;
 	struct msm_fb_panel_data *panel_local;
@@ -380,9 +387,6 @@ int msm_display_update_pipe(struct fbcon_config *fb, uint32_t pipe_id, uint32_t 
 
 	switch (pinfo->type) {
 		case MIPI_VIDEO_PANEL:
-			if (intr_restored)
-				mdp_dsi_video_reset_interrupt_status();
-
 			ret = mdp_dsi_video_config_pipe(pinfo, fb);
 			if (ret) {
 				dprintf(CRITICAL, "ERROR in DSI pipe config\n");

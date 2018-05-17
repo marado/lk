@@ -124,11 +124,9 @@ struct target_display displays[NUM_TARGET_DISPLAYS];
 struct target_layer_int layers[NUM_TARGET_LAYERS];
 
 extern int msm_display_update(struct fbcon_config *fb, uint32_t pipe_id,
-	uint32_t pipe_type, uint32_t zorder, uint32_t width, uint32_t height,
-	uint32_t disp_id);
-extern int msm_display_update_pipe(struct fbcon_config *fb, uint32_t pipe_id, uint32_t pipe_type,
-					uint32_t zorder, uint32_t width, uint32_t height,
-					uint32_t disp_id, bool intr_restored);
+	uint32_t pipe_type, uint32_t zorder, uint32_t width, uint32_t height, uint32_t disp_id);
+extern int msm_display_update_pipe(struct fbcon_config *fb, uint32_t pipe_id,
+	uint32_t pipe_type, uint32_t zorder, uint32_t width, uint32_t height, uint32_t disp_id);
 extern int msm_display_remove_pipe(uint32_t pipe_id, uint32_t pipe_type, uint32_t disp_id);
 extern struct fbcon_config* msm_display_get_fb(uint32_t disp_id);
 extern int msm_display_init_count();
@@ -1392,7 +1390,7 @@ int target_display_update(struct target_display_update * update, uint32_t size, 
 }
 
 int target_display_update_pipe(struct target_display_update * update, uint32_t size,
-				uint32_t disp_id, bool intr_restored)
+							uint32_t disp_id)
 {
 	uint32_t i = 0;
 	uint32_t pipe_type, pipe_id, zorder;
@@ -1417,7 +1415,7 @@ int target_display_update_pipe(struct target_display_update * update, uint32_t s
 		zorder = update[i].layer_list[0].z_order;
 
 		ret = msm_display_update_pipe(update[i].layer_list[0].fb, pipe_id, pipe_type, zorder,
-			update[i].layer_list[0].dst_width, update[i].layer_list[0].dst_height, disp_id, intr_restored);
+			update[i].layer_list[0].dst_width, update[i].layer_list[0].dst_height, disp_id);
 		if (ret != 0)
 			dprintf(CRITICAL, "Error in display pipe upadte ret=%u\n",ret);
 
