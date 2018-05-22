@@ -431,6 +431,7 @@ static int init_panel_data(struct panel_struct *panelstruct,
 		pinfo->mipi.num_of_panel_off_cmds
 					= AUO_390P_CMD_OFF_COMMAND;
 		memcpy(phy_db->timing, auo_390p_cmd_timings, TIMING_SIZE);
+		panelstruct->paneldata->panel_with_enable_gpio = 1;
 		break;
 	case ST7789v2_QVGA_SPI_CMD_PANEL:
 		panelstruct->paneldata		= &st7789v2_qvga_cmd_panel_data;
@@ -510,6 +511,7 @@ int oem_panel_select(const char *panel_name, struct panel_struct *panelstruct,
 				(platform_type == APQ8009W))
 				panel_id = AUO_400P_CMD_PANEL;
 			break;
+		case HW_PLATFORM_SUBTYPE_MTP_WEAR:
 		case HW_PLATFORM_SUBTYPE_SWOC_WEAR:
 			if ((platform_type == MSM8909W) ||
 				(platform_type == APQ8009W))
