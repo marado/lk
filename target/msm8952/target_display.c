@@ -356,6 +356,11 @@ int target_panel_clock(uint8_t enable, struct msm_panel_info *pinfo)
 		pll_data->is_center_spread = false;
 		pll_data->ssc_freq = 30000;
 		pll_data->ssc_ppm = 5000;
+	} else if (platform_is_sdm439() || platform_is_sdm429()) {
+		pll_data->ssc_en = true;
+		pll_data->is_center_spread = false;
+		pll_data->ssc_freq = 31500;
+		pll_data->ssc_ppm = 5000;
 	}
 
 	if (enable) {
@@ -635,20 +640,22 @@ int target_ldo_ctrl(uint8_t enable, struct msm_panel_info *pinfo)
 	if (enable) {
 		regulator_enable(ldo_num);
 		mdelay(10);
-		rc = wled_init(pinfo);
-		if (rc) {
-			dprintf(CRITICAL, "%s: wled init failed\n", __func__);
-			return rc;
+		if(!pinfo->disable_wled_labibb) {
+			rc = wled_init(pinfo);
+			if (rc) {
+				dprintf(CRITICAL, "%s: wled init failed\n", __func__);
+				return rc;
+			}
+			if (target_get_pmic() == PMIC_IS_PMI632)
+				rc = qpnp_lcdb_enable(true);
+			else
+				rc = qpnp_ibb_enable(true); /*5V boost*/
+			if (rc) {
+				dprintf(CRITICAL, "%s: qpnp_ibb/lcdb failed\n", __func__);
+				return rc;
+			}
+			mdelay(50);
 		}
-		if (target_get_pmic() == PMIC_IS_PMI632)
-			rc = qpnp_lcdb_enable(true);
-		else
-			rc = qpnp_ibb_enable(true); /*5V boost*/
-		if (rc) {
-			dprintf(CRITICAL, "%s: qpnp_ibb/lcdb failed\n", __func__);
-			return rc;
-		}
-		mdelay(50);
 	} else {
 		/*
 		 * LDO1, LDO2, LDO5 and LDO6 are shared with other subsystems.
