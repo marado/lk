@@ -1459,6 +1459,10 @@ int mdss_hdmi_config(struct msm_panel_info *pinfo, struct fbcon_config *fb)
 		pinfo->zorder = 2;
 	}
 
+	//ensure vig layer from camera uses layer stage 6
+	if (pinfo->pipe_type == MDSS_MDP_PIPE_TYPE_VIG)
+		pinfo->zorder = 1;
+
 	mdp_select_pipe_type(pinfo, &left_pipe, &right_pipe);
 
 	mdp_clk_gating_ctrl();
@@ -1510,6 +1514,16 @@ int mdss_hdmi_config(struct msm_panel_info *pinfo, struct fbcon_config *fb)
 	writel(0x80, CDM_CDWN2_OP_MODE);
 	writel(0x3FF0000, CDM_CDWN2_CLAMP_OUT);
 	writel(0x0, CDM_CSC_10_OP_MODE);
+
+	return 0;
+}
+
+int mdss_hdmi_config_pipe(struct msm_panel_info *pinfo, struct fbcon_config *fb)
+{
+	uint32_t left_pipe, right_pipe;
+
+	mdp_select_pipe_type(pinfo, &left_pipe, &right_pipe);
+	mdss_source_pipe_config(fb, pinfo, left_pipe);
 
 	return 0;
 }
@@ -1665,6 +1679,64 @@ int mdp_dsi_video_update(struct msm_panel_info *pinfo)
 	return NO_ERROR;
 }
 
+int mdp_dsi_video_reset_interrupt_status(void)
+{
+	writel(~DSI_ERR_INT_RESET_STATUS, DSI0_ERR_INT_MASK);
+	writel(~DSI_INT_CTRL_RESET_STATUS, DSI0_INT_CTRL);
+	writel(~DSI_ERR_INT_RESET_STATUS, DSI1_ERR_INT_MASK);
+	writel(~DSI_INT_CTRL_RESET_STATUS, DSI1_INT_CTRL);
+
+	return 0;
+}
+
+int mdp_dsi_video_update_pipe(struct msm_panel_info *pinfo)
+{
+	uint32_t ctl0_reg_val = 0, ctl1_reg_val = 0;
+
+	if (!pinfo) {
+		dprintf(CRITICAL, "Error! Invalid arg\n");
+		return ERR_INVALID_ARGS;
+	}
+
+	if (pinfo->pipe_type == MDSS_MDP_PIPE_TYPE_VIG){
+		switch (pinfo->pipe_id) {
+			case 0:
+				ctl0_reg_val |= BIT(0);
+				break;
+			case 1:
+				ctl0_reg_val |= BIT(1);
+				break;
+			case 2:
+				ctl0_reg_val |= BIT(2);
+				break;
+			case 3:
+			default:
+				ctl0_reg_val |= BIT(18);
+				break;
+		}
+	}
+
+	if ((pinfo->dest == DISPLAY_2) && (pinfo->mipi.dual_dsi))
+		writel(ctl0_reg_val, MDP_CTL_1_BASE + CTL_FLUSH);
+	else
+		writel(ctl0_reg_val, MDP_CTL_0_BASE + CTL_FLUSH);
+
+	if (pinfo->lcdc.split_display)
+		writel(ctl1_reg_val, MDP_CTL_1_BASE + CTL_FLUSH);
+
+       return 0;
+}
+
+int mdp_dsi_video_config_pipe(struct msm_panel_info *pinfo,  struct fbcon_config *fb)
+{
+	uint32_t left_pipe, right_pipe;
+
+	mdp_select_pipe_type(pinfo, &left_pipe, &right_pipe);
+	mdss_source_pipe_config(fb, pinfo, left_pipe);
+
+	return 0;
+}
+
 int mdp_dsi_video_off(struct msm_panel_info *pinfo)
 {
 	uint32_t timing_engine_en;
@@ -1801,9 +1873,6 @@ int mdss_hdmi_on(struct msm_panel_info *pinfo)
 
 	writel(ctl0_reg_val, ctl_base_addr + CTL_FLUSH);
 
-	//clear and disable HDMI interrupt
-	writel(0x2, HDMI_DDC_INT_CTRL);
-
 	writel(0x01, MDP_INTF_3_TIMING_ENGINE_EN + mdss_mdp_intf_offset());
 
 	return NO_ERROR;
@@ -1822,6 +1891,42 @@ int mdss_hdmi_update(struct msm_panel_info *pinfo)
 		ctl_base_addr = MDP_CTL_1_BASE;
 	} else {
 		ctl0_reg_val = 0x20022048;
+		ctl_base_addr = MDP_CTL_0_BASE;
+	}
+
+	if (pinfo->pipe_type == MDSS_MDP_PIPE_TYPE_VIG){
+		switch (pinfo->pipe_id) {
+			case 0:
+				ctl0_reg_val |= BIT(0);
+				break;
+			case 1:
+				ctl0_reg_val |= BIT(1);
+				break;
+			case 2:
+				ctl0_reg_val |= BIT(2);
+				break;
+			case 3:
+			default:
+				ctl0_reg_val |= BIT(18);
+				break;
+		}
+	}
+
+	writel(ctl0_reg_val, ctl_base_addr + CTL_FLUSH);
+
+	return NO_ERROR;
+}
+
+int mdss_hdmi_update_pipe(struct msm_panel_info *pinfo)
+{
+	uint32_t ctl0_reg_val = 0;
+	uint32_t ctl_base_addr;
+
+	if (pinfo->dest == DISPLAY_3) {
+		ctl_base_addr = MDP_CTL_2_BASE;
+	} else if (pinfo->dest == DISPLAY_2) {
+		ctl_base_addr = MDP_CTL_1_BASE;
+	} else {
 		ctl_base_addr = MDP_CTL_0_BASE;
 	}
 

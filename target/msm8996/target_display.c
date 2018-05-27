@@ -122,6 +122,9 @@ struct target_layer_int layers[NUM_TARGET_LAYERS];
 
 extern int msm_display_update(struct fbcon_config *fb, uint32_t pipe_id,
 	uint32_t pipe_type, uint32_t zorder, uint32_t width, uint32_t height, uint32_t disp_id);
+extern int msm_display_update_pipe(struct fbcon_config *fb, uint32_t pipe_id, uint32_t pipe_type,
+					uint32_t zorder, uint32_t width, uint32_t height,
+					uint32_t disp_id, bool intr_restored);
 extern int msm_display_remove_pipe(uint32_t pipe_id, uint32_t pipe_type, uint32_t disp_id);
 extern struct fbcon_config* msm_display_get_fb(uint32_t disp_id);
 extern int msm_display_init_count();
@@ -1209,6 +1212,40 @@ int target_display_update(struct target_display_update * update, uint32_t size, 
 			update[i].layer_list[0].width, update[i].layer_list[0].height, disp_id);
 		if (ret != 0)
 			dprintf(CRITICAL, "Error in display upadte ret=%u\n",ret);
+
+	}
+	return ret;
+}
+
+int target_display_update_pipe(struct target_display_update * update, uint32_t size,
+				uint32_t disp_id, bool intr_restored)
+{
+	uint32_t i = 0;
+	uint32_t pipe_type, pipe_id, zorder;
+	struct target_layer_int *lyr;
+	struct target_display *cur_disp;
+	uint32_t ret = 0;
+
+	if (update == NULL) {
+		dprintf(CRITICAL, "Error: Invalid argument\n");
+		return ERR_INVALID_ARGS;
+	}
+
+	for (i = 0; i < size; i++) {
+		cur_disp = (struct target_display *)update[i].disp;
+		lyr = (struct target_layer_int *)update[i].layer_list[0].layer;
+		if (lyr == NULL) {
+			dprintf(CRITICAL, "Invalid layer entry %p\n",cur_disp);
+			return ERR_INVALID_ARGS;
+		}
+		pipe_id = lyr->layer_id;
+		pipe_type = lyr->layer_type;
+		zorder = update[i].layer_list[0].z_order;
+
+		ret = msm_display_update_pipe(update[i].layer_list[0].fb, pipe_id, pipe_type, zorder,
+			update[i].layer_list[0].width, update[i].layer_list[0].height, disp_id, intr_restored);
+		if (ret != 0)
+			dprintf(CRITICAL, "Error in display pipe upadte ret=%u\n",ret);
 
 	}
 	return ret;
