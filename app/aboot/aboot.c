@@ -204,7 +204,7 @@ static const char *verity_dev = " root=/dev/dm-0";
 static const char *verity_system_part = " dm=\"system";
 static const char *verity_params = " none ro,0 1 android-verity /dev/mmcblk0p";
 #else
-static const char *sys_path = "  root=/dev/mmcblk0p";
+static const char *sys_path = " root=/dev/mmcblk0p";
 #endif
 
 #if VERIFIED_BOOT
@@ -562,7 +562,8 @@ unsigned char *update_cmdline(const char * cmdline)
 		cmdline_len += strlen(warmboot_cmdline);
 	}
 
-	if (partition_multislot_is_supported())
+	if (target_uses_system_as_root() ||
+		partition_multislot_is_supported())
 	{
 		current_active_slot = partition_find_active_slot();
 		cmdline_len += (strlen(androidboot_slot_suffix)+
@@ -601,10 +602,15 @@ unsigned char *update_cmdline(const char * cmdline)
 					partition_get_index_in_lun("system", lun));
 		}
 
-		cmdline_len += strlen(sys_path_cmdline);
 #ifndef VERIFIED_BOOT_2
 		cmdline_len += strlen(syspath_buf);
 #endif
+	}
+
+	if (target_uses_system_as_root() ||
+		partition_multislot_is_supported())
+	{
+		cmdline_len += strlen(sys_path_cmdline);
 		if (!boot_into_recovery)
 			cmdline_len += strlen(skip_ramfs);
 	}
@@ -843,22 +849,34 @@ unsigned char *update_cmdline(const char * cmdline)
 				--dst;
 				src = SUFFIX_SLOT(current_active_slot);
 				while ((*dst++ = *src++));
+		}
 
-				if (!boot_into_recovery)
-				{
-					src = skip_ramfs;
-					--dst;
-					while ((*dst++ = *src++));
-				}
 
-				src = sys_path_cmdline;
+		/*
+		 * System-As-Root behaviour, system.img should contain both
+		 * system content and ramdisk content, and should be mounted at
+		 * root(a/b).
+		 * Apending skip_ramfs for non a/b builds which use, system as root.
+		 */
+		if ((target_uses_system_as_root() ||
+			partition_multislot_is_supported()) &&
+			have_cmdline)
+		{
+			if (!boot_into_recovery)
+			{
+				src = skip_ramfs;
 				--dst;
 				while ((*dst++ = *src++));
+			}
+
+			src = sys_path_cmdline;
+			--dst;
+			while ((*dst++ = *src++));
 
 #ifndef VERIFIED_BOOT_2
-				src = syspath_buf;
-				--dst;
-				while ((*dst++ = *src++));
+			src = syspath_buf;
+			--dst;
+			while ((*dst++ = *src++));
 #endif
 		}
 
@@ -3170,7 +3188,7 @@ check_partition_fs_signature(const char *arg)
 	fs_signature_type ret = NO_FS;
 	int index;
 	unsigned long long ptn;
-	char *sb_buffer = malloc(mmc_blocksize);
+	char *sb_buffer = memalign(CACHE_LINE, mmc_blocksize);
 	if (!sb_buffer)
 	{
 		dprintf(CRITICAL, "ERROR: Failed to allocate buffer for superblock\n");
