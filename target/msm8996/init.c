@@ -1292,6 +1292,11 @@ void earlydomain_exit() {}
 
 #endif /* EARLYDOMAIN_SUPPORT */
 
+void target_display_update_scratch_register()
+{
+	writel(0xDEADBEEF, MDSS_SCRATCH_REG_1);
+}
+
 int target_update_cmdline(char *cmdline)
 {
 	uint32_t platform_id = board_platform_id();
