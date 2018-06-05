@@ -119,6 +119,8 @@ typedef void (*fastboot_cmd_fn) (const char *, void *, unsigned);
 /* turns on the secondary core */
 void enable_secondary_core();
 
+void target_display_update_scratch_register();
+
 struct fastboot_cmd_desc {
 	char * name;
 	fastboot_cmd_fn cb;
@@ -4539,6 +4541,14 @@ void aboot_init(const struct app_descriptor *app)
 		{
 			mdelay_optimal(10);
 		}
+
+		/*
+		 * For static splash case, scratch register 1 should be
+		 * updated with 0xDEADBEEF to notify kernel no early
+		 * domain runs.
+		 */
+		if (!device.early_domain_enabled)
+			target_display_update_scratch_register();
 	}
 	target_serialno((unsigned char *) sn_buf);
 	dprintf(SPEW,"serial number: %s\n",sn_buf);
