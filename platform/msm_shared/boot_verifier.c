@@ -411,6 +411,8 @@ bool send_rot_command(uint32_t is_unlocked)
 	km_set_rot_req_t *read_req;
 	km_set_rot_rsp_t read_rsp;
 	app_handle = get_secapp_handle();
+	uint32_t version = 0;
+
 	int n = 0, e = 0;
 	switch (boot_device_state)
 	{
@@ -514,12 +516,36 @@ bool send_rot_command(uint32_t is_unlocked)
 		free(rot_input);
 		return false;
 	}
-	dprintf(SPEW, "Sending Root of Trust to trustzone: end\n");
+	if ( is_secure_boot_enable()
+		&& (dev_boot_state != GREEN))
+	{
+		version = qseecom_get_version();
+		if(allow_set_fuse(version)) {
+			ret = set_tamper_fuse_cmd(HLOS_IMG_TAMPER_FUSE);
+			if (ret) {
+				ret = false;
+				goto err;
+			}
+			ret = set_tamper_fuse_cmd(HLOS_TAMPER_NOTIFY_FUSE);
+			if (ret) {
+				dprintf(CRITICAL, "QCOM_VB_SendROT: set_tamper_fuse_cmd (TZ_HLOS_TAMPER_NOTIFY_FUSE) fails!\n");
+				ret = false;
+				goto err;
+			}
+		} else {
+			dprintf(CRITICAL, "QCOM_VB_SendROT: TZ didn't support this feature! Version: major = %d, minor = %d, patch = %d\n", (version >> 22) & 0x3FF, (version >> 12) & 0x3FF, version & 0x3FF);
+		ret = false;
+		goto err;
+		}
+	}
+	dprintf(CRITICAL, "Sending Root of Trust to trustzone: end\n");
+	ret = true;
+err:
 	if(input)
 		free(input);
 	free(read_req);
 	free(rot_input);
-	return true;
+	return ret;
 }
 
 unsigned char* get_boot_fingerprint(unsigned int* buf_size)
