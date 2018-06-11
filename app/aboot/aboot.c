@@ -188,6 +188,11 @@ static const char *warmboot_cmdline = " qpnp-power-on.warm_boot=1";
 static const char *baseband_apq_nowgr   = " androidboot.baseband=baseband_apq_nowgr";
 static const char *androidboot_slot_suffix = " androidboot.slot_suffix=";
 static const char *skip_ramfs = " skip_initramfs";
+
+#if HIBERNATION_SUPPORT
+static const char *resume = " resume=/dev/mmcblk0p";
+#endif
+
 #ifdef INIT_BIN_LE
 static const char *sys_path_cmdline = " rootwait ro init="INIT_BIN_LE;
 #else
@@ -199,7 +204,7 @@ static const char *verity_dev = " root=/dev/dm-0";
 static const char *verity_system_part = " dm=\"system";
 static const char *verity_params = " none ro,0 1 android-verity /dev/mmcblk0p";
 #else
-static const char *sys_path = "  root=/dev/mmcblk0p";
+static const char *sys_path = " root=/dev/mmcblk0p";
 #endif
 
 #if VERIFIED_BOOT
@@ -315,6 +320,7 @@ char charger_screen_enabled[MAX_RSP_SIZE];
 char sn_buf[13];
 char display_panel_buf[MAX_PANEL_BUF_SIZE];
 char panel_display_mode[MAX_RSP_SIZE];
+char soc_version_str[MAX_RSP_SIZE];
 #if PRODUCT_IOT
 char block_size_string[MAX_RSP_SIZE];
 
@@ -395,6 +401,12 @@ unsigned char *update_cmdline(const char * cmdline)
         int syspath_buflen = strlen(sys_path) + sizeof(int) + 2; /*allocate buflen for largest possible string*/
 #endif
 	char syspath_buf[syspath_buflen];
+#if HIBERNATION_SUPPORT
+	int resume_buflen = strlen(resume) + sizeof(int) + 2;
+	char resume_buf[resume_buflen];
+	int swap_ptn_index = INVALID_PTN;
+#endif
+
 #if VERIFIED_BOOT
 	uint32_t boot_state = RED;
 #endif
@@ -550,7 +562,8 @@ unsigned char *update_cmdline(const char * cmdline)
 		cmdline_len += strlen(warmboot_cmdline);
 	}
 
-	if (partition_multislot_is_supported())
+	if (target_uses_system_as_root() ||
+		partition_multislot_is_supported())
 	{
 		current_active_slot = partition_find_active_slot();
 		cmdline_len += (strlen(androidboot_slot_suffix)+
@@ -589,13 +602,36 @@ unsigned char *update_cmdline(const char * cmdline)
 					partition_get_index_in_lun("system", lun));
 		}
 
-		cmdline_len += strlen(sys_path_cmdline);
 #ifndef VERIFIED_BOOT_2
 		cmdline_len += strlen(syspath_buf);
 #endif
+	}
+
+	if (target_uses_system_as_root() ||
+		partition_multislot_is_supported())
+	{
+		cmdline_len += strlen(sys_path_cmdline);
 		if (!boot_into_recovery)
 			cmdline_len += strlen(skip_ramfs);
 	}
+
+#if HIBERNATION_SUPPORT
+	if (platform_boot_dev_isemmc())
+	{
+		swap_ptn_index = partition_get_index("swap");
+		if (swap_ptn_index != INVALID_PTN)
+		{
+			snprintf(resume_buf, resume_buflen,
+				" %s%d", resume,
+				(swap_ptn_index + 1));
+			cmdline_len += strlen(resume_buf);
+		}
+		else
+		{
+			dprintf(INFO, "WARNING: swap partition not found\n");
+		}
+	}
+#endif
 
 #if TARGET_CMDLINE_SUPPORT
 	char *target_cmdline_buf = malloc(TARGET_MAX_CMDLNBUF);
@@ -813,24 +849,45 @@ unsigned char *update_cmdline(const char * cmdline)
 				--dst;
 				src = SUFFIX_SLOT(current_active_slot);
 				while ((*dst++ = *src++));
+		}
 
-				if (!boot_into_recovery)
-				{
-					src = skip_ramfs;
-					--dst;
-					while ((*dst++ = *src++));
-				}
 
-				src = sys_path_cmdline;
+		/*
+		 * System-As-Root behaviour, system.img should contain both
+		 * system content and ramdisk content, and should be mounted at
+		 * root(a/b).
+		 * Apending skip_ramfs for non a/b builds which use, system as root.
+		 */
+		if ((target_uses_system_as_root() ||
+			partition_multislot_is_supported()) &&
+			have_cmdline)
+		{
+			if (!boot_into_recovery)
+			{
+				src = skip_ramfs;
 				--dst;
 				while ((*dst++ = *src++));
+			}
+
+			src = sys_path_cmdline;
+			--dst;
+			while ((*dst++ = *src++));
 
 #ifndef VERIFIED_BOOT_2
-				src = syspath_buf;
-				--dst;
-				while ((*dst++ = *src++));
+			src = syspath_buf;
+			--dst;
+			while ((*dst++ = *src++));
 #endif
 		}
+
+#if HIBERNATION_SUPPORT
+		if (swap_ptn_index != INVALID_PTN)
+		{
+			src = resume_buf;
+			--dst;
+			while ((*dst++ = *src++));
+		}
+#endif
 
 #if TARGET_CMDLINE_SUPPORT
 		if (target_cmdline_buf && target_cmd_line_len)
@@ -4612,6 +4669,10 @@ void aboot_fastboot_register_commands(void)
 	fastboot_publish("product",  TARGET(BOARD));
 	fastboot_publish("kernel",   "lk");
 	fastboot_publish("serialno", sn_buf);
+
+	/*publish hw-revision major(upper 16 bits) and minor(lower 16 bits)*/
+	snprintf(soc_version_str, MAX_RSP_SIZE, "%x", board_soc_version());
+	fastboot_publish("hw-revision", soc_version_str);
 
 	/*
 	 * partition info is supported only for emmc partitions
