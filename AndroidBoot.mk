@@ -93,7 +93,7 @@ endif
 
 ifeq ($(TARGET_BOARD_PLATFORM),msm8996)
   ENABLE_QSEED_SCALAR := ENABLE_QSEED_SCALAR=0
-  EXT_LIB := EXT_LIB=../../../out/target/product/msm8996/obj/STATIC_LIBRARIES/liblkscalar_intermediates/liblkscalar.a
+  EXT_LIB := EXT_LIB=../../../out/target/product/msm8996/vendor/lib64/liblkscalar.a
 else
   ENABLE_QSEED_SCALAR := ENABLE_QSEED_SCALAR=0
   EXT_LIB := EXT_LIB=
