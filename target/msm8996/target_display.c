@@ -1377,7 +1377,7 @@ int target_display_update(struct target_display_update * update, uint32_t size, 
 #endif
 
 		ret = msm_display_update(update[i].layer_list[0].fb, pipe_id, pipe_type, zorder,
-			update[i].layer_list[0].src_width, update[i].layer_list[0].src_height, disp_id);
+			update[i].layer_list[0].dst_width, update[i].layer_list[0].dst_height, disp_id);
 		if (ret != 0)
 			dprintf(CRITICAL, "Error in display upadte ret=%u\n",ret);
 

@@ -740,13 +740,22 @@ static void mdss_source_pipe_config(struct fbcon_config *fb, struct msm_panel_in
 			//PE
 			writel(0x00020001, pipe_base + PIPE_SSPP_SW_PIX_EXT_CO_LR);
 			writel(0x00020001, pipe_base + PIPE_SSPP_SW_PIX_EXT_CO_TB);
-			writel(0x02d30503, pipe_base + PIPE_SSPP_SW_PIX_EXT_CO_REQ_PIXELS);
+            if (pinfo->lcdc.split_display)
+				writel(0x02d30281, pipe_base + PIPE_SSPP_SW_PIX_EXT_CO_REQ_PIXELS);
+            else
+				writel(0x02d30503, pipe_base + PIPE_SSPP_SW_PIX_EXT_CO_REQ_PIXELS);
 			writel(0x00010000, pipe_base + PIPE_SSPP_SW_PIX_EXT_C1C2_LR);
 			writel(0x00010000, pipe_base + PIPE_SSPP_SW_PIX_EXT_C1C2_TB);
-			writel(0x02d10281, pipe_base + PIPE_SSPP_SW_PIX_EXT_C1C2_REQ_PIXELS);
+            if (pinfo->lcdc.split_display)
+				writel(0x02d10141, pipe_base + PIPE_SSPP_SW_PIX_EXT_C1C2_REQ_PIXELS);
+            else
+				writel(0x02d10281, pipe_base + PIPE_SSPP_SW_PIX_EXT_C1C2_REQ_PIXELS);
 			writel(0x00010000, pipe_base + PIPE_SSPP_SW_PIX_EXT_C3_LR);
 			writel(0x00010000, pipe_base + PIPE_SSPP_SW_PIX_EXT_C3_TB);
-			writel(0x02d10501, pipe_base + PIPE_SSPP_SW_PIX_EXT_C3_REQ_PIXELS);
+            if (pinfo->lcdc.split_display)
+				writel(0x02d10281, pipe_base + PIPE_SSPP_SW_PIX_EXT_C3_REQ_PIXELS);
+            else
+				writel(0x02d10501, pipe_base + PIPE_SSPP_SW_PIX_EXT_C3_REQ_PIXELS);
 		}
 	}
 	writel(flip_bits, pipe_base + PIPE_SSPP_SRC_OP_MODE);
