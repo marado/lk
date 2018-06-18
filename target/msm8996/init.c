@@ -1100,8 +1100,8 @@ int animated_splash() {
 		sleep_time = 1000 / img_header[j].fps;
 		layer_list[j].src_width = img_header[j].width;
 		layer_list[j].src_height = img_header[j].height;
-		layer_list[j].dst_width = img_header[j].width / 2;
-		layer_list[j].dst_height = img_header[j].height / 2;
+		layer_list[j].dst_width = img_header[j].width;
+		layer_list[j].dst_height = img_header[j].height;
 		layer_list[j].src_rect_x = 0;
 		layer_list[j].src_rect_y = 0;
 		layer_list[j].dst_rect_x = (disp->width - layer_list[j].dst_width)/2;
