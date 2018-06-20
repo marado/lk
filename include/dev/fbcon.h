@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2008,2018, Google Inc.
+ * Copyright (c) 2008, Google Inc.
  * All rights reserved.
  *
  * Copyright (c) 2009-2015, 2018, The Linux Foundation. All rights reserved.
