@@ -43,6 +43,7 @@
 
 #define MX_DRV_SUPPORTED_HS200 3
 static bool attempt_cdr_unlock;
+extern bool strobe_support;
 
 /* Known data stored in the card & read during tuning
  * process. 64 bytes for 4bit bus width & 128 bytes
@@ -301,11 +302,26 @@ static void sdhci_dll_clk_enable(struct sdhci_host *host, int enable)
 	}
 }
 
+static uint32_t wait_for_dll_lock(struct sdhci_host *host)
+{
+	uint32_t timeout = SDHCI_DLL_TIMEOUT;
+	while(!((REG_READ32(host, SDCC_REG_DLL_STATUS)) & SDCC_DLL_LOCK_STAT))
+		{
+		udelay(1);
+		timeout--;
+		if (!timeout)
+			{
+				dprintf(CRITICAL, "%s: Failed to get DLL lock: 0x%08x\n", __func__, REG_READ32(host, SDCC_REG_DLL_STATUS));
+				return 1;
+			}
+		}
+	return 0;
+}
+
 /* Initialize DLL (Programmable Delay Line) */
 static uint32_t sdhci_msm_init_dll(struct sdhci_host *host)
 {
 	uint32_t pwr_save = 0;
-	uint32_t timeout = SDHCI_DLL_TIMEOUT;
 	uint32_t dll_cfg2;
 	uint32_t mclk_clk_freq = 0;
 
@@ -361,16 +377,8 @@ static uint32_t sdhci_msm_init_dll(struct sdhci_host *host)
 	/* Write 1 to CLK_OUT_EN */
 	REG_WRITE32(host, (REG_READ32(host, SDCC_DLL_CONFIG_REG) | SDCC_DLL_CLK_OUT_EN), SDCC_DLL_CONFIG_REG);
 	/* Wait for DLL_LOCK in DLL_STATUS register, wait time 50us */
-	while(!((REG_READ32(host, SDCC_REG_DLL_STATUS)) & SDCC_DLL_LOCK_STAT))
-	{
-		udelay(1);
-		timeout--;
-		if (!timeout)
-		{
-			dprintf(CRITICAL, "%s: Failed to get DLL lock: 0x%08x\n", __func__, REG_READ32(host, SDCC_REG_DLL_STATUS));
-			return 1;
-		}
-	}
+	if(!strobe_support && wait_for_dll_lock(host))
+		return 1;
 
 	/* Set the powersave back on */
 	if (pwr_save)
@@ -558,6 +566,11 @@ static uint32_t sdhci_msm_cm_dll_sdc4_calibration(struct sdhci_host *host)
 	/*1.Write the DDR config value to SDCC_HC_REG_DDR_CONFIG register*/
 	REG_WRITE32(host, target_ddr_cfg_val(), target_ddr_cfg_reg());
 
+
+	/* Only for strobe support */
+	if(strobe_support)
+		REG_WRITE32(host, (REG_READ32(host,SDCC_HC_VENDOR_SPECIFIC_DDR200_CFG ) | CMDIN_RCLK_EN), SDCC_HC_VENDOR_SPECIFIC_DDR200_CFG);
+
 	/*2. Write DDR_CAL_EN to '1' */
 	REG_WRITE32(host, (REG_READ32(host, SDCC_HC_REG_DLL_CONFIG_2) | DDR_CAL_EN), SDCC_HC_REG_DLL_CONFIG_2);
 
@@ -666,7 +679,7 @@ static uint32_t sdhci_msm_cdclp533_calibration(struct sdhci_host *host)
 }
 
 
-static uint32_t sdhci_msm_hs400_calibration(struct sdhci_host *host)
+uint32_t sdhci_msm_hs400_calibration(struct sdhci_host *host)
 {
 	DBG("\n HS400 Calibration Start\n");
 
@@ -674,13 +687,14 @@ static uint32_t sdhci_msm_hs400_calibration(struct sdhci_host *host)
 	if (sdhci_msm_init_dll(host))
 		return 1;
 
-	/* Write the save phase */
-	if (sdhci_msm_config_dll(host, host->msm_host->saved_phase))
-		return 1;
+	if(!strobe_support){
+		/* Write the save phase */
+			if (sdhci_msm_config_dll(host, host->msm_host->saved_phase))
+			return 1;
 
-	/* Write 1 to CMD_DAT_TRACK_SEL field in DLL_CONFIG */
-	REG_WRITE32(host, (REG_READ32(host, SDCC_DLL_CONFIG_REG) | CMD_DAT_TRACK_SEL), SDCC_DLL_CONFIG_REG);
-
+		/* Write 1 to CMD_DAT_TRACK_SEL field in DLL_CONFIG */
+		REG_WRITE32(host, (REG_READ32(host, SDCC_DLL_CONFIG_REG) | CMD_DAT_TRACK_SEL), SDCC_DLL_CONFIG_REG);
+	}
 	if (host->use_cdclp533)
 		return sdhci_msm_cdclp533_calibration(host);
 	else
