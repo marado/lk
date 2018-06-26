@@ -1206,6 +1206,10 @@ int animated_splash() {
 	if (early_camera_enabled == 1)
 		early_camera_stop();
 
+	for (j = 0; j < disp_cnt; j++) {
+		target_release_layer(&layer_list[j]);
+	}
+
 	return ret;
 }
 
