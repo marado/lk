@@ -982,14 +982,18 @@ static void mdss_intf_tg_setup(struct msm_panel_info *pinfo, uint32_t intf_base)
 				adjust_xres = pinfo->lm_split[1];
 		}
 
-		if (intf_base == (MDP_INTF_1_BASE + mdss_mdp_intf_offset())) {
-			if (pinfo->lcdc.pipe_swap) {
-				lower |= BIT(4);
-				upper |= BIT(8);
-			} else {
-				lower |= BIT(8);
-				upper |= BIT(4);
-			}
+		if ((intf_base == (MDP_INTF_1_BASE + mdss_mdp_intf_offset())) &&
+				(!pinfo->lcdc.pipe_swap)) {
+			lower |= BIT(8);
+			upper |= BIT(4);
+
+			writel(lower, MDP_REG_SPLIT_DISPLAY_LOWER_PIPE_CTL);
+			writel(upper, MDP_REG_SPLIT_DISPLAY_UPPER_PIPE_CTL);
+			writel(0x1, MDP_REG_SPLIT_DISPLAY_EN);
+		} if ((intf_base == (MDP_INTF_2_BASE + mdss_mdp_intf_offset())) &&
+				(pinfo->lcdc.pipe_swap)) {
+			lower |= BIT(4);
+			upper |= BIT(8);
 			writel(lower, MDP_REG_SPLIT_DISPLAY_LOWER_PIPE_CTL);
 			writel(upper, MDP_REG_SPLIT_DISPLAY_UPPER_PIPE_CTL);
 			writel(0x1, MDP_REG_SPLIT_DISPLAY_EN);
@@ -1336,6 +1340,7 @@ void mdss_layer_mixer_setup(struct fbcon_config *fb, struct msm_panel_info
 			display_req[0].ctl_base[1] = MDP_CTL_1_BASE;
 		if (display_req[0].num_lm == 2)
 			display_req[0].lm_base[1] = MDP_VP_0_MIXER_1_BASE;
+
 		left_mixer_base = display_req[0].lm_base[0];
 		right_mixer_base = display_req[0].lm_base[1];
 		left_ctl_base = display_req[0].ctl_base[0];
@@ -1892,7 +1897,13 @@ int mdp_dsi_video_config(struct msm_panel_info *pinfo,
 		writel(reg, display_req[2].ctl_base[0] + CTL_TOP);
 
 	if (pinfo->lcdc.split_display) {
-		reg = 0x1f00 | BIT(4) | BIT(5); /* Interface 2 */
+		if ((use_second_dsi && !pinfo->lcdc.pipe_swap) ||
+			(!use_second_dsi && pinfo->lcdc.pipe_swap)) {
+			reg = 0x1f00 | BIT(5); /* Interface 1 */
+		} else {
+			reg = 0x1f00 | BIT(4) | BIT(5); /* Interface 2 */
+		}
+
 		if (pinfo->dest == DISPLAY_1)
 			writel(reg, display_req[0].ctl_base[1] + CTL_TOP);
 		else if (pinfo->dest == DISPLAY_2)

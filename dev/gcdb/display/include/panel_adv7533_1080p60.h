@@ -58,6 +58,13 @@ static struct panel_config adv7533_3840_1080p_video_panel_data = {
 	"qcom,mdss_dsi_adv7533_3840_1080p", "dsi:0:", "qcom,mdss-dsi-panel",
 	10, 0, "DISPLAY_1", 0, 0, 60, 0, 0, 0, 0, 0, 0, 0, 0, DUAL_DSI_FLAG | SPLIT_DISPLAY_FLAG, 0, 0, "NONE"
 };
+
+// This structure is for swap and split DSI setup, two 1080p video panel @ DSI0
+static struct panel_config adv7533_3840_1080p_swap_video_panel_data = {
+	"qcom,mdss_dsi_adv7533_3840_1080p", "dsi:0:", "qcom,mdss-dsi-panel",
+	10, 0, "DISPLAY_1", 0, 0, 60, 0, 0, 0, 0, 0, 0, 0, 0, DUAL_DSI_FLAG | SPLIT_DISPLAY_FLAG | PIPE_SWAP_FLAG, 0, 0, "NONE"
+};
+
 //| DUAL_PIPE_FLAG
 /*---------------------------------------------------------------------------*/
 /* Panel resolution                                                          */

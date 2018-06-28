@@ -1072,7 +1072,7 @@ void target_display_init(const char *panel_name)
 		displays[1].height = 0;
 		displays[2].width = 0;
 		displays[2].height = 0;
-	} else if (!strcmp(oem.panel, "adv7533_3840w_HDMI")) {
+	} else if (!strcmp(oem.panel, "adv7533_3840w_hdmi")) {
 		gcdb_display_init("adv7533_3840w", MDP_REV_50,
 				(void *)MIPI_FB_ADDR);
 		mdss_hdmi_display_init(MDP_REV_50, (void *) HDMI_FB_ADDR);
@@ -1088,12 +1088,28 @@ void target_display_init(const char *panel_name)
 		else
 			displays[1].dual_pipe = false;
 		goto target_display_init_end;
-	} else if (!strcmp(oem.panel, "adv7533_2560w_HDMI")) {
+	} else if (!strcmp(oem.panel, "adv7533_2560w_hdmi")) {
 		gcdb_display_init("adv7533_2560w", MDP_REV_50,
 				(void *)MIPI_FB_ADDR);
 		mdss_hdmi_display_init(MDP_REV_50, (void *) HDMI_FB_ADDR);
 		displays[0].width = 2560;
 		displays[0].height = 720;
+		displays[0].dual_pipe = true;
+		displays[2].width = 0;
+		displays[2].height = 0;
+		// Get HDMI resolution
+		target_display_HDMI_resolution (&displays[1].width, &displays[1].height);
+		if (displays[1].width > 2560)
+			displays[1].dual_pipe = true;
+		else
+			displays[1].dual_pipe = false;
+		goto target_display_init_end;
+	} else if (!strcmp(oem.panel, "adv7533_3840w_swap_hdmi")) {
+		gcdb_display_init("adv7533_3840w_swap", MDP_REV_50,
+				(void *)MIPI_FB_ADDR);
+		mdss_hdmi_display_init(MDP_REV_50, (void *) HDMI_FB_ADDR);
+		displays[0].width = 3840;
+		displays[0].height = 1080;
 		displays[0].dual_pipe = true;
 		displays[2].width = 0;
 		displays[2].height = 0;
