@@ -1069,6 +1069,13 @@ int animated_splash() {
 		dprintf(CRITICAL, "Unexpected error in read\n");
 		return 0;
 	}
+
+	/* Ensure inited display number by user is not greater than NUM_DISPLAYS. */
+	if (disp_cnt > NUM_DISPLAYS) {
+		dprintf(CRITICAL, "Inited display number exceeds\n");
+		disp_cnt = NUM_DISPLAYS;
+	}
+
 	for (j = 0; j < disp_cnt; j ++) {
 		frame_cnt[j] = 0;
 		disp_ptr = target_display_open(j);
