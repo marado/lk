@@ -1,4 +1,4 @@
-/* Copyright (c) 2013-2014, 2015, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2013-2014, 2015, 2018, The Linux Foundation. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -43,6 +43,11 @@
 #define QSEOS_RESULT_FAIL_KEY_ID_DNE          -70
 #define QSEOS_RESULT_FAIL_INCORRECT_PSWD      -71
 #define QSEOS_RESULT_FAIL_MAX_ATTEMPT         -72
+
+#define QSEOS_VERSION_14  0x14
+#define QSEE_VERSION_00   0x400000
+#define QSEE_VERSION_20   0x800000
+#define QSEE_VERSION_40   0x1000000  /* TZ.BF.4.0 */
 
 enum qseecom_command_scm_resp_type {
 	QSEOS_APP_ID = 0xEE01,
