@@ -2108,16 +2108,6 @@ int mdss_hdmi_config(struct msm_panel_info *pinfo, struct fbcon_config *fb)
 	return 0;
 }
 
-int mdss_hdmi_config_pipe(struct msm_panel_info *pinfo, struct fbcon_config *fb)
-{
-	uint32_t left_pipe, right_pipe;
-
-	mdp_select_pipe_type(pinfo, &left_pipe, &right_pipe);
-	mdss_source_pipe_config(fb, pinfo, left_pipe);
-
-	return 0;
-}
-
 int mdp_dsi_cmd_config(struct msm_panel_info *pinfo,
                 struct fbcon_config *fb)
 {
@@ -2298,50 +2288,30 @@ int mdp_dsi_video_reset_interrupt_status(void)
 	return 0;
 }
 
-int mdp_dsi_video_update_pipe(struct msm_panel_info *pinfo)
+int mdp_dsi_video_update_pipe(struct msm_panel_info *pinfo,  struct fbcon_config *fb)
 {
 	uint32_t ctl0_reg_val = 0, ctl1_reg_val = 0;
-
-	if (!pinfo) {
-		dprintf(CRITICAL, "Error! Invalid arg\n");
-		return ERR_INVALID_ARGS;
-	}
-
-	if (pinfo->pipe_type == MDSS_MDP_PIPE_TYPE_VIG){
-		switch (pinfo->pipe_id) {
-			case 0:
-				ctl0_reg_val |= BIT(0);
-				break;
-			case 1:
-				ctl0_reg_val |= BIT(1);
-				break;
-			case 2:
-				ctl0_reg_val |= BIT(2);
-				break;
-			case 3:
-			default:
-				ctl0_reg_val |= BIT(18);
-				break;
-		}
-	}
-
-	if ((pinfo->dest == DISPLAY_2) && (pinfo->mipi.dual_dsi))
-		writel(ctl0_reg_val, MDP_CTL_1_BASE + CTL_FLUSH);
-	else
-		writel(ctl0_reg_val, MDP_CTL_0_BASE + CTL_FLUSH);
-
-	if (pinfo->lcdc.split_display)
-		writel(ctl1_reg_val, MDP_CTL_1_BASE + CTL_FLUSH);
-
-	return 0;
-}
-
-int mdp_dsi_video_config_pipe(struct msm_panel_info *pinfo,  struct fbcon_config *fb)
-{
 	uint32_t left_pipe, right_pipe;
 
 	mdp_select_pipe_type(pinfo, &left_pipe, &right_pipe);
-	mdss_source_pipe_config(fb, pinfo, left_pipe);
+	writel((uint32_t) fb->base, left_pipe + PIPE_SSPP_SRC0_ADDR);
+	if (pinfo->lcdc.split_display)
+		writel((uint32_t) fb->base, right_pipe + PIPE_SSPP_SRC0_ADDR);
+
+	mdss_mdp_set_flush(pinfo, &ctl0_reg_val, &ctl1_reg_val);
+	if (pinfo->dest == DISPLAY_1) {
+		writel(ctl0_reg_val, display_req[0].ctl_base[0] + CTL_FLUSH);
+		if (display_req[0].num_ctl == 2)
+			writel(ctl1_reg_val, display_req[0].ctl_base[1] + CTL_FLUSH);
+	} else if (pinfo->dest == DISPLAY_2) {
+		writel(ctl0_reg_val, display_req[1].ctl_base[0] + CTL_FLUSH);
+		if (display_req[1].num_ctl == 2)
+			writel(ctl1_reg_val, display_req[1].ctl_base[1] + CTL_FLUSH);
+	} else if (pinfo->dest == DISPLAY_3) {
+		writel(ctl0_reg_val, display_req[2].ctl_base[0] + CTL_FLUSH);
+		if (display_req[2].num_ctl == 2)
+			writel(ctl1_reg_val, display_req[2].ctl_base[1] + CTL_FLUSH);
+	}
 
 	return 0;
 }
@@ -2475,38 +2445,21 @@ int mdss_hdmi_update(struct msm_panel_info *pinfo)
 	return NO_ERROR;
 }
 
-int mdss_hdmi_update_pipe(struct msm_panel_info *pinfo)
+int mdss_hdmi_update_pipe(struct msm_panel_info *pinfo,  struct fbcon_config *fb)
 {
 	uint32_t ctl0_reg_val = 0;
-	uint32_t ctl_base_addr;
+	uint32_t ctl1_reg_val = 0;
+	uint32_t left_pipe, right_pipe;
 
-	if (pinfo->dest == DISPLAY_3) {
-		ctl_base_addr = MDP_CTL_2_BASE;
-	} else if (pinfo->dest == DISPLAY_2) {
-		ctl_base_addr = MDP_CTL_1_BASE;
-	} else {
-		ctl_base_addr = MDP_CTL_0_BASE;
-	}
+	mdp_select_pipe_type(pinfo, &left_pipe, &right_pipe);
+	writel((uint32_t) fb->base, left_pipe + PIPE_SSPP_SRC0_ADDR);
+	if (pinfo->lcdc.split_display)
+		writel((uint32_t) fb->base, right_pipe + PIPE_SSPP_SRC0_ADDR);
 
-	if (pinfo->pipe_type == MDSS_MDP_PIPE_TYPE_VIG){
-		switch (pinfo->pipe_id) {
-			case 0:
-				ctl0_reg_val |= BIT(0);
-				break;
-			case 1:
-				ctl0_reg_val |= BIT(1);
-				break;
-			case 2:
-				ctl0_reg_val |= BIT(2);
-				break;
-			case 3:
-			default:
-				ctl0_reg_val |= BIT(18);
-				break;
-		}
-	}
-
-	writel(ctl0_reg_val, ctl_base_addr + CTL_FLUSH);
+	mdss_mdp_set_flush(pinfo, &ctl0_reg_val, &ctl1_reg_val);
+	ctl0_reg_val &= 0x0FFFFFFF;  // remove the interface setting
+	ctl0_reg_val |= BIT(28);     // enable interface 3
+	writel(ctl0_reg_val, display_req[pinfo->dest - 1].ctl_base[0] + CTL_FLUSH);
 
 	return NO_ERROR;
 }
