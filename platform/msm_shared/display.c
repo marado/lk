@@ -387,25 +387,14 @@ int msm_display_update_pipe(struct fbcon_config *fb, uint32_t pipe_id, uint32_t 
 
 	switch (pinfo->type) {
 		case MIPI_VIDEO_PANEL:
-			ret = mdp_dsi_video_config_pipe(pinfo, fb);
-			if (ret) {
-				dprintf(CRITICAL, "ERROR in DSI pipe config\n");
-				goto msm_display_update_out;
-			}
-
-			ret = mdp_dsi_video_update_pipe(pinfo);
+			ret = mdp_dsi_video_update_pipe(pinfo, fb);
 			if (ret) {
 				dprintf(CRITICAL, "ERROR in DSI pipe upate\n");
 				goto msm_display_update_out;
 			}
 			break;
 		case HDMI_PANEL:
-			ret = mdss_hdmi_config_pipe(pinfo, fb);
-			if (ret) {
-				dprintf(CRITICAL, "ERROR in HDMI pipe config\n");
-				goto msm_display_update_out;
-			}
-			ret = mdss_hdmi_update_pipe(pinfo);
+			ret = mdss_hdmi_update_pipe(pinfo, fb);
 			if (ret) {
 				dprintf(CRITICAL, "ERROR in HDMI pipe upate\n");
 				goto msm_display_update_out;
