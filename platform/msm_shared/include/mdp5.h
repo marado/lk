@@ -307,7 +307,7 @@ int mdp_dsi_cmd_off(void);
 
 int mdp_dsi_video_on(struct msm_panel_info *pinfo);
 int mdp_dsi_video_update(struct msm_panel_info *pinfo);
-int mdp_dsi_video_off();
+int mdp_dsi_video_off(struct msm_panel_info *pinfo);
 
 int mdp_lcdc_config(struct msm_panel_info *pinfo, struct fbcon_config *fb);
 int mdp_lcdc_on();
