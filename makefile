@@ -89,7 +89,7 @@ endif
 
 ifeq ($(ENABLE_QSEED_SCALAR),1)
   CFLAGS += -DENABLE_QSEED_SCALAR=1
-  EXT_LIB := ../../../out/target/product/msm8996/vendor/lib64/liblkscalar.a
+  EXT_LIB := ../../../out/target/product/msm8996/obj/STATIC_LIBRARIES/liblkscalar_intermediates/liblkscalar.a
 else
   EXT_LIB :=
 endif
