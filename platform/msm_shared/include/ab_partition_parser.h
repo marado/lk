@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2017-2018, The Linux Foundation. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are met:
@@ -59,13 +59,14 @@ struct ab_slot_info
 /* A/B support API(s) */
 bool partition_multislot_is_supported();/* Check Multislot is supported */
 bool partition_scan_for_multislot();	/* Calling to scan part. table. */
-void partition_mark_active_slot();	/* Marking slot active */
-void partition_reset_attributes();	/* Resetting slot attr. */
-void partition_fill_slot_meta();	/* Fill slot meta infomation */
-void partition_switch_slots();		/* Switching slots */
+void partition_mark_active_slot(int slot);	/* Marking slot active */
+void partition_reset_attributes(int slot);	/* Resetting slot attr. */
+void partition_fill_slot_meta(struct ab_slot_info *slot_info);/* Fill slot meta infomation */
+void partition_switch_slots(int old_slot, int new_slot);/* Switching slots */
 void partition_deactivate_slot(int slot); /* Mark slot unbootable and reset other attributes*/
 void partition_activate_slot(int slot);	 /* Mark slot bootable and set other attributes*/
 int partition_find_boot_slot();		/* Find bootable partition */
 int partition_find_active_slot();	/* Find current active partition*/
-int partition_fill_partition_meta();	/* Fill partition slot info meta*/
+int partition_fill_partition_meta(char has_slot_pname[][MAX_GET_VAR_NAME_SIZE],
+	char has_slot_reply[][MAX_RSP_SIZE], int array_size);/* Fill partition slot info meta*/
 

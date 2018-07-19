@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2017-2018, The Linux Foundation. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are met:
@@ -215,7 +215,7 @@ bool partition_scan_for_multislot()
 	This function reset partition_priority, retry_count
 	and clear successful and bootable bits.
 */
-void partition_reset_attributes(unsigned index)
+void partition_reset_attributes(int index)
 {
 	struct partition_entry *partition_entries =
 					partition_get_partition_entries();
@@ -528,7 +528,7 @@ mark_all_partitions_active(signed slot)
 	Function: Mark the slot to be active and also conditionally
 	update the slot parameters if there is a change.
 */
-void partition_mark_active_slot(signed slot)
+void partition_mark_active_slot(int slot)
 {
 	if (active_slot == slot)
 		goto out;
