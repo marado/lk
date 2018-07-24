@@ -89,7 +89,17 @@ endif
 
 ifeq ($(ENABLE_QSEED_SCALAR),1)
   CFLAGS += -DENABLE_QSEED_SCALAR=1
+ifneq ($(wildcard ../../../vendor/qcom/proprietary/prebuilt_HY22),)
+  # directory HY22_DIR exists
+  EXT_LIB := ../../../vendor/qcom/proprietary/prebuilt_HY22/target/product/msm8996/vendor/lib64/liblkscalar.a
+else
+ifneq ($(wildcard ../../../vendor/qcom/proprietary/prebuilt_HY11),)
+  # directory HY11_DIR exists
+  EXT_LIB := ../../../vendor/qcom/proprietary/prebuilt_HY11/target/product/msm8996/vendor/lib64/liblkscalar.a
+else
   EXT_LIB := ../../../out/target/product/msm8996/vendor/lib64/liblkscalar.a
+endif
+endif
 else
   EXT_LIB :=
 endif

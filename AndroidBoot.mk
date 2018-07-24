@@ -117,10 +117,20 @@ endif
 
 ifeq ($(TARGET_BOARD_PLATFORM),msm8996)
   ENABLE_QSEED_SCALAR := ENABLE_QSEED_SCALAR=1
-  EXT_LIB := EXT_LIB=../../../out/target/product/msm8996/vendor/lib64/liblkscalar.a
+ifneq ($(wildcard ../../../vendor/qcom/proprietary/prebuilt_HY22),)
+  # directory HY22_DIR exists:
+  EXT_LIB := ../../../vendor/qcom/proprietary/prebuilt_HY22/target/product/msm8996/vendor/lib64/liblkscalar.a
+else
+ifneq ($(wildcard ../../../vendor/qcom/proprietary/prebuilt_HY11),)
+  # directory HY11_DIR exists:
+  EXT_LIB := ../../../vendor/qcom/proprietary/prebuilt_HY11/target/product/msm8996/vendor/lib64/liblkscalar.a
+else
+  EXT_LIB := ../../../out/target/product/msm8996/vendor/lib64/liblkscalar.a
+endif
+endif
 else
   ENABLE_QSEED_SCALAR := ENABLE_QSEED_SCALAR=0
-  EXT_LIB := EXT_LIB=
+  EXT_LIB :=
 endif
 
 ifeq ($(TARGET_BOOTLOADER_BOARD_NAME),)
