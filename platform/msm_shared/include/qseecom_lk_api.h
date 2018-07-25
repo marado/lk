@@ -1,4 +1,4 @@
-/* Copyright (c) 2015, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2015, 2018, The Linux Foundation. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -41,6 +41,16 @@
 *   Failure:	Error code (negative only).
 */
 int qseecom_init();
+
+/**
+ * Qseecom get version.
+ *	To be called before calls to set app region.
+ *
+ * @return unsigned int
+ *   Success:	Valid version
+ *   Failure:	Garbage value
+ */
+unsigned int qseecom_get_version();
 
 /**
 * Qseecom Tz Init
