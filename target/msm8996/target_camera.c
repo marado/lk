@@ -1,4 +1,4 @@
-/* Copyright (c) 2014-2016, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2014-2016, 2018, The Linux Foundation. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -74,6 +74,7 @@ int gpio_triggered = 0;
 int toggle =0;
 int delay_to_attach_t32 = 0;
 static bool early_camera_enabled = FALSE;
+int pingpong_buffer_updated = 0;
 
 enum msm_camera_i2c_reg_addr_type {
 	MSM_CAMERA_I2C_BYTE_ADDR = 1,
@@ -1619,7 +1620,7 @@ static void early_camera_setup_layer(int display_id)
 		layer_cam.layer = NULL;
 		return;
 	}
-	fb = target_display_get_fb(DISPLAY_ID);
+	fb = target_display_get_fb(RVC_DISPLAY_ID);
 	if (fb == NULL){
 		dprintf(CRITICAL, "Display FB acquire failed\n");
 		layer_cam.fb = NULL;
@@ -1633,17 +1634,16 @@ static void early_camera_setup_layer(int display_id)
 	layer_cam.fb = fb;
 	fb->bpp = 16;
 	fb->format = kFormatYCbCr422H2V1Packed;
-	layer_cam.width = fb->width;
-	layer_cam.height = fb->height;
-	if (1280 < fb->width) {
-		dprintf(SPEW, "Modify width\n");
-		layer_cam.width = 1280;
-	}
-	if (720 < fb->height) {
-		dprintf(SPEW, "Modify height\n");
-		layer_cam.height = 720;
-	}
-
+	layer_cam.src_width = 1280;
+	layer_cam.src_height = 720;
+	layer_cam.dst_width = 1280;
+	layer_cam.dst_height = 720;
+	layer_cam.src_rect_x = 0;
+	layer_cam.src_rect_y = 0;
+	layer_cam.dst_rect_x = 0;
+	layer_cam.dst_rect_y = 0;
+    dprintf(SPEW,"Early Cam Layer src xy:%d-%d  dst xy:%d-%d  src wid/hig:%d-%d dst wid/hig:%d-%d  fb wid/hig:%d-%d\n",
+        layer_cam.src_rect_x, layer_cam.src_rect_y, layer_cam.dst_rect_x, layer_cam.dst_rect_y, layer_cam.src_width, layer_cam.src_height, layer_cam.dst_width, layer_cam.dst_height,fb->width, fb->height);
 }
 static void early_camera_remove_layer(void)
 {
@@ -1652,7 +1652,7 @@ static void early_camera_remove_layer(void)
 
 static int early_camera_setup_display(void)
 {
-	disp_ptr = target_display_open(DISPLAY_ID);
+	disp_ptr = target_display_open(RVC_DISPLAY_ID);
 	if (disp_ptr == NULL) {
 		dprintf(CRITICAL, "Display open failed\n");
 		return -1;
@@ -1845,7 +1845,7 @@ void early_camera_flip(void)
 			if (gpio_triggered) {
 				if(toggle ==0) {
 					toggle = 1;
-					early_camera_setup_layer(DISPLAY_ID);
+					early_camera_setup_layer(RVC_DISPLAY_ID);
 				}
 
 				if (layer_cam.fb) {
@@ -1855,7 +1855,12 @@ void early_camera_flip(void)
 						layer_cam.fb->base = (void *)VFE_PONG_ADDR;
 					layer_cam.z_order = 1;
 					layer_cam.fb->format = kFormatYCbCr422H2V1Packed;
-					target_display_update(&update_cam,1,DISPLAY_ID);
+					if (pingpong_buffer_updated < 2) {
+						target_display_update(&update_cam,1,RVC_DISPLAY_ID);
+						pingpong_buffer_updated++;
+					} else
+						target_display_update_pipe(&update_cam, 1,
+									RVC_DISPLAY_ID);
 				}
 			} else {
 				if(toggle ==1) {
@@ -1864,6 +1869,7 @@ void early_camera_flip(void)
 					layer_cam_ptr = NULL;
 					layer_cam.layer = layer_cam_ptr;
 					toggle = 0;
+					pingpong_buffer_updated = 0;
 				}
 			}
 			if (firstframe == 0) {

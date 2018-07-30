@@ -63,7 +63,8 @@
 #define SDCC_HC_VENDOR_SPECIFIC_FUNC3            0x1B0
 #define SDCC_HC_REG_DLL_CONFIG_2                 0x1B4
 #define SDCC_HC_REG_DDR_CONFIG                   0x1B8
-
+#define SDCC_HC_VENDOR_SPECIFIC_DDR200_CFG       0x184
+#define CMDIN_RCLK_EN                            BIT(1)
 #define DDR_CAL_EN                               BIT(0)
 #define DDR_CAL_TIMEOUT_MAX                      50
 #define DDR_DLL_LOCK_JDR                         BIT(11)
@@ -142,6 +143,7 @@ struct sdhci_msm_data
 
 void sdhci_msm_init(struct sdhci_host *host, struct sdhci_msm_data *data);
 uint32_t sdhci_msm_execute_tuning(struct sdhci_host *host, struct mmc_card * card, uint32_t bus_width);
+uint32_t sdhci_msm_hs400_calibration(struct sdhci_host *host);
 void sdhci_mode_disable(struct sdhci_host *host);
 /* API: Toggle the bit for clock-data recovery */
 void sdhci_msm_toggle_cdr(struct sdhci_host *host, bool enable);

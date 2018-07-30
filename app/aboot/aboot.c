@@ -119,6 +119,8 @@ typedef void (*fastboot_cmd_fn) (const char *, void *, unsigned);
 /* turns on the secondary core */
 void enable_secondary_core();
 
+void target_display_update_scratch_register();
+
 struct fastboot_cmd_desc {
 	char * name;
 	fastboot_cmd_fn cb;
@@ -532,8 +534,9 @@ unsigned char *update_cmdline(const char * cmdline)
 	if (partition_multislot_is_supported())
 	{
 		current_active_slot = partition_find_active_slot();
-		cmdline_len += (strlen(androidboot_slot_suffix)+
-					strlen(SUFFIX_SLOT(current_active_slot)));
+		if (current_active_slot != INVALID)
+		  	cmdline_len += (strlen(androidboot_slot_suffix)+
+				strlen(SUFFIX_SLOT(current_active_slot)));
 
 		system_ptn_index = partition_get_index("system");
 		if (platform_boot_dev_isemmc())
@@ -771,7 +774,8 @@ unsigned char *update_cmdline(const char * cmdline)
 				--dst;
 				while ((*dst++ = *src++));
 				--dst;
-				src = SUFFIX_SLOT(current_active_slot);
+				if (current_active_slot != INVALID)
+				        src = SUFFIX_SLOT(current_active_slot);
 				while ((*dst++ = *src++));
 
 				if (!boot_into_recovery)
@@ -1166,7 +1170,7 @@ static void verify_signed_bootimg(uint32_t bootimg_addr, uint32_t bootimg_size)
 	{
 		write_device_info_mmc(&device);
 	#ifdef TZ_TAMPER_FUSE
-		set_tamper_fuse_cmd();
+		set_tamper_fuse_cmd(HLOS_IMG_TAMPER_FUSE);
 	#endif
 	#ifdef ASSERT_ON_TAMPER
 		dprintf(CRITICAL, "Device is tampered. Asserting..\n");
@@ -4537,6 +4541,14 @@ void aboot_init(const struct app_descriptor *app)
 		{
 			mdelay_optimal(10);
 		}
+
+		/*
+		 * For static splash case, scratch register 1 should be
+		 * updated with 0xDEADBEEF to notify kernel no early
+		 * domain runs.
+		 */
+		if (!device.early_domain_enabled)
+			target_display_update_scratch_register();
 	}
 	target_serialno((unsigned char *) sn_buf);
 	dprintf(SPEW,"serial number: %s\n",sn_buf);
@@ -4626,7 +4638,7 @@ normal_boot:
 				if((device.is_unlocked) || (device.is_tampered))
 				{
 				#ifdef TZ_TAMPER_FUSE
-					set_tamper_fuse_cmd();
+					set_tamper_fuse_cmd(HLOS_IMG_TAMPER_FUSE);
 				#endif
 				#if USE_PCOM_SECBOOT
 					set_tamper_flag(device.is_tampered);
