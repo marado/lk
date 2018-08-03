@@ -1,4 +1,4 @@
-/* Copyright (c) 2012-2016, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2012-2016, 2018, The Linux Foundation. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -62,6 +62,10 @@
 #define PIPE_COMP0_3_PHASE_STEP_Y               0x214
 #define PIPE_COMP1_2_PHASE_STEP_X               0x218
 #define PIPE_COMP1_2_PHASE_STEP_Y               0x21c
+#define PIPE_COMP0_3_INIT_PHASE_X               0x220
+#define PIPE_COMP0_3_INIT_PHASE_Y               0x224
+#define PIPE_COMP1_2_INIT_PHASE_X               0x228
+#define PIPE_COMP1_2_INIT_PHASE_Y               0x22C
 #define PIPE_VP_0_OP_MODE                       0x200
 #define PIPE_VP_0_QSEEP2_CONFIG                 0x204
 #define PIPE_VP_0_QSEEP2_SHARP_SMOOTH_STRENGTH  0x230
@@ -165,6 +169,7 @@
 #define CTL_LAYER_0                             0x00
 #define CTL_LAYER_1                             0x04
 #define CTL_LAYER_2                             0x08
+#define CTL_LAYER_5                             0x24
 #define CTL_TOP                                 0x14
 #define CTL_FLUSH                               0x18
 #define CTL_START                               0x1C
@@ -283,13 +288,31 @@
 #define CDM_CDWN2_CLAMP_OUT 		REG_MDP(0x7A304)
 #define CDM_CSC_10_OP_MODE 		REG_MDP(0x7A200)
 
+#define DSI0_ERR_INT_MASK		REG_MDP(0x9410c)
+#define DSI1_ERR_INT_MASK		REG_MDP(0x9610C)
+#define DSI_ERR_INT_RESET_STATUS	0x7FFF3BFF
+#define DSI0_INT_CTRL			REG_MDP(0x94110)
+#define DSI1_INT_CTRL			REG_MDP(0x96110)
+#define DSI_INT_CTRL_RESET_STATUS	0x51115501
+
 void mdp_set_revision(int rev);
 int mdp_get_revision();
 int mdp_dsi_video_config(struct msm_panel_info *pinfo, struct fbcon_config *fb);
+int mdp_dsi_video_update_pipe(struct msm_panel_info *pinfo, struct fbcon_config *fb);
+int mdp_dsi_video_reset_interrupt_status(void);
 int mdp_dsi_cmd_config(struct msm_panel_info *pinfo, struct fbcon_config *fb);
 int mipi_dsi_cmd_config(struct fbcon_config mipi_fb_cfg,
 			unsigned short num_of_lanes);
+int mdp_dsi_cmd_off(void);
+
 int mdp_dsi_video_on(struct msm_panel_info *pinfo);
+int mdp_dsi_video_update(struct msm_panel_info *pinfo);
+int mdp_dsi_video_off(struct msm_panel_info *pinfo);
+
+int mdp_lcdc_config(struct msm_panel_info *pinfo, struct fbcon_config *fb);
+int mdp_lcdc_on();
+int mdp_lcdc_off();
+
 int mdp_dma_on(struct msm_panel_info *pinfo);
 int mdp_edp_config(struct msm_panel_info *pinfo, struct fbcon_config *fb);
 int mdp_edp_on(struct msm_panel_info *pinfo);
@@ -308,6 +331,8 @@ void mdss_hdmi_display_init(uint32_t rev, void *base);
 int mdss_hdmi_on(struct msm_panel_info *pinfo);
 int mdss_hdmi_off(struct msm_panel_info *pinfo);
 int mdss_hdmi_config(struct msm_panel_info *pinfo, struct fbcon_config *fb);
+int mdss_hdmi_update(struct msm_panel_info *pinfo);
+int mdss_hdmi_update_pipe(struct msm_panel_info *pinfo, struct fbcon_config *fb);
 void mdss_hdmi_get_vic(char *buf);
 void hdmi_phy_init(void);
 int msm_display_off();
@@ -320,4 +345,5 @@ void mdss_dsc_mdp_config(struct msm_panel_info *pinfo,
 	unsigned int pp_base, unsigned int dsc_base,
 	bool mux, bool split_mode);
 
+int mdss_layer_mixer_remove_pipe(struct msm_panel_info *pinfo);
 #endif

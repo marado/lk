@@ -2,7 +2,7 @@
  * Copyright (c) 2008, Google Inc.
  * All rights reserved.
  *
- * Copyright (c) 2009-2015, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2009-2015, 2018, The Linux Foundation. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -410,7 +410,9 @@ void fbcon_setup(struct fbcon_config *_config)
 #if !DISPLAY_SPLASH_SCREEN
 	fbcon_clear();
 #endif
-
+#if ENABLE_QSEED_SCALAR
+	config->layer_scale = NULL;
+#endif
 }
 
 struct fbcon_config* fbcon_display(void)

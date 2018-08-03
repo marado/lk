@@ -1,4 +1,4 @@
-/* Copyright (c) 2011-2016, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2011-2016, 2018, The Linux Foundation. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -103,7 +103,7 @@ int mipi_dsi_cmd_config(struct fbcon_config mipi_fb_cfg,
 void mdp_shutdown(void);
 void mdp_disable(void);
 void mdp_start_dma(void);
-int mdp_dsi_video_off();
+int mdp_dsi_video_off(void);
 int mdp_dsi_cmd_off(void);
 int mdp_dsi_video_on(struct msm_panel_info *pinfo);
 int mdp_dsi_video_update(struct msm_panel_info *pinfo);

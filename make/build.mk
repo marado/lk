@@ -8,12 +8,18 @@ $(OUTBIN): $(OUTELF)
 
 ifeq ($(ENABLE_TRUSTZONE), 1)
 $(OUTELF): $(ALLOBJS) $(LINKER_SCRIPT) $(OUTPUT_TZ_BIN)
-	@echo linking $@
-	$(NOECHO)$(LD) $(LDFLAGS) -T $(LINKER_SCRIPT) $(OUTPUT_TZ_BIN) $(ALLOBJS) $(LIBGCC) -o $@
+	$(shell mkdir -p ../../../out/target/product/msm8996/vendor/lib64/)
+	$(shell cp ../../../vendor/qcom/proprietary/prebuilt_HY11/target/product/msm8996/vendor/lib64/liblkscalar.a ../../../out/target/product/msm8996/vendor/lib64/liblkscalar.a)
+	@echo linking $@ $(EXT_LIB)
+	@echo $(NOECHO)$(LD) $(LDFLAGS) -T $(LINKER_SCRIPT) $(OUTPUT_TZ_BIN) $(ALLOBJS) $(EXT_LIB) $(LIBGCC) -o $@
+	$(NOECHO)$(LD) $(LDFLAGS) -T $(LINKER_SCRIPT) $(OUTPUT_TZ_BIN) $(ALLOBJS) $(EXT_LIB) $(LIBGCC) -o $@
 else
 $(OUTELF): $(ALLOBJS) $(LINKER_SCRIPT)
-	@echo linking $@
-	$(NOECHO)$(LD) $(LDFLAGS) -T $(LINKER_SCRIPT) $(ALLOBJS) $(LIBGCC) -o $@
+	$(shell mkdir -p ../../../out/target/product/msm8996/vendor/lib64/)
+	$(shell cp ../../../vendor/qcom/proprietary/prebuilt_HY11/target/product/msm8996/vendor/lib64/liblkscalar.a ../../../out/target/product/msm8996/vendor/lib64/liblkscalar.a)
+	@echo linking $@ $(EXT_LIB)
+	@echo $(NOECHO)$(LD) $(LDFLAGS) -T $(LINKER_SCRIPT) $(ALLOBJS) $(EXT_LIB) $(LIBGCC) -o $@
+	$(NOECHO)$(LD) $(LDFLAGS) -T $(LINKER_SCRIPT) $(ALLOBJS) $(EXT_LIB) $(LIBGCC) -o $@
 endif
 
 

@@ -1,4 +1,4 @@
-/* Copyright (c) 2012-2017, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2012-2018, The Linux Foundation. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -395,6 +395,8 @@ struct msm_panel_info {
 	/*  Select pipe type for handoff */
 	uint32_t pipe_type;
 	uint32_t pipe_id;
+	uint32_t lm_id;
+	uint32_t ctl_id;
 	uint32_t zorder;
 	char     lowpowerstop;
 	char     lcd_reg_en;
@@ -415,6 +417,7 @@ struct msm_panel_info {
 	struct hdmi_panel_info hdmi;
 	struct edp_panel_info edp;
 	struct dsi2HDMI_panel_info adv7533;
+	struct dsi2HDMI_panel_info sadv7533;
 	bool has_bridge_chip;
 
 	struct dfps_info dfps;

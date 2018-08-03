@@ -1,4 +1,4 @@
-/* Copyright (c) 2014-2016 The Linux Foundation. All rights reserved.
+/* Copyright (c) 2014-2016, 2018 The Linux Foundation. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -98,8 +98,10 @@
 #define PMIC_ARB_CHANNEL_NUM    0
 #define PMIC_ARB_OWNER_ID       0
 
-/* Run Early camera for 30 seconds i.e 900 frames incase of no gpio */
-#define EARLYCAM_NO_GPIO_FRAME_LIMIT 900
+/* As now early camera's handoff is supported, so
+ * set frame limit to 2400 frames incase of no gpio
+ */
+#define EARLYCAM_NO_GPIO_FRAME_LIMIT 2400
 
 static int early_camera_enabled = 1;
 static int early_audio_enabled = 1;
@@ -395,6 +397,10 @@ void toggle_neutrino(void) {
                 .output_buffer = PM_GPIO_OUT_CMOS,
                 .out_strength = PM_GPIO_OUT_DRIVE_LOW,
     };
+
+    gpio_tlmm_config(69, 0, GPIO_OUTPUT, GPIO_PULL_DOWN,
+                        GPIO_8MA,GPIO_DISABLE );
+    gpio_set(69, 0);
 
     pm8x41_gpio_config(13, &gpio);
 	pm8x41_gpio_set(13, 1);
@@ -895,7 +901,7 @@ typedef struct animated_img_header {
 
 #define NUM_DISPLAYS 3
 void **buffers[NUM_DISPLAYS];
-struct animated_img_header g_head[NUM_DISPLAYS];
+struct animated_img_header img_header[NUM_DISPLAYS];
 
 int animated_splash_screen_mmc()
 {
@@ -939,7 +945,7 @@ int animated_splash_screen_mmc()
 	buffer = (void *)ANIMATED_SPLASH_BUFFER;
 	for (j = 0; j < NUM_DISPLAYS; j++)
 	{
-		head = (void *)&(g_head[j]);
+		head = (void *)&(img_header[j]);
 		if (mmc_read(ptn, (uint32_t *)(head), blocksize)) {
 			dprintf(CRITICAL, "ERROR: Cannot read splash image header\n");
 			return -1;
@@ -1046,14 +1052,16 @@ int animated_splash() {
 	uint32_t ret = 0, k = 0, j = 0;
 	uint32_t frame_cnt[NUM_DISPLAYS];
 	struct target_display_update update[NUM_DISPLAYS];
-	struct target_layer layer[NUM_DISPLAYS];
+	struct target_layer layer_list[NUM_DISPLAYS];
 	struct target_display * disp;
 	struct fbcon_config *fb;
-	uint32_t sleep_time;
+	uint32_t sleep_time = 0;
 	uint32_t disp_cnt = target_display_init_count();
 	uint32_t reg_value;
 	bool camera_on = FALSE;
 	bool camera_frame_on = false;
+	bool stop_display_splash = false;
+	bool firstframe[disp_cnt];
 #if EARLYCAMERA_NO_GPIO
 	uint32_t frame_count = 0;
 #endif
@@ -1062,8 +1070,16 @@ int animated_splash() {
 		dprintf(CRITICAL, "Unexpected error in read\n");
 		return 0;
 	}
-	for (j = 0; j < NUM_DISPLAYS; j ++) {
+
+	/* Ensure inited display number by user is not greater than NUM_DISPLAYS. */
+	if (disp_cnt > NUM_DISPLAYS) {
+		dprintf(CRITICAL, "Inited display number exceeds\n");
+		disp_cnt = NUM_DISPLAYS;
+	}
+
+	for (j = 0; j < disp_cnt; j ++) {
 		frame_cnt[j] = 0;
+		firstframe[j] = true;
 		disp_ptr = target_display_open(j);
 		if (disp_ptr == NULL) {
 			dprintf(CRITICAL, "Display open failed\n");
@@ -1084,24 +1100,21 @@ int animated_splash() {
 			dprintf(CRITICAL, "frame buffer acquire failed\n");
 			return -1;
 		}
-
-		layer[j].layer = layer_ptr;
-		layer[j].z_order = 2;
+		layer_list[j].layer = layer_ptr;
+		layer_list[j].z_order = 2;
 		update[j].disp = disp_ptr;
-		update[j].layer_list = &layer[j];
+		update[j].layer_list = &layer_list[j];
 		update[j].num_layers = 1;
-		layer[j].fb = fb;
-		sleep_time = 1000 / g_head[j].fps;
-		layer[j].width = fb->width;
-		layer[j].height = fb->height;
-		if (g_head[j].width < fb->width) {
-			dprintf(SPEW, "Modify width\n");
-			layer[j].width = g_head[j].width;
-		}
-		if (g_head[j].height < fb->height) {
-			dprintf(SPEW, "Modify height\n");
-			layer[j].height = g_head[j].height;
-		}
+		layer_list[j].fb = fb;
+		sleep_time = 1000 / img_header[j].fps;
+		layer_list[j].src_width = img_header[j].width;
+		layer_list[j].src_height = img_header[j].height;
+		layer_list[j].dst_width = img_header[j].width;
+		layer_list[j].dst_height = img_header[j].height;
+		layer_list[j].src_rect_x = 0;
+		layer_list[j].src_rect_y = 0;
+		layer_list[j].dst_rect_x = (disp->width - layer_list[j].dst_width)/2;
+		layer_list[j].dst_rect_y = (disp->height - layer_list[j].dst_height)/2;
 	}
 
 	while (1) {
@@ -1130,32 +1143,54 @@ int animated_splash() {
 			else if ((1 == early_camera_enabled) &&
 					(FALSE == camera_on) && (false == camera_frame_on))
 				break;
+			else {
+				/* early RVC is still on while splash display needs to be stopped */
+				stop_display_splash = true;
+			}
 		}
 
 		for (j = 0; j < disp_cnt; j++) {
 			if (j == 0 && early_camera_enabled == 1) {
 				if (early_camera_on()) {
-					if(layer[j].layer) {
-						target_release_layer(&layer[j]);
-						layer[j].layer = NULL;
+					if(layer_list[j].layer) {
+						target_release_layer(&layer_list[j]);
+						firstframe[j] = true; // reset firstframe for the RVC display
+						layer_list[j].layer = NULL;
 					}
 					camera_frame_on = true;
 					continue;
 				} else {
-					if(!layer[j].layer) {
-						layer_ptr = target_display_acquire_layer(disp_ptr, "as", kFormatRGB888);
-						layer[j].layer = layer_ptr;
-						layer[j].z_order = 2;
+					if(!layer_list[j].layer) {
+						layer_ptr = target_display_acquire_layer(update[j].disp, "as", kFormatRGB888);
+						layer_list[j].layer = layer_ptr;
+						layer_list[j].z_order = 2;
 						camera_frame_on = false;
 					}
 				}
 			}
-			layer[j].fb->base = buffers[j][frame_cnt[j]];
-			layer[j].fb->format = kFormatRGB888;
-			layer[j].fb->bpp = 24;
-			ret = target_display_update(&update[j],1, j);
+
+			/* if stop_display_splash is true, that means kernel has set 0xDEADDEAD to
+			 * scratch register to stop early display, so release display layer.
+			 */
+			if (stop_display_splash) {
+				if(layer_list[j].layer) {
+					target_release_layer(&layer_list[j]);
+					layer_list[j].layer = NULL;
+				}
+				continue;
+			}
+
+			layer_list[j].fb->base = buffers[j][frame_cnt[j]];
+			layer_list[j].fb->format = kFormatRGB888;
+			layer_list[j].fb->bpp = 24;
+			if (firstframe[j] == true) {
+				ret = target_display_update(&update[j],1, j);
+				firstframe[j] = false;
+			} else {
+				ret = target_display_update_pipe(&update[j],1, j);
+			}
 			frame_cnt[j]++;
-			if (frame_cnt[j] >= g_head[j].num_frames) {
+			if (frame_cnt[j] >= img_header[j].num_frames) {
 				frame_cnt[j] = 0;
 			}
 		}
@@ -1168,15 +1203,26 @@ int animated_splash() {
 			mdelay_optimal(sleep_time);
 		k++;
 #if EARLYCAMERA_NO_GPIO
-		frame_count++;
-		if (EARLYCAM_NO_GPIO_FRAME_LIMIT < frame_count)
-			break;
+		if (EARLYCAM_NO_GPIO_FRAME_LIMIT < frame_count) {
+			early_camera_enabled = 0;
+			if(camera_frame_on) {
+				early_camera_stop();
+				layer_ptr = target_display_acquire_layer(
+					update[RVC_DISPLAY_ID].disp, "as", kFormatRGB888);
+				layer_list[RVC_DISPLAY_ID].layer = layer_ptr;
+				layer_list[RVC_DISPLAY_ID].z_order = 2;
+				camera_frame_on = false;
+			}
+		} else if (early_camera_enabled){
+			frame_count++;
+		}
 #endif
 	}
 	if (early_camera_enabled == 1)
 		early_camera_stop();
+
 	for (j = 0; j < disp_cnt; j++) {
-		target_release_layer(&layer[j]);
+		target_release_layer(&layer_list[j]);
 	}
 
 	return ret;
@@ -1202,10 +1248,8 @@ void earlydomain_services()
 	/* Ensure panel type is selected before touching display scratch register. */
 	if (panel_is_selected) {
 		dprintf(CRITICAL, "earlydomain_services: Display init done\n");
-
-		/* Notify Kernel that LK is running */
+		// Notify Kernel that LK is running
 		writel(0xC001CAFE, MDSS_SCRATCH_REG_1);
-
 	} else {
 		dprintf(CRITICAL, "earlydomain_services: panel is not selected\n");
 	}
@@ -1228,8 +1272,7 @@ void earlydomain_services()
 		dprintf(CRITICAL, "earlydomain_services: Early Audio started\n");
 	}
 
-	/*Create Animated splash thread
-	if target supports it*/
+	/*Create Animated splash thread if target supports it*/
 	if (panel_is_selected && target_animated_splash_screen())
 	{
 		ret = animated_splash_screen_mmc();
@@ -1252,10 +1295,9 @@ void earlydomain_services()
 		early_audio_enabled = 0;
 	}
 
-	if (panel_is_selected) {
-		// Notify Kernel that LK is shutdown
+	// Notify Kernel that LK is shutdown
+	if (panel_is_selected)
 		writel(0xDEADBEEF, MDSS_SCRATCH_REG_1);
-	}
 }
 
 #else
@@ -1268,6 +1310,11 @@ void earlydomain_services() {}
 void earlydomain_exit() {}
 
 #endif /* EARLYDOMAIN_SUPPORT */
+
+void target_display_update_scratch_register()
+{
+	writel(0xDEADBEEF, MDSS_SCRATCH_REG_1);
+}
 
 int target_update_cmdline(char *cmdline)
 {

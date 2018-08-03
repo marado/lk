@@ -1,4 +1,4 @@
-/* Copyright (c) 2015-2016, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2015-2016, 2018, The Linux Foundation. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -92,11 +92,11 @@ static const uint32_t panel_physical_ctrl[] = { };
 #define NUM_TARGET_DISPLAYS          3
 #define NUM_TARGET_LAYERS            10
 
-#define NUM_VIG_PIPES                1
-#define VIG_ID_START                 3
-#define VIG_PIPE_START               7
+#define NUM_VIG_PIPES                4
+#define VIG_ID_START                 4
+#define VIG_PIPE_START               4
 
-#define NUM_RGB_PIPES                3
+#define NUM_RGB_PIPES                4
 #define RGB_ID_START                 0
 #define RGB_PIPE_START               0
 
@@ -151,6 +151,7 @@ struct target_display {
   uint32_t width;
   uint32_t height;
   float    fps;
+  bool     dual_pipe;
 };
 
 struct target_layer_int {
@@ -168,8 +169,10 @@ struct target_layer {
   uint32_t            dst_rect_y;
   uint32_t            z_order;
   uint32_t            global_aplha;
-  uint32_t            width;
-  uint32_t            height;
+  uint32_t            src_width;
+  uint32_t            src_height;
+  uint32_t            dst_width;
+  uint32_t            dst_height;
   struct fbcon_config *fb;
 };
 
@@ -185,6 +188,8 @@ struct target_display * target_get_display_info(void *disp);
 void *target_display_acquire_layer(struct target_display * disp, char *client_name, int color_format);
 struct fbcon_config* target_display_get_fb(uint32_t disp_id);
 int target_display_update(struct target_display_update * update, uint32_t size, uint32_t disp_id);
+int target_display_update_pipe(struct target_display_update * update,
+				uint32_t size, uint32_t disp_id);
 int target_release_layer(struct target_layer *layer);
 int target_display_close(struct target_display * disp);
 bool target_display_panel_is_selected();
