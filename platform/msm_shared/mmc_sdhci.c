@@ -40,8 +40,7 @@
 
 extern void clock_init_mmc(uint32_t);
 extern void clock_config_mmc(uint32_t, uint32_t);
-bool strobe_support;
-extern uint32_t sdhci_msm_hs400_calibration(struct sdhci_host *host);
+
 /* data access time unit in ns */
 static const uint32_t taac_unit[] =
 {
@@ -825,25 +824,6 @@ static uint8_t mmc_card_supports_hs400_mode(struct mmc_card *card)
 }
 
 /*
- * Function: mmc card supports hs400es mode
- * Arg     : None
- * Return  : 1 if hs400 mode with enhanced strobe is supported , 0 otherwise
- * Flow    : Check the ext csd attributes of the card
- */
-
-static uint8_t check_strobe_support(struct mmc_card *card)
-{
-        if (MMC_CARD_MMC(card)) {
-                if (card->ext_csd[MMC_EXT_STROBE_SUPPORT])
-                        return 1;
-                else
-                        return 0;
-        }
-	else
-		return 0;
-}
-
-/*
  * Function: mmc card supports hs200 mode
  * Arg     : None
  * Return  : 1 if HS200 mode is supported, 0 otherwise
@@ -962,14 +942,11 @@ static uint32_t mmc_set_hs200_mode(struct sdhci_host *host,
 static uint8_t mmc_set_ddr_mode(struct sdhci_host *host, struct mmc_card *card)
 {
 	uint8_t mmc_ret = 0;
-	uint32_t width = DATA_DDR_BUS_WIDTH_8BIT;
 
 	DBG("\n Enabling DDR Mode Start\n");
 
 	/* Set width for 8 bit DDR mode by default */
-	if(strobe_support)
-		width = width | 0x80;
-	mmc_ret = mmc_set_bus_width(host, card, width);
+	mmc_ret = mmc_set_bus_width(host, card, DATA_DDR_BUS_WIDTH_8BIT);
 
 	if (mmc_ret) {
 		dprintf(CRITICAL, "Failure to set DDR mode for Card(RCA:%x)\n",
@@ -1048,24 +1025,14 @@ uint32_t mmc_set_hs400_mode(struct sdhci_host *host,
 		return 1;
 	}
 
-	/* Check if eMMC card support Enhanced Strobe(ES) Mode */
-	if(check_strobe_support(card))
-	{	strobe_support = true;
-                dprintf(INFO, "MMC Card supports Enhanced Strobe mode, running in Enhanced Strobe mode\n");
+	/* 1.Enable HS200 mode */
+	mmc_ret = mmc_set_hs200_mode(host, card, width);
+
+	if (mmc_ret)
+	{
+		dprintf(CRITICAL, "Failure Setting HS200 mode %s\t%d\n",__func__, __LINE__);
+		return mmc_ret;
 	}
-
-	/* 1.Enable HS200 mode if strobe support is not present*/
-
-	if(!strobe_support){
-		mmc_ret = mmc_set_hs200_mode(host, card, width);
-		if (mmc_ret){
-			dprintf(CRITICAL, "Failure Setting HS200 mode %s\t%d\n",__func__, __LINE__);
-			return mmc_ret;
-		}
-	}
-	else
-		clock_config_mmc(host->msm_host->slot, SDHCI_CLK_400MHZ);
-
 
 	/* 2. Enable High speed mode */
 	/* This is needed to set the clock to a low value &
@@ -1103,32 +1070,17 @@ uint32_t mmc_set_hs400_mode(struct sdhci_host *host,
 	/* Save the timing value, before changing the clock */
 	MMC_SAVE_TIMING(host, MMC_HS400_TIMING);
 	sdhci_set_uhs_mode(host, SDHCI_SDR104_MODE);
+	/*
+	* Enable HS400 mode
+	*/
+	sdhci_msm_set_mci_clk(host);
+	/* Set the clock back to 400 MHZ */
+	clock_config_mmc(host->msm_host->slot, SDHCI_CLK_400MHZ);
 
-	if(!strobe_support){
-		sdhci_msm_set_mci_clk(host);
-		/* Set the clock back to 400 MHZ */
-		clock_config_mmc(host->msm_host->slot, SDHCI_CLK_400MHZ);
-	}
-	else {
-		REG_RMW32(host, SDCC_VENDOR_SPECIFIC_FUNC, SDCC_HC_MCLK_SEL_IN_START,
-				SDCC_HC_MCLK_SEL_IN_WIDTH, SDCC_HC_MCLK_SEL_IN_HS400);
-		REG_RMW32(host, SDCC_VENDOR_SPECIFIC_FUNC, SDCC_HC_MCLK_SEL_IN_EN_START,
-				SDCC_HC_MCLK_SEL_IN_EN_WIDTH, SDCC_HC_MCLK_SEL_IN_EN);
-	}
+	/* 7. Execute Tuning for hs400 mode */
+	if ((mmc_ret = sdhci_msm_execute_tuning(host, card, width)))
+		dprintf(CRITICAL, "Tuning for hs400 failed\n");
 
-	/* 7. Execute Calibration for HS400 if enhanced strobe is supported else execute tuning*/
-
-	if(!strobe_support){
-		if ((mmc_ret = sdhci_msm_execute_tuning(host, card, width)))
-			dprintf(CRITICAL, "Tuning for hs400 failed\n");
-	}
-	else {
-		mmc_ret =sdhci_msm_hs400_calibration(host);
-			if(mmc_ret)
-				dprintf(CRITICAL, "Calibration for HS400ES mode failed\n");
-			else
-				host->msm_host->calibration_done = true;
-	}
 	DBG("\n Enabling HS400 Mode Done\n");
 
 	return mmc_ret;

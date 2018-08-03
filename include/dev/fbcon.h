@@ -2,7 +2,7 @@
  * Copyright (c) 2008, Google Inc.
  * All rights reserved.
  *
- * Copyright (c) 2009-2015, 2018, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2009-2015, The Linux Foundation. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -32,10 +32,6 @@
 #define __DEV_FBCON_H
 
 #include <stdint.h>
-#if ENABLE_QSEED_SCALAR
-#include <target/scalar.h>
-#endif
-
 #define LOGO_IMG_OFFSET (12*1024*1024)
 #define LOGO_IMG_MAGIC "SPLASH!!"
 #define LOGO_IMG_MAGIC_SIZE sizeof(LOGO_IMG_MAGIC) - 1
@@ -88,9 +84,6 @@ struct fbcon_config {
 
 	void		(*update_start)(void);
 	int		(*update_done)(void);
-#if ENABLE_QSEED_SCALAR
-	struct LayerInfo *layer_scale;
-#endif
 };
 
 void fbcon_setup(struct fbcon_config *cfg);

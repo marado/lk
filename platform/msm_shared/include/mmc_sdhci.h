@@ -88,7 +88,6 @@
 /* Offsets in the ext csd */
 #define MMC_EXT_CSD_RST_N_FUNC                    162
 #define MMC_EXT_MMC_BUS_WIDTH                     183
-#define MMC_EXT_STROBE_SUPPORT                    184
 #define MMC_EXT_MMC_HS_TIMING                     185
 #define MMC_EXT_CSD_REV                           192
 #define MMC_DEVICE_TYPE                           196

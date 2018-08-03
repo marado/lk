@@ -6,10 +6,6 @@ INCLUDES += \
 DEFINES += $(TARGET_XRES)
 DEFINES += $(TARGET_YRES)
 
-ifeq ($(ENABLE_QSEED_SCALAR),1)
- DEFINES += ENABLE_QSEED_SCALAR=1
-endif
-
 OBJS += \
 	$(LOCAL_DIR)/debug.o \
 	$(LOCAL_DIR)/smem.o \

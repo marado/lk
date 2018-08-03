@@ -1,4 +1,4 @@
-/* Copyright (c) 2012-2016, 2018, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2012-2016, The Linux Foundation. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -29,7 +29,7 @@
 #include <debug.h>
 #include <err.h>
 #include <msm_panel.h>
-#include <mdp5.h>
+#include <mdp4.h>
 #include <mipi_dsi.h>
 #include <boot_stats.h>
 #include <platform.h>
@@ -39,20 +39,9 @@
 #ifdef DISPLAY_TYPE_MDSS
 #include <target/display.h>
 #endif
-#if ENABLE_QSEED_SCALAR
-#include <target/scalar.h>
-#endif
-
-/* splash memory size is 35 MiB */
-#define SPLASH_BUFFER_SIZE 36700160
 
 static struct msm_fb_panel_data *panel;
-#ifdef NUM_TARGET_DISPLAYS
-static struct msm_fb_panel_data panel_array[NUM_TARGET_DISPLAYS];
-#else
-static struct msm_fb_panel_data panel_array[1];
-#endif
-
+static struct msm_fb_panel_data *panel_array= NULL;
 static uint32_t num_panel = 0;
 
 extern int lvds_on(struct msm_fb_panel_data *pdata);
@@ -68,7 +57,7 @@ static int msm_fb_alloc(struct fbcon_config *fb)
 	if (target_animated_splash_screen()) {
 		/* Static splash + animated splash buffers */
 		dprintf(SPEW, "Allocate extra buffers for animates splash\n");
-		num_buffers =  SPLASH_BUFFER_SIZE / (fb->width * fb->height * (fb->bpp / 8));
+		num_buffers = 13;
 	}
 
 	if (fb->base == NULL)
@@ -308,7 +297,7 @@ int msm_display_update(struct fbcon_config *fb, uint32_t pipe_id, uint32_t pipe_
 	struct msm_panel_info *pinfo;
 	struct msm_fb_panel_data *panel_local;
 	int ret = 0;
-	if (!fb) {
+	if (!panel_array || !fb) {
 		dprintf(CRITICAL, "Error! Inalid args\n");
 		return ERR_INVALID_ARGS;
 	}
@@ -316,7 +305,6 @@ int msm_display_update(struct fbcon_config *fb, uint32_t pipe_id, uint32_t pipe_
 	panel_local->fb = *fb;
 	pinfo = &(panel_local->panel_info);
 	pinfo->pipe_type = pipe_type;
-	pinfo->pipe_id = pipe_id;
 	pinfo->zorder = zorder;
 	pinfo->border_top = fb->height/2 - height/2;
 	pinfo->border_bottom = pinfo->border_top;
@@ -325,13 +313,6 @@ int msm_display_update(struct fbcon_config *fb, uint32_t pipe_id, uint32_t pipe_
 
 	switch (pinfo->type) {
 		case MIPI_VIDEO_PANEL:
-			/*
-			 * Kernel will enable interrupts for the case LK and Kernel
-			 * access hardware at the same time, so LK can't disable
-			 * interrupts.
-			 */
-			mdp_dsi_video_reset_interrupt_status();
-
 			ret = mdp_dsi_video_config(pinfo, fb);
 			if (ret) {
 				dprintf(CRITICAL, "ERROR in display config\n");
@@ -365,62 +346,6 @@ msm_display_update_out:
 	return ret;
 }
 
-int msm_display_update_pipe(struct fbcon_config *fb, uint32_t pipe_id, uint32_t pipe_type,
-	uint32_t zorder, uint32_t width, uint32_t height, uint32_t disp_id)
-{
-	struct msm_panel_info *pinfo;
-	struct msm_fb_panel_data *panel_local;
-	int ret = 0;
-	if (!fb) {
-		dprintf(CRITICAL, "Error! Inalid args\n");
-		return ERR_INVALID_ARGS;
-	}
-	panel_local = &(panel_array[disp_id]);
-	panel_local->fb = *fb;
-	pinfo = &(panel_local->panel_info);
-	pinfo->pipe_type = pipe_type;
-	pinfo->zorder = zorder;
-	pinfo->border_top = fb->height/2 - height/2;
-	pinfo->border_bottom = pinfo->border_top;
-	pinfo->border_left = fb->width/2 - width/2;
-	pinfo->border_right = pinfo->border_left;
-
-	switch (pinfo->type) {
-		case MIPI_VIDEO_PANEL:
-			ret = mdp_dsi_video_config_pipe(pinfo, fb);
-			if (ret) {
-				dprintf(CRITICAL, "ERROR in DSI pipe config\n");
-				goto msm_display_update_out;
-			}
-
-			ret = mdp_dsi_video_update_pipe(pinfo);
-			if (ret) {
-				dprintf(CRITICAL, "ERROR in DSI pipe upate\n");
-				goto msm_display_update_out;
-			}
-			break;
-		case HDMI_PANEL:
-			ret = mdss_hdmi_config_pipe(pinfo, fb);
-			if (ret) {
-				dprintf(CRITICAL, "ERROR in HDMI pipe config\n");
-				goto msm_display_update_out;
-			}
-			ret = mdss_hdmi_update_pipe(pinfo);
-			if (ret) {
-				dprintf(CRITICAL, "ERROR in HDMI pipe upate\n");
-				goto msm_display_update_out;
-			}
-			break;
-		default:
-			dprintf(CRITICAL, "Update not supported right now\n");
-			break;
-	}
-
-msm_display_update_out:
-	return ret;
-}
-
-
 int msm_display_remove_pipe(uint32_t pipe_id, uint32_t pipe_type, uint32_t disp_id)
 {
 	struct msm_panel_info *pinfo;
@@ -428,7 +353,10 @@ int msm_display_remove_pipe(uint32_t pipe_id, uint32_t pipe_type, uint32_t disp_
 	int ret = 0;
 	panel_local = &(panel_array[disp_id]);
 
-
+	if (!panel_array) {
+		dprintf(CRITICAL, "Error! Inalid args\n");
+		return ERR_INVALID_ARGS;
+	}
 	pinfo = &(panel_local->panel_info);
 	pinfo->pipe_type = pipe_type;
 	pinfo->pipe_id = pipe_id;
@@ -449,6 +377,11 @@ int msm_display_init(struct msm_fb_panel_data *pdata)
 {
 	int ret = NO_ERROR;
 
+	if (panel_array == NULL) {
+		int num_target_display;
+		num_target_display = target_get_max_display();
+		panel_array = malloc(num_target_display * sizeof(struct  msm_fb_panel_data));
+	}
 	panel = pdata;
 	if (!panel) {
 		ret = ERR_INVALID_ARGS;
@@ -542,7 +475,7 @@ int msm_display_init(struct msm_fb_panel_data *pdata)
 
 	// if panel init correctly, save the panel struct in the array
 	memcpy((void*) &panel_array[num_panel], (void*) panel, sizeof(struct  msm_fb_panel_data));
-	dprintf (SPEW, "Panel %d init, width:%d height:%d\n", num_panel, panel_array[num_panel].fb.width, panel_array[num_panel].fb.height);
+	dprintf (SPEW, "Panel %d init, width:%d height:%d\n", num_panel, panel->fb.width, panel->fb.height);
 	num_panel ++;
 
 msm_display_init_out:

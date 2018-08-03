@@ -1,4 +1,4 @@
-/* Copyright (c) 2015-2018, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2015-2017, The Linux Foundation. All rights reserved.
 *
 * Redistribution and use in source and binary forms, with or without
 * modification, are permitted provided that the following conditions are
@@ -196,10 +196,14 @@ static char *str_align_right(char *str, int factor)
 			for (i = 0; i < diff; i++) {
 				strlcat(str_target, " ", max_x);
 			}
+			strlcat(str_target, str, max_x);
+			return str_target;
+		} else {
+			free(str_target);
+			return str;
 		}
-		strlcat(str_target, str, max_x);
 	}
-	return str_target;
+	return str;
 }
 
 /* msg_lock need to be holded when call this function. */

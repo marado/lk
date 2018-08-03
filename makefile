@@ -87,13 +87,6 @@ ifeq ($(ENABLE_EARLY_ETHERNET),1)
   CFLAGS += -DENABLE_EARLY_ETHERNET=1
 endif
 
-ifeq ($(ENABLE_QSEED_SCALAR),1)
-  CFLAGS += -DENABLE_QSEED_SCALAR=1
-  EXT_LIB := ../../../out/target/product/msm8996/obj/STATIC_LIBRARIES/liblkscalar_intermediates/liblkscalar.a
-else
-  EXT_LIB :=
-endif
-
 # setup toolchain prefix
 TOOLCHAIN_PREFIX ?= arm-eabi-
 CFLAGS += -fstack-protector-all
@@ -111,9 +104,8 @@ all:: $(OUTBIN) $(OUTELF).lst $(OUTELF).debug.lst $(OUTELF).sym $(OUTELF).size $
 
 # the following three object lists are identical except for the ordering
 # which is bootobjs, kobjs, objs
-BOOTOBJS :=
+BOOTOBJS :=	
 OBJS :=
-
 
 # a linker script needs to be declared in one of the project/target/platform files
 LINKER_SCRIPT := 			
