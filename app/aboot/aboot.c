@@ -4534,7 +4534,8 @@ void aboot_init(const struct app_descriptor *app)
 	 * below while loop, which is to wait for mmc_read is done
 	 * in earlydomain_services.
 	 */
-	if (strcmp(device.display_panel, PANEL_IS_NONE)) {
+	if ((strlen(device.display_panel) != 0) &&
+		strcmp(device.display_panel, PANEL_IS_NONE)) {
 		while ((device.early_domain_enabled)
 			&& (TRUE == target_animated_splash_screen())
 			&& (FALSE == target_is_mmc_read_done()))
