@@ -1,4 +1,4 @@
-/* Copyright (c) 2015-2017, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2015-2018, The Linux Foundation. All rights reserved.
 *
 * Redistribution and use in source and binary forms, with or without
 * modification, are permitted provided that the following conditions are
@@ -41,19 +41,30 @@
 #include <target.h>
 #include <sys/types.h>
 #include <../../../app/aboot/devinfo.h>
+#include <../../../app/aboot/recovery.h>
 
-static const char *unlock_menu_common_msg = "If you unlock the bootloader, "\
-				"you will be able to install "\
-				"custom operating system on this phone.\n\n"\
-				"A custom OS is not subject to the same testing "\
-				"as the original OS, "\
-				"and can cause your phone and installed "\
-				"applications to stop working properly.\n\n"\
+static const char *unlock_menu_common_msg = "By unlocking the bootloader, you will be able to install "\
+				"custom operating system on this phone. "\
+				"A custom OS is not subject to the same level of testing "\
+				"as the original OS, and can cause your phone "\
+				"and installed applications to stop working properly.\n\n"\
+				"Software integrity cannot be guaranteed with a custom OS, "\
+				"so any data stored on the phone while the bootloader "\
+				"is unlocked may be at risk.\n\n"\
 				"To prevent unauthorized access to your personal data, "\
 				"unlocking the bootloader will also delete all personal "\
-				"data from your phone(a \"factory data reset\").\n\n"\
-				"Press the Volume Up/Down buttons to select Yes "\
-				"or No. Then press the Power button to continue.\n";
+				"data on your phone.\n\n"\
+				"Press the Volume keys to select whether to unlock the bootloader, "\
+				"then the Power Button to continue.\n\n";
+
+static const char *lock_menu_common_msg = "If you lock the bootloader, "\
+				"you will not be able to install "\
+				"custom operating system on this phone.\n\n"\
+				"To prevent unauthorized access to your personal data, "\
+				"locking the bootloader will also delete all personal "\
+				"data on your phone.\n\n"\
+				"Press the Volume keys to select whether to "\
+				"lock the bootloader, then the power button to continue.\n\n";
 
 #define YELLOW_WARNING_MSG	"Your device has loaded a different operating system\n\n "\
 				"Visit this link on another device:\n"
@@ -78,7 +89,7 @@ static const char *unlock_menu_common_msg = "If you unlock the bootloader, "\
 static bool is_thread_start = false;
 static struct select_msg_info msg_info;
 
-#if VERIFIED_BOOT
+#if VERIFIED_BOOT || VERIFIED_BOOT_2
 struct boot_verify_info {
 	int msg_type;
 	const char *warning_msg;
@@ -107,6 +118,18 @@ static char *fastboot_option_menu[] = {
 		[3] = "Power off\n",
 		[4] = "Boot to FFBM\n"};
 
+static struct unlock_info munlock_info[] = {
+		[DISPLAY_MENU_LOCK] = {UNLOCK, FALSE},
+		[DISPLAY_MENU_UNLOCK] = {UNLOCK, TRUE},
+		[DISPLAY_MENU_LOCK_CRITICAL] = {UNLOCK_CRITICAL, FALSE},
+		[DISPLAY_MENU_UNLOCK_CRITICAL] = {UNLOCK_CRITICAL, TRUE},
+};
+
+struct unlock_option_msg munlock_option_msg[] = {
+		[TRUE] = {"DO NOT UNLOCK THE BOOTLOADER \n", "UNLOCK THE BOOTLOADER \n"},
+		[FALSE] = {"DO NOT LOCK THE BOOTLOADER \n", "LOCK THE BOOTLOADER \n"},
+};
+
 static int big_factor = 2;
 static int common_factor = 1;
 
@@ -130,6 +153,8 @@ static void wait_for_exit()
 
 void wait_for_users_action()
 {
+	if (is_display_disabled())
+		return;
 	/* Waiting for exit menu keys detection if there is no any usr action
 	 * otherwise it will do the action base on the keys detection thread
 	 */
@@ -141,6 +166,9 @@ void exit_menu_keys_detection()
 	struct select_msg_info *select_msg;
 	select_msg = &msg_info;
 
+	if (is_display_disabled())
+		return;
+
 	mutex_acquire(&select_msg->msg_lock);
 	select_msg->info.is_exit = true;
 	mutex_release(&select_msg->msg_lock);
@@ -151,8 +179,13 @@ void exit_menu_keys_detection()
 static void set_message_factor()
 {
 	uint32_t tmp_factor = 0;
-	uint32_t max_x_count = 40;
-	uint32_t max_x = fbcon_get_max_x();
+	uint32_t max_x_count = 0;
+	uint32_t max_x = 0;
+
+	if (fbcon_get_width() < fbcon_get_height())
+		max_x_count = CHAR_NUM_PERROW_POR;
+	else
+		max_x_count = CHAR_NUM_PERROW_HOR;
 
 	max_x = fbcon_get_max_x();
 	tmp_factor = max_x/max_x_count;
@@ -196,50 +229,77 @@ static char *str_align_right(char *str, int factor)
 			for (i = 0; i < diff; i++) {
 				strlcat(str_target, " ", max_x);
 			}
-			strlcat(str_target, str, max_x);
-			return str_target;
-		} else {
-			free(str_target);
-			return str;
 		}
+		strlcat(str_target, str, max_x);
 	}
-	return str;
+	return str_target;
+}
+
+/**
+  Reset device unlock status
+  @param[in] Type    The type of the unlock.
+                     [DISPLAY_MENU_UNLOCK]: unlock the device
+                     [DISPLAY_MENU_UNLOCK_CRITICAL]: critical unlock the device
+                     [DISPLAY_MENU_LOCK]: lock the device
+                     [DISPLAY_MENU_LOCK_CRITICAL]: critical lock the device
+ **/
+void reset_device_unlock_status (int type)
+{
+	struct recovery_message msg;
+
+	if (type == DISPLAY_MENU_LOCK ||
+		type == DISPLAY_MENU_UNLOCK ||
+		type == DISPLAY_MENU_LOCK_CRITICAL ||
+		type == DISPLAY_MENU_UNLOCK_CRITICAL) {
+		set_device_unlock_value (munlock_info[type].unlock_type,
+				munlock_info[type].unlock_value);
+		memset(&msg, 0, sizeof(msg));
+		snprintf(msg.recovery, sizeof(msg.recovery), "recovery\n--wipe_data");
+		write_misc(0, &msg, sizeof(msg));
+	}
 }
 
 /* msg_lock need to be holded when call this function. */
-void display_unlock_menu_renew(struct select_msg_info *unlock_msg_info, int type)
+static void display_unlock_menu_renew(struct select_msg_info *unlock_msg_info,
+                                      int type, bool status)
 {
 	fbcon_clear();
 	memset(&unlock_msg_info->info, 0, sizeof(struct menu_info));
 
-	display_fbcon_menu_message("Unlock bootloader?\n",
+	display_fbcon_menu_message("<!>\n\n",
 		FBCON_UNLOCK_TITLE_MSG, big_factor);
-	fbcon_draw_line(FBCON_COMMON_MSG);
 
-	display_fbcon_menu_message((char*)unlock_menu_common_msg,
-		FBCON_COMMON_MSG, common_factor);
+	if (status) {
+		display_fbcon_menu_message((char*)unlock_menu_common_msg,
+			FBCON_COMMON_MSG, common_factor);
+	} else {
+		display_fbcon_menu_message((char*)lock_menu_common_msg,
+			FBCON_COMMON_MSG, common_factor);
+	}
+
 	fbcon_draw_line(FBCON_COMMON_MSG);
 	unlock_msg_info->info.option_start[0] = fbcon_get_current_line();
-	display_fbcon_menu_message("Yes\n",
-		FBCON_COMMON_MSG, big_factor);
+	display_fbcon_menu_message((char *)munlock_option_msg[status].ignore_msg,
+                               FBCON_COMMON_MSG, common_factor);
 	unlock_msg_info->info.option_bg[0] = fbcon_get_current_bg();
-	display_fbcon_menu_message("Unlock bootloader(may void warranty)\n",
-		FBCON_COMMON_MSG, common_factor);
 	unlock_msg_info->info.option_end[0] = fbcon_get_current_line();
 	fbcon_draw_line(FBCON_COMMON_MSG);
 	unlock_msg_info->info.option_start[1] = fbcon_get_current_line();
-	display_fbcon_menu_message("No\n",
-		FBCON_COMMON_MSG, big_factor);
+	display_fbcon_menu_message((char *)munlock_option_msg[status].comfirm_msg,
+                               FBCON_COMMON_MSG, common_factor);
 	unlock_msg_info->info.option_bg[1] = fbcon_get_current_bg();
-	display_fbcon_menu_message("Do not unlock bootloader and restart phone\n",
-		FBCON_COMMON_MSG, common_factor);
 	unlock_msg_info->info.option_end[1] = fbcon_get_current_line();
 	fbcon_draw_line(FBCON_COMMON_MSG);
 
-	if (type == UNLOCK)
+	if (type == UNLOCK) {
 		unlock_msg_info->info.msg_type = DISPLAY_MENU_UNLOCK;
-	else if (type == UNLOCK_CRITICAL)
+		if (!status)
+			unlock_msg_info->info.msg_type = DISPLAY_MENU_LOCK;
+	} else if (type == UNLOCK_CRITICAL) {
 		unlock_msg_info->info.msg_type = DISPLAY_MENU_UNLOCK_CRITICAL;
+		if (!status)
+			unlock_msg_info->info.msg_type = DISPLAY_MENU_LOCK_CRITICAL;
+	}
 
 	unlock_msg_info->info.option_num = 2;
 
@@ -247,7 +307,7 @@ void display_unlock_menu_renew(struct select_msg_info *unlock_msg_info, int type
 	unlock_msg_info->info.option_index= 2;
 }
 
-#if VERIFIED_BOOT
+#if VERIFIED_BOOT || VERIFIED_BOOT_2
 /* msg_lock need to be holded when call this function. */
 void display_bootverify_menu_renew(struct select_msg_info *msg_info, int type)
 {
@@ -471,10 +531,13 @@ static void display_menu_thread_start(struct select_msg_info *msg_info)
 /* The fuction be called after device in fastboot mode,
  * so it's no need to initialize the msg_lock again
  */
-void display_unlock_menu(int type)
+void display_unlock_menu(int type, bool status)
 {
 	struct select_msg_info *unlock_menu_msg_info;
 	unlock_menu_msg_info = &msg_info;
+
+	if (is_display_disabled())
+		return;
 
 	set_message_factor();
 
@@ -485,10 +548,11 @@ void display_unlock_menu(int type)
 	unlock_menu_msg_info->last_msg_type =
 		unlock_menu_msg_info->info.msg_type;
 
-	display_unlock_menu_renew(unlock_menu_msg_info, type);
+	display_unlock_menu_renew(unlock_menu_msg_info, type, status);
 	mutex_release(&unlock_menu_msg_info->msg_lock);
 
-	dprintf(INFO, "creating unlock keys detect thread\n");
+	dprintf(INFO, "creating %s keys detect thread\n",
+		status ? "unlock":"lock");
 	display_menu_thread_start(unlock_menu_msg_info);
 }
 
@@ -496,6 +560,9 @@ void display_fastboot_menu()
 {
 	struct select_msg_info *fastboot_menu_msg_info;
 	fastboot_menu_msg_info = &msg_info;
+
+	if (is_display_disabled())
+		return;
 
 	set_message_factor();
 
@@ -518,11 +585,14 @@ void display_fastboot_menu()
 	display_menu_thread_start(fastboot_menu_msg_info);
 }
 
-#if VERIFIED_BOOT
+#if VERIFIED_BOOT || VERIFIED_BOOT_2
 void display_bootverify_menu(int type)
 {
 	struct select_msg_info *bootverify_menu_msg_info;
 	bootverify_menu_msg_info = &msg_info;
+
+	if (is_display_disabled())
+		return;
 
 	set_message_factor();
 

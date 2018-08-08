@@ -9,22 +9,39 @@ MODULES += app/aboot
 ifeq ($(TARGET_BUILD_VARIANT),user)
 DEBUG := 0
 else
+ifeq ($(DISABLE_LOGGING_BL),1)
+DEBUG := 0
+else
 DEBUG := 1
+endif
 endif
 
 EMMC_BOOT := 1
 
-ifeq ($(VERIFIED_BOOT),1)
+ifeq ($(ENABLE_DISPLAY),1)
+DEFINES += ENABLE_DISPLAY=1
+DEFINES += DISPLAY_SPLASH_SCREEN=1
+endif
+
 ENABLE_SECAPP_LOADER := 1
 ENABLE_RPMB_SUPPORT := 1
+
+ifeq ($(VERIFIED_BOOT),1)
 ifneq (,$(findstring DISPLAY_SPLASH_SCREEN,$(DEFINES)))
 #enable fbcon display menu
 ENABLE_FBCON_DISPLAY_MSG := 1
 endif
 endif
 
+ifeq ($(VERIFIED_BOOT_2),1)
+ifneq (,$(findstring DISPLAY_SPLASH_SCREEN,$(DEFINES)))
+#enable fbcon display menu
+  ENABLE_FBCON_DISPLAY_MSG := 1
+endif
+endif
+
 ENABLE_SMD_SUPPORT := 1
-#ENABLE_PWM_SUPPORT := true
+ENABLE_PWM_SUPPORT := true
 
 #DEFINES += WITH_DEBUG_DCC=1
 DEFINES += WITH_DEBUG_LOG_BUF=1
@@ -117,3 +134,9 @@ endif
 
 #enable battery voltage check
 DEFINES += CHECK_BAT_VOLTAGE=1
+
+#Enable the external reboot functions
+ENABLE_REBOOT_MODULE := 1
+
+#Use PON register for reboot reason
+DEFINES += USE_PON_REBOOT_REG=1

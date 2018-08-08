@@ -1,4 +1,4 @@
-/* Copyright (c) 2014, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2014, 2017-2018, The Linux Foundation. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -35,4 +35,10 @@
 
 void pm_vib_turn_on(void);
 void pm_vib_turn_off(void);
+
+void pm_vib_ldo_turn_on(void);
+void pm_vib_ldo_turn_off(void);
+
+void pm_haptic_vib_turn_on(void);
+void pm_haptic_vib_turn_off(void);
 #endif/* __DEV_PMIC_VIB_VIBRATOR_H */

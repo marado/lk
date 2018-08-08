@@ -2,7 +2,7 @@
  * Copyright (c) 2009, Google Inc.
  * All rights reserved.
  *
- * Copyright (c) 2013-2015, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2013-2015, 2018, The Linux Foundation. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -247,7 +247,7 @@ static int usb30_usb_read(void *_buf, unsigned len)
 	}
 
 	/* invalidate any cached buf data (controller updates main memory) */
-	arch_invalidate_cache_range((addr_t) _buf, count);
+	arch_invalidate_cache_range((addr_t) _buf, ROUNDUP(count, CACHE_LINE));
 
 	return count;
 
@@ -340,7 +340,7 @@ static int hsusb_usb_read(void *_buf, unsigned len)
 	 * Force reload of buffer from memory
 	 * since transaction is complete now.
 	 */
-	arch_invalidate_cache_range((addr_t)_buf, count);
+	arch_invalidate_cache_range((addr_t)_buf, ROUNDUP(count, CACHE_LINE));
 	return count;
 
 oops:
@@ -489,7 +489,7 @@ static void cmd_download(const char *arg, void *data, unsigned sz)
 	/*
 	 * Discard the cache contents before starting the download
 	 */
-	arch_invalidate_cache_range((addr_t) download_base, len);
+	arch_invalidate_cache_range((addr_t) download_base, ROUNDUP(len, CACHE_LINE));
 
 	r = usb_if.usb_read(download_base, len);
 	if ((r < 0) || ((unsigned) r != len)) {
@@ -720,7 +720,7 @@ int fastboot_init(void *base, unsigned size)
 	fastboot_register("upload", cmd_upload);
 	fastboot_publish("version", "0.5");
 
-	thr = thread_create("fastboot", fastboot_handler, 0, DEFAULT_PRIORITY, 4096);
+	thr = thread_create("fastboot", fastboot_handler, 0, DEFAULT_PRIORITY, DEFAULT_STACK_SIZE);
 	if (!thr)
 	{
 		goto fail_alloc_in;

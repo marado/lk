@@ -153,6 +153,15 @@ int msm_display_config()
 		if (ret)
 			goto msm_display_config_out;
 		break;
+	case SPI_PANEL:
+		dprintf(INFO, "Config SPI PANEL.\n");
+		ret = mdss_spi_init();
+		if (ret)
+			goto msm_display_config_out;
+		ret = mdss_spi_panel_init(pinfo);
+		if (ret)
+			goto msm_display_config_out;
+		break;
 	case HDMI_PANEL:
 		dprintf(SPEW, "Config HDMI PANEL.\n");
 		ret = mdss_hdmi_config(pinfo, &(panel->fb));
@@ -268,6 +277,15 @@ int msm_display_on()
 	case EDP_PANEL:
 		dprintf(SPEW, "Turn on EDP PANEL.\n");
 		ret = mdp_edp_on(pinfo);
+		if (ret)
+			goto msm_display_on_out;
+		break;
+	case SPI_PANEL:
+		dprintf(INFO, "Turn on SPI_PANEL.\n");
+		ret = mdss_spi_on(pinfo, &(panel->fb));
+		if (ret)
+			goto msm_display_on_out;
+		ret = mdss_spi_cmd_post_on(pinfo);
 		if (ret)
 			goto msm_display_on_out;
 		break;

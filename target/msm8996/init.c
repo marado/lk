@@ -1,4 +1,4 @@
-/* Copyright (c) 2014-2016, 2018 The Linux Foundation. All rights reserved.
+/* Copyright (c) 2014-2016, 2018, The Linux Foundation. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -85,6 +85,12 @@
 #define ANIMATED_SPLAH_PARTITION "splash"
 #define ANIMATED_SPLASH_BUFFER   0x836a5580
 #define ANIMATED_SPLASH_LOOPS    150
+
+#if MOUNT_EMMC_LE
+       #define ROOTFS_EMMC_PATH " root=/dev/mmcblk0p"
+#else
+       #define ROOTFS_EMMC_PATH " root=/dev/mmcblock0p"
+#endif
 
 #define CE_INSTANCE             1
 #define CE_EE                   0
@@ -230,7 +236,7 @@ void target_uninit(void)
 
 #if VERIFIED_BOOT || defined(SET_ROT_ONLY)
 #if VERIFIED_BOOT
-	if (target_get_vb_version() == VB_V2 &&
+	if (target_get_vb_version() >= VB_M &&
 		is_sec_app_loaded())
 #endif
 	{
@@ -259,7 +265,7 @@ void target_uninit(void)
 
 #if VERIFIED_BOOT || defined(SET_ROT_ONLY)
 #if VERIFIED_BOOT
-	if (target_get_vb_version() == VB_V2)
+	if (target_get_vb_version() >= VB_M)
 #endif
 	{
 		if (rpmb_uninit() < 0)
@@ -479,7 +485,7 @@ void target_init(void)
 
 #if VERIFIED_BOOT || defined(SET_ROT_ONLY)
 #if VERIFIED_BOOT
-	if (VB_V2 == target_get_vb_version())
+	if (VB_M <= target_get_vb_version())
 #endif
 	{
 		/* Initialize Qseecom */
@@ -819,7 +825,33 @@ int set_download_mode(enum reboot_reason mode)
 
 void pmic_reset_configure(uint8_t reset_type)
 {
-	pm8994_reset_configure(reset_type);
+	uint8_t sec_pmic_reset_type = reset_type;
+
+	/* use shutdown for non-core pmic's on hard_reset */
+	if (reset_type == PON_PSHOLD_HARD_RESET)
+		sec_pmic_reset_type = PON_PSHOLD_SHUTDOWN;
+
+	/* Confiure primary pmic PM8996 */
+	pm8996_reset_configure(0, reset_type);
+
+	/* Confiure secondary pmic PMI8996 */
+	pm8996_reset_configure(2, sec_pmic_reset_type);
+
+	/* Check if third pmic PM8004 present */
+	if ((board_pmic_target(2) & 0xff) == 0xC)
+	{
+		/* Confiure PM8004 */
+		pm8996_reset_configure(4, reset_type);
+
+		/* Check if fourth pmic PMK8001 present */
+		if ((board_pmic_target(3) & 0xff) == 0x12)
+			pm8996_reset_configure(6, sec_pmic_reset_type);
+	}
+	else if ((board_pmic_target(2) & 0xff) == 0x12)
+	{
+		/* check and configure if third pmic is PMK8001 */
+		pm8996_reset_configure(6, sec_pmic_reset_type);
+	}
 }
 
 uint32_t target_get_pmic()
@@ -1343,7 +1375,7 @@ int get_target_boot_params(const char *cmdline, const char *part, char **buf)
 	char lun_char_base = 'a', lun_char_limit = 'h';
 
 	/*allocate buflen for largest possible string*/
-	uint32_t buflen = strlen(" root=/dev/mmcblock0p") + sizeof(int) + 1; /*1 character for null termination*/
+	uint32_t buflen = strlen(ROOTFS_EMMC_PATH) + sizeof(int) + 1; /*1 character for null termination*/
 
 	if (!cmdline || !part ) {
 		dprintf(CRITICAL, "WARN: Invalid input param\n");
@@ -1373,7 +1405,7 @@ int get_target_boot_params(const char *cmdline, const char *part, char **buf)
 	else
 	{
 		if (platform_boot_dev_isemmc()) {
-			snprintf(*buf, buflen, " root=/dev/mmcblock0p%d",
+			snprintf(*buf, buflen, ROOTFS_EMMC_PATH"%d",
 					system_ptn_index + 1);
 		} else {
 			lun = partition_get_lun(system_ptn_index);

@@ -1,4 +1,4 @@
-/* Copyright (c) 2014-2015, 2017, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2014-2015, 2017-2018, The Linux Foundation. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -131,6 +131,27 @@
 #define GCC_BLSP1_QUP6_CFG_RCGR     (CLK_CTL_BASE + 0x7004)
 #define GCC_BLSP1_QUP6_CMD_RCGR     (CLK_CTL_BASE + 0x7000)
 
+#define GCC_BLSP1_QUP3_SPI_APPS_CBCR        (CLK_CTL_BASE + 0x401C)
+#define GCC_BLSP1_QUP3_SPI_APPS_CMD_RCGR    (CLK_CTL_BASE + 0x4024)
+#define GCC_BLSP1_QUP3_SPI_CFG_RCGR         (CLK_CTL_BASE + 0x4028)
+#define GCC_BLSP1_QUP3_SPI_APPS_M           (CLK_CTL_BASE + 0x402C)
+#define GCC_BLSP1_QUP3_SPI_APPS_N           (CLK_CTL_BASE + 0x4030)
+#define GCC_BLSP1_QUP3_SPI_APPS_D           (CLK_CTL_BASE + 0x4034)
+
+#define GCC_BLSP1_QUP4_SPI_APPS_CBCR        (CLK_CTL_BASE + 0x501C)
+#define GCC_BLSP1_QUP4_SPI_APPS_CMD_RCGR    (CLK_CTL_BASE + 0x5024)
+#define GCC_BLSP1_QUP4_SPI_CFG_RCGR         (CLK_CTL_BASE + 0x5028)
+#define GCC_BLSP1_QUP4_SPI_APPS_M           (CLK_CTL_BASE + 0x502C)
+#define GCC_BLSP1_QUP4_SPI_APPS_N           (CLK_CTL_BASE + 0x5030)
+#define GCC_BLSP1_QUP4_SPI_APPS_D           (CLK_CTL_BASE + 0x5034)
+
+#define GCC_BLSP1_QUP5_SPI_APPS_CBCR        (CLK_CTL_BASE + 0x601C)
+#define GCC_BLSP1_QUP5_SPI_APPS_CMD_RCGR    (CLK_CTL_BASE + 0x6024)
+#define GCC_BLSP1_QUP5_SPI_CFG_RCGR         (CLK_CTL_BASE + 0x6028)
+#define GCC_BLSP1_QUP5_SPI_APPS_M           (CLK_CTL_BASE + 0x602C)
+#define GCC_BLSP1_QUP5_SPI_APPS_N           (CLK_CTL_BASE + 0x6030)
+#define GCC_BLSP1_QUP5_SPI_APPS_D           (CLK_CTL_BASE + 0x6034)
+
 /* GPLL */
 #define GPLL0_STATUS                (CLK_CTL_BASE + 0x21024)
 #define GPLL0_MODE                  (CLK_CTL_BASE + 0x21000)
@@ -190,8 +211,16 @@
 #define RPMB_SND_RCV_BUF_SZ         0x1
 
 /* QSEECOM: Secure app region notification */
-#define APP_REGION_ADDR 0x87b00000
-#define APP_REGION_SIZE 0x100000
+#if QSEECOM_SECAPP_REGION_3MB
+  #define APP_REGION_ADDR 0x87900000
+  #define APP_REGION_SIZE 0x300000
+#elif QSEECOM_SECAPP_REGION_2MB
+  #define APP_REGION_ADDR 0x87a00000
+  #define APP_REGION_SIZE 0x200000
+#else
+  #define APP_REGION_ADDR 0x87b00000
+  #define APP_REGION_SIZE 0x100000
+#endif
 
 
 /* MDSS */
@@ -249,6 +278,8 @@
 #define MDP_INTR_STATUS             REG_MDP(0x00054)
 
 #define MDP_CGC_EN                  REG_MDP(0x100)
+#define MDP_AUTOREFRESH_CONFIG_P    REG_MDP(0x34C)
+#define MDP_SYNC_CONFIG_0           REG_MDP(0x300)
 
 #define SOFT_RESET                  0x118
 #define CLK_CTRL                    0x11C
@@ -292,6 +323,9 @@
 #define SEC_CTRL_CORE_BASE          0x00058000
 #define BOOT_CONFIG_OFFSET          0x0000602C
 #define BOOT_CONFIG_REG             (SEC_CTRL_CORE_BASE + BOOT_CONFIG_OFFSET)
+
+/* For Reading efuse entries to check whether mdp needs to be disabled or not */
+#define EFUSE_OFFSET		    0x00000044
 
 #define SECURITY_CONTROL_CORE_FEATURE_CONFIG0    0x0005E004
 /* EBI2 */

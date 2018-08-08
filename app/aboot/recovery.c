@@ -43,6 +43,8 @@
 #include <target.h>
 #include <partition_parser.h>
 #include <mmc.h>
+#include <malloc.h>
+#include <stdlib.h>
 #include "recovery.h"
 #include "bootimg.h"
 #include "smem.h"
@@ -262,11 +264,6 @@ int recovery_init (void)
 			boot_into_recovery = 1;		// Boot in recovery mode
 			return 0;
 		}
-
-		valid_command = 1;
-		strlcpy(msg.command, "", sizeof(msg.command));	// to safe against multiple reboot into recovery
-		strlcpy(msg.status, "OKAY", sizeof(msg.status));
-		set_recovery_message(&msg);	// send recovery message
 		boot_into_recovery = 1;		// Boot in recovery mode
 		return 0;
 	}

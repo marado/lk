@@ -1,4 +1,4 @@
-/* Copyright (c) 2015-2016, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2015-2018, The Linux Foundation. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -97,6 +97,7 @@
 #define SUB_TYPE_SKUT           0x0A
 #define SMBCHG_USB_RT_STS 0x21310
 #define USBIN_UV_RT_STS BIT(0)
+#define USBIN_UV_RT_STS_PMI632 BIT(2)
 
 struct mmc_device *dev;
 
@@ -191,7 +192,8 @@ int target_volume_up()
 
 	if(platform_is_msm8956())
 		vol_up_gpio = TLMM_VOL_UP_BTN_GPIO_8956;
-	else if(platform_is_msm8937() || platform_is_msm8917())
+	else if(platform_is_msm8937() || platform_is_msm8917() ||
+		    platform_is_sdm429() || platform_is_sdm439())
 		vol_up_gpio = TLMM_VOL_UP_BTN_GPIO_8937;
 	else
 		vol_up_gpio = TLMM_VOL_UP_BTN_GPIO;
@@ -242,9 +244,23 @@ uint32_t target_volume_down()
 
 uint32_t target_is_pwrkey_pon_reason()
 {
-	uint8_t pon_reason = pm8950_get_pon_reason();
-	bool usb_present_sts = !(USBIN_UV_RT_STS &
+	uint32_t pmic = target_get_pmic();
+	uint8_t pon_reason = 0;
+	bool usb_present_sts = 0;
+
+	if (pmic == PMIC_IS_PMI632)
+	{
+		pon_reason = pmi632_get_pon_reason();
+		usb_present_sts = !(USBIN_UV_RT_STS_PMI632 &
 				pm8x41_reg_read(SMBCHG_USB_RT_STS));
+	}
+	else
+	{
+		pon_reason = pm8950_get_pon_reason();
+		usb_present_sts = !(USBIN_UV_RT_STS &
+			pm8x41_reg_read(SMBCHG_USB_RT_STS));
+	}
+
 	if (pm8x41_get_is_cold_boot() && ((pon_reason == KPDPWR_N) || (pon_reason == (KPDPWR_N|PON1))))
 		return 1;
 	else if ((pon_reason == PON1) && (!usb_present_sts))
@@ -264,25 +280,6 @@ static void target_keystatus()
 		keys_post_event(KEY_VOLUMEUP, 1);
 }
 
-/* Configure PMIC and Drop PS_HOLD for shutdown */
-void shutdown_device()
-{
-	dprintf(CRITICAL, "Going down for shutdown.\n");
-
-	/* Configure PMIC for shutdown */
-	pm8x41_reset_configure(PON_PSHOLD_SHUTDOWN);
-
-	/* Drop PS_HOLD for MSM */
-	writel(0x00, MPM2_MPM_PS_HOLD);
-
-	mdelay(5000);
-
-	dprintf(CRITICAL, "shutdown failed\n");
-
-	ASSERT(0);
-}
-
-
 void target_init(void)
 {
 	dprintf(INFO, "target_init()\n");
@@ -291,12 +288,13 @@ void target_init(void)
 
 	if(target_is_pmi_enabled())
 	{
-		if(platform_is_msm8937() || platform_is_msm8917())
+		if(platform_is_msm8937() || platform_is_msm8917() ||
+		   platform_is_sdm429() || platform_is_sdm439())
 		{
 			uint8_t pmi_rev = 0;
 			uint32_t pmi_type = 0;
 
-			pmi_type = board_pmic_target(1) & 0xffff;
+			pmi_type = board_pmic_target(1) & PMIC_TYPE_MASK;
 			if(pmi_type == PMIC_IS_PMI8950)
 			{
 				/* read pmic spare register for rev */
@@ -331,8 +329,7 @@ void target_init(void)
 	if (target_use_signed_kernel())
 		target_crypto_init_params();
 
-#if VERIFIED_BOOT
-	if (VB_V2 == target_get_vb_version())
+	if (VB_M <= target_get_vb_version())
 	{
 		clock_ce_enable(CE1_INSTANCE);
 
@@ -365,7 +362,6 @@ void target_init(void)
 			ASSERT(0);
 		}
 	}
-#endif
 
 #if SMD_SUPPORT
 	rpm_smd_init();
@@ -409,6 +405,8 @@ void target_baseband_detect(struct board_data *board)
 	case MSM8920:
 	case MSM8217:
 	case MSM8617:
+	case SDM429:
+	case SDM439:
 		board->baseband = BASEBAND_MSM;
 		break;
 	case APQ8052:
@@ -416,6 +414,8 @@ void target_baseband_detect(struct board_data *board)
 	case APQ8076:
 	case APQ8037:
 	case APQ8017:
+	case SDA429:
+	case SDA439:
 		board->baseband = BASEBAND_APQ;
 		break;
 	default:
@@ -427,32 +427,6 @@ void target_baseband_detect(struct board_data *board)
 unsigned target_baseband()
 {
 	return board_baseband();
-}
-
-unsigned check_reboot_mode(void)
-{
-	uint32_t restart_reason = 0;
-
-	/* Read reboot reason and scrub it */
-	restart_reason = readl(RESTART_REASON_ADDR);
-	writel(0x00, RESTART_REASON_ADDR);
-
-	return restart_reason;
-}
-
-unsigned check_hard_reboot_mode(void)
-{
-	uint8_t hard_restart_reason = 0;
-	uint8_t value = 0;
-
-	/* Read reboot reason and scrub it
-	  * Bit-5, bit-6 and bit-7 of SOFT_RB_SPARE for hard reset reason
-	  */
-	value = pm8x41_reg_read(PON_SOFT_RB_SPARE);
-	hard_restart_reason = value >> 5;
-	pm8x41_reg_write(PON_SOFT_RB_SPARE, value & 0x1f);
-
-	return hard_restart_reason;
 }
 
 int set_download_mode(enum reboot_reason mode)
@@ -470,72 +444,22 @@ int emmc_recovery_init(void)
 	return _emmc_recovery_init();
 }
 
-void reboot_device(unsigned reboot_reason)
-{
-	uint8_t reset_type = 0;
-	uint32_t ret = 0;
-
-	/* Set cookie for dload mode */
-	if(set_download_mode(reboot_reason)) {
-		dprintf(CRITICAL, "HALT: set_download_mode not supported\n");
-		return;
-	}
-
-	writel(reboot_reason, RESTART_REASON_ADDR);
-
-	/* For Reboot-bootloader and Dload cases do a warm reset
-	 * For Reboot cases do a hard reset
-	 */
-	if((reboot_reason == FASTBOOT_MODE) || (reboot_reason == NORMAL_DLOAD) ||
-		(reboot_reason == EMERGENCY_DLOAD) || (reboot_reason == RECOVERY_MODE))
-		reset_type = PON_PSHOLD_WARM_RESET;
-	else
-		reset_type = PON_PSHOLD_HARD_RESET;
-
-	if(target_is_pmi_enabled())
-		pm8994_reset_configure(reset_type);
-	else
-		pm8x41_reset_configure(reset_type);
-
-
-	ret = scm_halt_pmic_arbiter();
-	if (ret)
-		dprintf(CRITICAL , "Failed to halt pmic arbiter: %d\n", ret);
-
-	/* Drop PS_HOLD for MSM */
-	writel(0x00, MPM2_MPM_PS_HOLD);
-
-	mdelay(5000);
-
-	dprintf(CRITICAL, "Rebooting failed\n");
-}
-
-#if USER_FORCE_RESET_SUPPORT
-/* Return 1 if it is a force resin triggered by user. */
-uint32_t is_user_force_reset(void)
-{
-	uint8_t poff_reason1 = pm8x41_get_pon_poff_reason1();
-	uint8_t poff_reason2 = pm8x41_get_pon_poff_reason2();
-
-	dprintf(SPEW, "poff_reason1: %d\n", poff_reason1);
-	dprintf(SPEW, "poff_reason2: %d\n", poff_reason2);
-	if (pm8x41_get_is_cold_boot() && (poff_reason1 == KPDPWR_AND_RESIN ||
-							poff_reason2 == STAGE3))
-		return 1;
-	else
-		return 0;
-}
-#endif
-
 unsigned target_pause_for_battery_charge(void)
 {
+	uint32_t pmic = target_get_pmic();
 	uint8_t pon_reason = pm8x41_get_pon_reason();
 	uint8_t is_cold_boot = pm8x41_get_is_cold_boot();
 	bool usb_present_sts = 1;	/* don't care by default */
 
-	if(target_is_pmi_enabled())
-		usb_present_sts = (!(USBIN_UV_RT_STS &
-						 pm8x41_reg_read(SMBCHG_USB_RT_STS)));
+	if (target_is_pmi_enabled())
+	{
+		if (pmic == PMIC_IS_PMI632)
+			usb_present_sts = !(USBIN_UV_RT_STS_PMI632 &
+				pm8x41_reg_read(SMBCHG_USB_RT_STS));
+		else
+			usb_present_sts = (!(USBIN_UV_RT_STS &
+				pm8x41_reg_read(SMBCHG_USB_RT_STS)));
+	}
 
 	dprintf(INFO, "%s : pon_reason is:0x%x cold_boot:%d usb_sts:%d\n", __func__,
 		pon_reason, is_cold_boot, usb_present_sts);
@@ -570,8 +494,7 @@ void target_uninit(void)
 	if (target_is_ssd_enabled())
 		clock_ce_disable(CE1_INSTANCE);
 
-#if VERIFIED_BOOT
-	if (VB_V2 == target_get_vb_version())
+	if (VB_M <= target_get_vb_version())
 	{
 		if (is_sec_app_loaded())
 		{
@@ -590,7 +513,6 @@ void target_uninit(void)
 
 		clock_ce_disable(CE1_INSTANCE);
 	}
-#endif
 
 #if SMD_SUPPORT
 	rpm_smd_uninit();
@@ -800,5 +722,31 @@ int get_target_boot_params(const char *cmdline, const char *part, char **buf)
 
 uint32_t target_get_pmic()
 {
-	return PMIC_IS_PMI8950;
+	if (target_is_pmi_enabled()) {
+		uint32_t pmi_type = board_pmic_target(1) & PMIC_TYPE_MASK;
+		if (pmi_type == PMIC_IS_PMI632)
+			return PMIC_IS_PMI632;
+		else
+			return PMIC_IS_PMI8950;
+	}
+	else {
+		return PMIC_IS_UNKNOWN;
+	}
 }
+
+void pmic_reset_configure(uint8_t reset_type)
+{
+	uint32_t pmi_type;
+
+	pmi_type = target_get_pmic();
+	if (pmi_type == PMIC_IS_PMI632) {
+		pmi632_reset_configure(reset_type);
+	} else {
+		if(target_is_pmi_enabled()) {
+			pm8994_reset_configure(reset_type);
+		} else {
+			pm8x41_reset_configure(reset_type);
+		}
+	}
+}
+

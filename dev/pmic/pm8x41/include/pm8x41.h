@@ -1,4 +1,4 @@
-/* Copyright (c) 2012-2015, 2017, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2012-2015, 2017-2018, The Linux Foundation. All rights reserved.
 
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -41,7 +41,7 @@
 /* 1.5uA + 30uA boost */
 #define PM_GPIO_PULL_UP_1_5_30  3
 #define PM_GPIO_PULLDOWN_10     4
-#define PM_GPIO_PULL_RESV_2     5
+#define PM_GPIO_NO_PULL         5
 
 
 #define PM_GPIO_OUT_CMOS        0x00
@@ -223,13 +223,17 @@ uint32_t pm8x41_v2_resin_status();
 uint32_t pm8x41_resin_status();
 void pm8x41_reset_configure(uint8_t);
 void pm8994_reset_configure(uint8_t);
+void pm8996_reset_configure(uint8_t, uint8_t);
+void pmi632_reset_configure(uint8_t);
 void pm8x41_v2_reset_configure(uint8_t);
 uint8_t pmi8950_get_pmi_subtype();
 int pm8x41_ldo_set_voltage(struct pm8x41_ldo *ldo, uint32_t voltage);
 int pm8x41_ldo_control(struct pm8x41_ldo *ldo, uint8_t enable);
 uint8_t pm8x41_get_pmic_rev();
 uint8_t pm8x41_get_pon_reason();
+uint8_t pm660_get_pon_reason();
 uint8_t pm8950_get_pon_reason();
+uint8_t pmi632_get_pon_reason();
 uint8_t pm8x41_get_pon_poff_reason1();
 uint8_t pm8x41_get_pon_poff_reason2();
 uint32_t pm8x41_get_pwrkey_is_pressed();
@@ -237,6 +241,7 @@ void pm8x41_config_output_mpp(struct pm8x41_mpp *mpp);
 void pm8x41_enable_mpp(struct pm8x41_mpp *mpp, enum mpp_en_ctl enable);
 void pm8x41_enable_mvs(struct pm8x41_mvs *mvs, enum mvs_en_ctl enable);
 uint8_t pm8x41_get_is_cold_boot();
+uint8_t pm660_get_is_cold_boot();
 void pm8x41_diff_clock_ctrl(uint8_t enable);
 void pm8x41_clear_pmic_watchdog(void);
 void pm8x41_lnbb_clock_ctrl(uint8_t enable);

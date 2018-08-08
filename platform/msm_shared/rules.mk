@@ -536,13 +536,15 @@ DEFINES += DISPLAY_TYPE_MDSS=1
 			$(LOCAL_DIR)/certificate.o \
 			$(LOCAL_DIR)/image_verify.o \
 			$(LOCAL_DIR)/i2c_qup.o \
-			$(LOCAL_DIR)/qseecom_lk.o \
+			$(LOCAL_DIR)/spi_qup.o \
+            $(LOCAL_DIR)/qseecom_lk.o \
 			$(LOCAL_DIR)/mdp3.o \
 			$(LOCAL_DIR)/display.o \
 			$(LOCAL_DIR)/mipi_dsi.o \
 			$(LOCAL_DIR)/mipi_dsi_phy.o \
 			$(LOCAL_DIR)/flash-ubi.o \
-			$(LOCAL_DIR)/mipi_dsi_autopll.o
+			$(LOCAL_DIR)/mipi_dsi_autopll.o\
+			$(LOCAL_DIR)/mdss_spi.o
 endif
 
 ifeq ($(PLATFORM),mdm9607)
@@ -646,7 +648,8 @@ DEFINES += DISPLAY_TYPE_MDSS=1
 			$(LOCAL_DIR)/mipi_dsi.o \
 			$(LOCAL_DIR)/mipi_dsc.o \
 			$(LOCAL_DIR)/mipi_dsi_phy.o \
-			$(LOCAL_DIR)/mipi_dsi_autopll.o
+			$(LOCAL_DIR)/mipi_dsi_autopll.o \
+			$(LOCAL_DIR)/mipi_dsi_autopll_12nm.o
 endif
 
 ifeq ($(PLATFORM),msm8953)
@@ -708,3 +711,8 @@ endif
 ifeq ($(ENABLE_RPMB_SUPPORT), 1)
 include platform/msm_shared/rpmb/rules.mk
 endif
+
+ifeq ($(VERIFIED_BOOT_2), 1)
+OBJS += platform/msm_shared/boot_verifier.o
+endif
+include platform/msm_shared/avb/rules.mk

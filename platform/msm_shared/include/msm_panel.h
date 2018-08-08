@@ -53,6 +53,7 @@
 #define LVDS_PANEL		11	/* LVDS */
 #define EDP_PANEL		12	/* EDP */
 #define QPIC_PANEL		13	/* QPIC */
+#define SPI_PANEL		14
 
 #define DISPLAY_UNKNOWN		0
 #define DISPLAY_1		1
@@ -91,6 +92,21 @@ struct lcd_panel_info {
 	uint32_t hw_vsync_mode;
 	uint32_t vsync_notifier_period;
 	uint32_t rev;
+};
+
+struct mdss_spi_cmd {
+	int size;
+	char *payload;
+	int wait;
+	uint8_t cmds_post_tg;
+};
+
+struct spi_panel_info {
+	int num_of_panel_cmds;
+	struct mdss_spi_cmd *panel_cmds;
+	uint8_t *signature_addr;
+	uint8_t *signature;
+	uint8_t *signature_len;
 };
 
 struct hdmi_panel_info {
@@ -416,9 +432,11 @@ struct msm_panel_info {
 	struct lvds_panel_info lvds;
 	struct hdmi_panel_info hdmi;
 	struct edp_panel_info edp;
+	struct spi_panel_info spi;
 	struct dsi2HDMI_panel_info adv7533;
 	struct dsi2HDMI_panel_info sadv7533;
 	bool has_bridge_chip;
+	bool disable_wled_labibb;
 
 	struct dfps_info dfps;
 
@@ -432,6 +450,7 @@ struct msm_panel_info {
 	int (*early_config) (void *pdata);
 	int (*config) (void *pdata);
 	int (*rotate) (void);
+	void (*lane_config)(struct msm_panel_info *pinfo);
 
 	char autorefresh_enable;
 	uint32_t autorefresh_framenum;

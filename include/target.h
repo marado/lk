@@ -1,7 +1,7 @@
 /*
  * Copyright (c) 2008 Travis Geiselbrecht
  *
- * Copyright (c) 2013-2016, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2013-2017, The Linux Foundation. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining
  * a copy of this software and associated documentation files
@@ -31,8 +31,9 @@
 /* Enum for target VB version detection */
 enum
 {
-	VB_V1 = 1,
-	VB_V2 = 2,
+	VB_L = 1,
+	VB_M = 2,
+	VB_AVB2 = 4,
 };
 
 /* Target helper functions exposed to USB driver */
@@ -100,7 +101,8 @@ int target_animated_splash_screen(void);
 bool target_is_mmc_read_done();
 bool target_build_variant_user();
 void pmic_reset_configure(uint8_t reset_type);
-
+bool is_display_disabled(void);
+bool target_uses_system_as_root(void);
 struct qmp_reg *target_get_qmp_settings();
 int target_get_qmp_regsize();
 uint32_t target_ddr_cfg_reg();

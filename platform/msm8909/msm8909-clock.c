@@ -1,4 +1,4 @@
-/* Copyright (c) 2014, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2014,2018, The Linux Foundation. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -283,6 +283,35 @@ static struct branch_clk gcc_blsp1_uart1_apps_clk =
 	},
 };
 
+static struct rcg_clk blsp1_uart2_apps_clk_src =
+{
+	.cmd_reg      = (uint32_t *) BLSP1_UART2_APPS_CMD_RCGR,
+	.cfg_reg      = (uint32_t *) BLSP1_UART2_APPS_CFG_RCGR,
+	.m_reg        = (uint32_t *) BLSP1_UART2_APPS_M,
+	.n_reg        = (uint32_t *) BLSP1_UART2_APPS_N,
+	.d_reg        = (uint32_t *) BLSP1_UART2_APPS_D,
+
+	.set_rate     = clock_lib2_rcg_set_rate_mnd,
+	.freq_tbl     = ftbl_gcc_blsp1_2_uart1_6_apps_clk,
+	.current_freq = &rcg_dummy_freq,
+
+	.c = {
+		.dbg_name = "blsp1_uart2_apps_clk",
+		.ops      = &clk_ops_rcg_mnd,
+	},
+};
+
+static struct branch_clk gcc_blsp1_uart2_apps_clk =
+{
+	.cbcr_reg     = (uint32_t *) BLSP1_UART2_APPS_CBCR,
+	.parent       = &blsp1_uart2_apps_clk_src.c,
+
+	.c = {
+		.dbg_name = "gcc_blsp1_uart2_apps_clk",
+		.ops      = &clk_ops_branch,
+	},
+};
+
 static struct vote_clk gcc_blsp1_ahb_clk = {
 	.cbcr_reg     = (uint32_t *) BLSP1_AHB_CBCR,
 	.vote_reg     = (uint32_t *) APCS_CLOCK_BRANCH_ENA_VOTE,
@@ -293,6 +322,7 @@ static struct vote_clk gcc_blsp1_ahb_clk = {
 		.ops      = &clk_ops_vote,
 	},
 };
+
 
 /* USB Clocks */
 static struct clk_freq_tbl ftbl_gcc_usb_hs_system_clk[] =
@@ -534,6 +564,99 @@ static struct branch_clk gcc_blsp1_qup6_i2c_apps_clk = {
 	},
 };
 
+
+static struct clk_freq_tbl ftbl_gcc_blsp1_qup1_spi_apps_clk[] = {
+	F( 960000,	cxo,	10,	1,	2),
+	F( 4800000,	cxo,	4,	0,	0),
+	F( 9600000,	cxo,	2,	0,	0),
+	F( 16000000,	gpll0,	10,	1,	5),
+	F( 19200000,	cxo,	1,	0,	0),
+	F( 25000000,	gpll0,	16,	1,	2),
+	F( 50000000,	gpll0,	16,	0,	0),
+	F_END
+};
+
+static struct rcg_clk gcc_blsp1_qup3_spi_apps_clk_src =
+{
+	.cmd_reg      = (uint32_t *) GCC_BLSP1_QUP3_SPI_APPS_CMD_RCGR,
+	.cfg_reg      = (uint32_t *) GCC_BLSP1_QUP3_SPI_CFG_RCGR,
+	.m_reg        = (uint32_t *) GCC_BLSP1_QUP3_SPI_APPS_M,
+	.n_reg        = (uint32_t *) GCC_BLSP1_QUP3_SPI_APPS_N,
+	.d_reg        = (uint32_t *) GCC_BLSP1_QUP3_SPI_APPS_D,
+	.set_rate     = clock_lib2_rcg_set_rate_mnd,
+	.freq_tbl     = ftbl_gcc_blsp1_qup1_spi_apps_clk,
+	.current_freq = &rcg_dummy_freq,
+
+	.c = {
+		.dbg_name = "gcc_blsp1_qup3_spi_apps_clk_src",
+		.ops      = &clk_ops_rcg,
+	},
+};
+
+static struct branch_clk gcc_blsp1_qup3_spi_apps_clk = {
+	.cbcr_reg = GCC_BLSP1_QUP3_SPI_APPS_CBCR,
+	.parent   = &gcc_blsp1_qup3_spi_apps_clk_src.c,
+
+	.c = {
+		.dbg_name = "gcc_blsp1_qup3_spi_apps_clk",
+		.ops      = &clk_ops_branch,
+	},
+};
+
+static struct rcg_clk gcc_blsp1_qup4_spi_apps_clk_src =
+{
+	.cmd_reg      = (uint32_t *) GCC_BLSP1_QUP4_SPI_APPS_CMD_RCGR,
+	.cfg_reg      = (uint32_t *) GCC_BLSP1_QUP4_SPI_CFG_RCGR,
+	.m_reg        = (uint32_t *) GCC_BLSP1_QUP4_SPI_APPS_M,
+	.n_reg        = (uint32_t *) GCC_BLSP1_QUP4_SPI_APPS_N,
+	.d_reg        = (uint32_t *) GCC_BLSP1_QUP4_SPI_APPS_D,
+	.set_rate     = clock_lib2_rcg_set_rate_mnd,
+	.freq_tbl     = ftbl_gcc_blsp1_qup1_spi_apps_clk,
+	.current_freq = &rcg_dummy_freq,
+
+	.c = {
+		.dbg_name = "gcc_blsp1_qup4_spi_apps_clk_src",
+		.ops      = &clk_ops_rcg,
+	},
+};
+
+static struct branch_clk gcc_blsp1_qup4_spi_apps_clk = {
+	.cbcr_reg = GCC_BLSP1_QUP4_SPI_APPS_CBCR,
+	.parent   = &gcc_blsp1_qup4_spi_apps_clk_src.c,
+
+	.c = {
+		.dbg_name = "gcc_blsp1_qup4_spi_apps_clk",
+		.ops      = &clk_ops_branch,
+	},
+};
+
+static struct rcg_clk gcc_blsp1_qup5_spi_apps_clk_src =
+{
+	.cmd_reg      = (uint32_t *) GCC_BLSP1_QUP5_SPI_APPS_CMD_RCGR,
+	.cfg_reg      = (uint32_t *) GCC_BLSP1_QUP5_SPI_CFG_RCGR,
+	.m_reg        = (uint32_t *) GCC_BLSP1_QUP5_SPI_APPS_M,
+	.n_reg        = (uint32_t *) GCC_BLSP1_QUP5_SPI_APPS_N,
+	.d_reg        = (uint32_t *) GCC_BLSP1_QUP5_SPI_APPS_D,
+	.set_rate     = clock_lib2_rcg_set_rate_mnd,
+	.freq_tbl     = ftbl_gcc_blsp1_qup1_spi_apps_clk,
+	.current_freq = &rcg_dummy_freq,
+
+	.c = {
+		.dbg_name = "gcc_blsp1_qup5_spi_apps_clk_src",
+		.ops      = &clk_ops_rcg,
+	},
+};
+
+static struct branch_clk gcc_blsp1_qup5_spi_apps_clk = {
+	.cbcr_reg = GCC_BLSP1_QUP5_SPI_APPS_CBCR,
+	.parent   = &gcc_blsp1_qup5_spi_apps_clk_src.c,
+
+	.c = {
+		.dbg_name = "gcc_blsp1_qup5_spi_apps_clk",
+		.ops      = &clk_ops_branch,
+	},
+};
+
 /* Display clocks */
 static struct clk_freq_tbl ftbl_mdss_esc0_1_clk[] = {
 	F_MM(19200000,    cxo,   1,   0,   0),
@@ -659,6 +782,10 @@ static struct clk_lookup msm_clocks_msm8909[] =
 	CLK_LOOKUP("uart1_iface_clk", gcc_blsp1_ahb_clk.c),
 	CLK_LOOKUP("uart1_core_clk",  gcc_blsp1_uart1_apps_clk.c),
 
+	CLK_LOOKUP("uart2_iface_clk", gcc_blsp1_ahb_clk.c),
+	CLK_LOOKUP("uart2_core_clk",  gcc_blsp1_uart2_apps_clk.c),
+
+
 	CLK_LOOKUP("usb_iface_clk",  gcc_usb_hs_ahb_clk.c),
 	CLK_LOOKUP("usb_core_clk",   gcc_usb_hs_system_clk.c),
 
@@ -680,6 +807,13 @@ static struct clk_lookup msm_clocks_msm8909[] =
 	CLK_LOOKUP("gcc_blsp1_qup5_i2c_apps_clk", gcc_blsp1_qup5_i2c_apps_clk.c),
 	CLK_LOOKUP("gcc_blsp1_qup6_i2c_apps_clk_src", gcc_blsp1_qup5_i2c_apps_clk_src.c),
 	CLK_LOOKUP("gcc_blsp1_qup6_i2c_apps_clk", gcc_blsp1_qup5_i2c_apps_clk.c),
+	CLK_LOOKUP("blsp1_ahb_iface_clk", gcc_blsp1_ahb_clk.c),
+	CLK_LOOKUP("gcc_blsp1_qup3_spi_apps_clk_src", gcc_blsp1_qup3_spi_apps_clk_src.c),
+	CLK_LOOKUP("gcc_blsp1_qup3_spi_apps_clk", gcc_blsp1_qup3_spi_apps_clk.c),
+	CLK_LOOKUP("gcc_blsp1_qup4_spi_apps_clk_src", gcc_blsp1_qup4_spi_apps_clk_src.c),
+	CLK_LOOKUP("gcc_blsp1_qup4_spi_apps_clk", gcc_blsp1_qup4_spi_apps_clk.c),
+	CLK_LOOKUP("gcc_blsp1_qup5_spi_apps_clk_src", gcc_blsp1_qup5_spi_apps_clk_src.c),
+	CLK_LOOKUP("gcc_blsp1_qup5_spi_apps_clk", gcc_blsp1_qup5_spi_apps_clk.c),
 
 	CLK_LOOKUP("mdp_ahb_clk", mdp_ahb_clk.c),
 	CLK_LOOKUP("mdss_esc0_clk", mdss_esc0_clk.c),

@@ -127,4 +127,9 @@ int mdss_hdmi_on(struct msm_panel_info *pinfo);
 int mdss_hdmi_update(struct msm_panel_info *pinfo);
 int mdss_hdmi_off(struct msm_panel_info *pinfo);
 int mdss_hdmi_config(struct msm_panel_info *pinfo, struct fbcon_config *fb);
+
+int mdss_spi_init(void);
+int mdss_spi_panel_init(struct msm_panel_info *pinfo);
+int mdss_spi_on(struct msm_panel_info *pinfo, struct fbcon_config *fb);
+int mdss_spi_cmd_post_on(struct msm_panel_info *pinfo);
 #endif

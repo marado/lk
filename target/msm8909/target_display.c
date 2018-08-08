@@ -1,4 +1,4 @@
-/* Copyright (c) 2014-2015, 2017, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2014-2015, 2017-2018, The Linux Foundation. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -60,6 +60,7 @@
 static struct gpio_pin bob_gpio = {
   "pm8941_gpios", 12, 2, 1, 0, 1
 };
+static bool display_efuse = false;
 
 static void mdss_dsi_uniphy_pll_sw_reset_8909(uint32_t pll_base)
 {
@@ -201,7 +202,9 @@ int target_backlight_ctrl(struct backlight *bl, uint8_t enable)
 	if (bl->bl_interface_type == BL_DCS)
 		return 0;
 
-	if (!((HW_PLATFORM_SUBTYPE_8909_PM660 == platform_subtype) &&
+	if (!(((HW_PLATFORM_SUBTYPE_8909_PM660 == platform_subtype) ||
+		(HW_PLATFORM_SUBTYPE_8909_PM660_V1 == platform_subtype) ||
+		(HW_PLATFORM_SUBTYPE_8909_COMPAL_ALPHA == platform_subtype)) &&
 		((MSM8909W == platform) || (APQ8009W == platform)) &&
 		(HW_PLATFORM_MTP == hw_id))) {
 		struct pm8x41_mpp mpp;
@@ -237,6 +240,15 @@ int target_backlight_ctrl(struct backlight *bl, uint8_t enable)
 			bkl_gpio.pin_direction, bkl_gpio.pin_pull,
 			bkl_gpio.pin_strength, bkl_gpio.pin_state);
 			gpio_set(bkl_gpio.pin_id, 2);
+
+		if (HW_PLATFORM_SUBTYPE_8909_PM660_V1 == platform_subtype) {
+			gpio_tlmm_config(spi_bkl_gpio.pin_id, 0,
+				spi_bkl_gpio.pin_direction,
+				spi_bkl_gpio.pin_pull,
+				spi_bkl_gpio.pin_strength,
+				spi_bkl_gpio.pin_state);
+			gpio_set(spi_bkl_gpio.pin_id, 2);
+		}
 	}
 
 	return 0;
@@ -298,7 +310,9 @@ int target_panel_reset(uint8_t enable, struct panel_reset_sequence *resetseq,
 	uint32_t hw_subtype = board_hardware_subtype();
 	uint32_t platform = board_platform_id();
 
-	if ((HW_PLATFORM_SUBTYPE_8909_PM660 == hw_subtype) &&
+	if (((HW_PLATFORM_SUBTYPE_8909_PM660 == hw_subtype) ||
+		(HW_PLATFORM_SUBTYPE_8909_PM660_V1 == hw_subtype) ||
+		(HW_PLATFORM_SUBTYPE_8909_COMPAL_ALPHA == hw_subtype)) &&
 		((MSM8909W == platform) || (APQ8009W == platform)) &&
 		(HW_PLATFORM_MTP == hw_id)) {
 		struct pm8x41_gpio bobgpio_param = {
@@ -311,6 +325,7 @@ int target_panel_reset(uint8_t enable, struct panel_reset_sequence *resetseq,
 		};
 
 		pm8x41_gpio_config(bob_pmic_gpio, &bobgpio_param);
+		enable_gpio.pin_id = 59;
 	}
 
 	if (enable) {
@@ -353,10 +368,16 @@ int target_ldo_ctrl(uint8_t enable, struct msm_panel_info *pinfo)
 	uint32_t platform = board_platform_id();
 
 	if (enable) {
-		if ((HW_PLATFORM_SUBTYPE_8909_PM660 == hw_subtype) &&
+		if (((HW_PLATFORM_SUBTYPE_8909_PM660 == hw_subtype) ||
+			(HW_PLATFORM_SUBTYPE_8909_PM660_V1 == hw_subtype) ||
+			(HW_PLATFORM_SUBTYPE_8909_COMPAL_ALPHA == hw_subtype)) &&
 			((MSM8909W == platform) || (APQ8009W == platform)) &&
 			(HW_PLATFORM_MTP == hw_id))
 			regulator_enable(REG_LDO12 | REG_LDO5 | REG_LDO11 | REG_LDO18);
+		else if (pinfo->type == SPI_PANEL)
+		{
+			regulator_enable(REG_LDO11 | REG_LDO18);
+		}
 		else
 			regulator_enable(REG_LDO2 | REG_LDO6 | REG_LDO17);
 	}
@@ -385,12 +406,46 @@ static bool target_splash_disable(void)
 		  (HW_PLATFORM_SUBTYPE_DSDA2 == platform_subtype)) ||
 		 ((HW_PLATFORM_RCM == hw_id) &&
 		 ((HW_PLATFORM_SUBTYPE_SAP == platform_subtype)||
-		  (HW_PLATFORM_SUBTYPE_SAP_NOPMI == platform_subtype))))) {
+		  (HW_PLATFORM_SUBTYPE_SAP_NOPMI == platform_subtype))) ||
+		 ((HW_PLATFORM_MTP == hw_id) &&
+		 (HW_PLATFORM_SUBTYPE_INTRINSIC_SOM == platform_subtype)))) {
 		dprintf(INFO, "Splash disabled\n");
 		return true;
 	} else {
 		return false;
 	}
+}
+
+bool is_display_disabled(void)
+{
+	return display_efuse;
+}
+
+bool display_efuse_check(void)
+{
+	int i;
+	uint32_t efuse = 0;
+	uint32_t board_id = board_platform_id();
+
+	for (i = 0; i < ARRAY_SIZE(efuse_data);i++)
+		if (board_id == efuse_data[i].board_id) {
+			efuse = readl((efuse_data[i].start_address + efuse_data[i].offset));
+			display_efuse = (efuse & (efuse_data[i].mask)) >> (efuse_data[i].shift);
+	}
+
+	dprintf(INFO,"Efuse register: display disable flag = %d\n",display_efuse);
+	return display_efuse;
+}
+
+void efuse_display_enable(char *pbuf, uint16_t buf_size)
+{
+	char *default_str;
+	int prefix_display_len = strlen(pbuf);
+	if (display_efuse)
+		default_str = ";display_disabled:1";
+	pbuf += prefix_display_len;
+	buf_size -= prefix_display_len;
+	strlcpy(pbuf, default_str, buf_size);
 }
 
 bool target_display_panel_node(char *pbuf, uint16_t buf_size)
@@ -400,6 +455,14 @@ bool target_display_panel_node(char *pbuf, uint16_t buf_size)
 	if (!target_splash_disable())
 		ret = gcdb_display_cmdline_arg(pbuf, buf_size);
 
+	if (display_efuse_check()){
+                if (target_splash_disable()){
+                        strlcpy(pbuf, DISPLAY_CMDLINE_PREFIX, buf_size);
+                        efuse_display_enable(pbuf, buf_size);
+                } else
+                        efuse_display_enable(pbuf, buf_size);
+        }
+
 	return ret;
 }
 
@@ -408,6 +471,9 @@ void target_display_init(const char *panel_name)
 	uint32_t panel_loop = 0;
 	uint32_t ret = 0;
 	struct oem_panel_data oem;
+
+	if (display_efuse_check())
+		return;
 
 	set_panel_cmd_string(panel_name);
 	oem = mdss_dsi_get_oem_data();

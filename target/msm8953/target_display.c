@@ -1,4 +1,4 @@
-/* Copyright (c) 2016-2017, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2016-2018, The Linux Foundation. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -37,6 +37,7 @@
 #include <pm8x41.h>
 #include <pm8x41_wled.h>
 #include <qpnp_wled.h>
+#include <qpnp_lcdb.h>
 #include <board.h>
 #include <mdp5.h>
 #include <scm.h>
@@ -48,23 +49,19 @@
 #include <mipi_dsi_autopll_thulium.h>
 #include <qtimer.h>
 #include <platform.h>
+#include <target.h>
 
 #include "include/panel.h"
 #include "include/display_resource.h"
 #include "gcdb_display.h"
-
-#define TRULY_1080P_VID_PANEL "truly_1080p_video"
-#define TRULY_1080P_CMD_PANEL "truly_1080p_cmd"
-
-#define HDMI_ADV_PANEL_STRING "1:dsi:0:none:1:qcom,mdss_dsi_adv7533_1080p:cfg:single_dsi"
-#define TRULY_VID_PANEL_STRING "1:dsi:0:qcom,mdss_dsi_truly_1080p_video:1:none:cfg:single_dsi"
-#define TRULY_CMD_PANEL_STRING "1:dsi:0:qcom,mdss_dsi_truly_1080p_cmd:1:none:cfg:single_dsi"
 
 #define MAX_POLL_READS 15
 #define POLL_TIMEOUT_US 1000
 #define STRENGTH_SIZE_IN_BYTES	10
 #define REGULATOR_SIZE_IN_BYTES	5
 #define LANE_SIZE_IN_BYTES		20
+#define PWM_DUTY_US 13
+#define PWM_PERIOD_US 27
 /*---------------------------------------------------------------------------*/
 /* GPIO configuration                                                        */
 /*---------------------------------------------------------------------------*/
@@ -130,8 +127,26 @@ static int wled_backlight_ctrl(uint8_t enable)
 	uint8_t slave_id = PMIC_WLED_SLAVE_ID;	/* pmi */
 
 	pm8x41_wled_config_slave_id(slave_id);
-	qpnp_wled_enable_backlight(enable);
-	qpnp_ibb_enable(enable);
+	if (target_get_pmic() == PMIC_IS_PMI632) {
+		qpnp_lcdb_enable(enable);
+	} else {
+		qpnp_wled_enable_backlight(enable);
+		qpnp_ibb_enable(enable);
+	}
+
+	return NO_ERROR;
+}
+
+static int pwm_backlight_ctrl(uint8_t enable)
+{
+	if(enable) {
+		pm_pwm_enable(false);
+		pm_pwm_config(PWM_DUTY_US, PWM_PERIOD_US);
+		pm_pwm_enable(true);
+	} else {
+		pm_pwm_enable(false);
+	}
+
 	return NO_ERROR;
 }
 
@@ -142,8 +157,11 @@ int target_backlight_ctrl(struct backlight *bl, uint8_t enable)
 	if (bl->bl_interface_type == BL_DCS)
 		return ret;
 
-	ret = wled_backlight_ctrl(enable);
-
+	if(target_get_pmic() == PMIC_IS_PMI632) {
+		ret = pwm_backlight_ctrl(enable);
+	} else {
+		ret = wled_backlight_ctrl(enable);
+	}
 	return ret;
 }
 
@@ -325,6 +343,11 @@ static void wled_init(struct msm_panel_info *pinfo)
 		}
 	}
 
+	if (target_get_pmic() == PMIC_IS_PMI632) {
+		config.pwr_up_delay = 1;
+		config.pwr_down_delay =  0;
+	}
+
 	dprintf(SPEW, "%s: %d %d %d %d %d %d %d %d %d %d\n", __func__,
 		config.display_type,
 		config.lab_min_volt, config.lab_max_volt,
@@ -336,7 +359,10 @@ static void wled_init(struct msm_panel_info *pinfo)
 	/* QPNP WLED init for display backlight */
 	pm8x41_wled_config_slave_id(PMIC_WLED_SLAVE_ID);
 
-	qpnp_wled_init(&config);
+	if (target_get_pmic() == PMIC_IS_PMI632)
+		qpnp_lcdb_init(&config);
+	else
+		qpnp_wled_init(&config);
 }
 
 int target_dsi_phy_config(struct mdss_dsi_phy_ctrl *phy_db)
@@ -367,7 +393,10 @@ int target_ldo_ctrl(uint8_t enable, struct msm_panel_info *pinfo)
 		regulator_enable(ldo_num);
 		mdelay(10);
 		wled_init(pinfo);
-		qpnp_ibb_enable(true); /*5V boost*/
+		if (target_get_pmic() == PMIC_IS_PMI632)
+			qpnp_lcdb_enable(true);
+		else
+			qpnp_ibb_enable(true); /*5V boost*/
 		mdelay(50);
 	} else {
 		/*
@@ -386,7 +415,6 @@ bool target_display_panel_node(char *pbuf, uint16_t buf_size)
 	int prefix_string_len = strlen(DISPLAY_CMDLINE_PREFIX);
 	bool ret = true;
 	struct oem_panel_data oem = mdss_dsi_get_oem_data();
-	uint32_t platform_subtype = board_hardware_subtype();
 
 	/*
 	 * if disable config is passed irrespective of
@@ -403,44 +431,6 @@ bool target_display_panel_node(char *pbuf, uint16_t buf_size)
 		buf_size -= prefix_string_len;
 		pbuf += prefix_string_len;
 		strlcpy(pbuf, DISABLE_PANEL_STRING, buf_size);
-	} else if (platform_subtype == HW_PLATFORM_SUBTYPE_IOT) {
-		/* default to hdmi for apq iot */
-		if (!strcmp(oem.panel, "")) {
-			if (buf_size < (prefix_string_len +
-				strlen(HDMI_ADV_PANEL_STRING))) {
-				dprintf(CRITICAL, "HDMI command line argument \
-					is greater than buffer size\n");
-				return false;
-			}
-			strlcpy(pbuf, DISPLAY_CMDLINE_PREFIX, buf_size);
-			buf_size -= prefix_string_len;
-			pbuf += prefix_string_len;
-			strlcpy(pbuf, HDMI_ADV_PANEL_STRING, buf_size);
-		} else if (!strcmp(oem.panel, TRULY_1080P_VID_PANEL)) {
-			if (buf_size < (prefix_string_len +
-				strlen(TRULY_VID_PANEL_STRING))) {
-				dprintf(CRITICAL, "TRULY VIDEO command line \
-					argument is greater than \
-					buffer size\n");
-				return false;
-			}
-			strlcpy(pbuf, DISPLAY_CMDLINE_PREFIX, buf_size);
-			buf_size -= prefix_string_len;
-			pbuf += prefix_string_len;
-			strlcpy(pbuf, TRULY_VID_PANEL_STRING, buf_size);
-		} else if (!strcmp(oem.panel, TRULY_1080P_CMD_PANEL)) {
-			if (buf_size < (prefix_string_len +
-				strlen(TRULY_CMD_PANEL_STRING))) {
-				dprintf(CRITICAL, "TRULY CMD command line argument \
-					argument is greater than \
-					buffer size\n");
-				return false;
-			}
-			strlcpy(pbuf, DISPLAY_CMDLINE_PREFIX, buf_size);
-			buf_size -= prefix_string_len;
-			pbuf += prefix_string_len;
-			strlcpy(pbuf, TRULY_CMD_PANEL_STRING, buf_size);
-		}
 	} else {
 		ret = gcdb_display_cmdline_arg(pbuf, buf_size);
 	}
@@ -453,7 +443,6 @@ void target_display_init(const char *panel_name)
 	struct oem_panel_data oem;
 	int32_t ret = 0;
 	uint32_t panel_loop = 0;
-	uint32_t platform_subtype = board_hardware_subtype();
 
 	set_panel_cmd_string(panel_name);
 	oem = mdss_dsi_get_oem_data();
@@ -470,10 +459,9 @@ void target_display_init(const char *panel_name)
 	}
 
 	/* skip splash screen completely not just cont splash */
-	if ((platform_subtype == HW_PLATFORM_SUBTYPE_IOT)
-		|| !strcmp(oem.panel, DISABLE_PANEL_CONFIG)) {
-		dprintf(INFO, "%s: Platform subtype %d\n",
-			__func__, platform_subtype);
+	if (!strcmp(oem.panel, DISABLE_PANEL_CONFIG)) {
+		dprintf(INFO, "%s: disable splash screen \n",
+			__func__);
 		return;
 	}
 

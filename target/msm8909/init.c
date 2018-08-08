@@ -1,4 +1,4 @@
-/* Copyright (c) 2014-2017, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2014-2018, The Linux Foundation. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -81,6 +81,9 @@
 #define CE_ARRAY_SIZE           20
 #define SUB_TYPE_SKUT           0x0A
 
+/* Fastboot switch GPIO for Intrinsic board. */
+#define USB_SW_GPIO_INTRINSIC_SOM 3
+
 extern void smem_ptable_init(void);
 extern void smem_add_modem_partitions(struct ptable *flash_ptable);
 void target_sdc_init();
@@ -159,10 +162,14 @@ void target_early_init(void)
 	/* Do not intilaise UART in case the h/w
 	* is RCM.
 	*/
-	if( board_hardware_id()!= HW_PLATFORM_RCM )
-		uart_dm_init(1, 0, BLSP1_UART0_BASE);
-	else
+	uint32_t platform_subtype = board_hardware_subtype();
+
+	if( board_hardware_id() == HW_PLATFORM_RCM )
 		return;
+	else if ( platform_subtype == HW_PLATFORM_SUBTYPE_8909_PM660_V1)
+		uart_dm_init(2, 0, BLSP1_UART1_BASE);
+	else
+		uart_dm_init(1, 0, BLSP1_UART0_BASE);
 #endif
 
 }
@@ -384,7 +391,7 @@ void target_init(void)
 		target_crypto_init_params();
 
 #if VERIFIED_BOOT
-	if (VB_V2 == target_get_vb_version())
+	if (VB_M <= target_get_vb_version())
 	{
 		clock_ce_enable(CE1_INSTANCE);
 
@@ -644,15 +651,28 @@ void target_usb_init(void)
 
 unsigned target_pause_for_battery_charge(void)
 {
-	uint8_t pon_reason = pm8x41_get_pon_reason();
-	uint8_t is_cold_boot = pm8x41_get_is_cold_boot();
-	dprintf(INFO, "%s : pon_reason is %d cold_boot:%d\n", __func__,
-		pon_reason, is_cold_boot);
+	uint32_t pmic = target_get_pmic();
+	uint8_t pon_reason = 0;
+	uint8_t is_cold_boot = 0;
+
 	/* In case of fastboot reboot,adb reboot or if we see the power key
 	* pressed we do not want go into charger mode.
 	* fastboot reboot is warm boot with PON hard reset bit not set
 	* adb reboot is a cold boot with PON hard reset bit set
 	*/
+	if (pmic == PMIC_IS_PM660)
+	{
+		pon_reason = pm660_get_pon_reason();
+		is_cold_boot = pm660_get_is_cold_boot();
+	}
+	else
+	{
+		pon_reason = pm8x41_get_pon_reason();
+		is_cold_boot = pm8x41_get_is_cold_boot();
+	}
+	dprintf(INFO, "%s : pon_reason is %d cold_boot:%d\n", __func__,
+		pon_reason, is_cold_boot);
+
 	if (is_cold_boot &&
 			(!(pon_reason & HARD_RST)) &&
 			(!(pon_reason & KPDPWR_N)) &&
@@ -689,7 +709,7 @@ void target_uninit(void)
 		clock_ce_disable(CE1_INSTANCE);
 
 #if VERIFIED_BOOT
-	if(VB_V2 == target_get_vb_version())
+	if(VB_M <= target_get_vb_version())
 	{
 		if (is_sec_app_loaded())
 		{
@@ -718,6 +738,9 @@ void target_uninit(void)
 /* Do any target specific intialization needed before entering fastboot mode */
 void target_fastboot_init(void)
 {
+	uint32_t hw_id = board_hardware_id();
+	uint32_t platform_subtype = board_hardware_subtype();
+
 	/* Set the BOOT_DONE flag in PM8916 */
 	pm8x41_set_boot_done();
 
@@ -725,6 +748,26 @@ void target_fastboot_init(void)
 		clock_ce_enable(CE1_INSTANCE);
 		target_load_ssd_keystore();
 	}
+
+	if ((HW_PLATFORM_MTP == hw_id) &&
+		(HW_PLATFORM_SUBTYPE_INTRINSIC_SOM == platform_subtype))
+	{
+		dprintf(SPEW, "Enabling PMIC GPIO for USB detection\n");
+
+		struct pm8x41_gpio usbgpio_param = {
+			.direction = PM_GPIO_DIR_OUT,
+			.vin_sel = 0,
+			.out_strength = PM_GPIO_OUT_DRIVE_MED,
+			.function = PM_GPIO_FUNC_HIGH,
+			.pull = PM_GPIO_PULLDOWN_10,
+			.inv_int_pol = PM_GPIO_INVERT,
+		};
+
+		pm8x41_gpio_config(USB_SW_GPIO_INTRINSIC_SOM, &usbgpio_param);
+		pm8x41_gpio_set(USB_SW_GPIO_INTRINSIC_SOM, 0);
+	}
+
+	return;
 }
 
 int set_download_mode(enum reboot_reason mode)
@@ -826,7 +869,9 @@ void pmic_reset_configure(uint8_t reset_type)
 
 uint32_t target_get_pmic()
 {
-	if (board_hardware_subtype() == HW_PLATFORM_SUBTYPE_8909_PM660)
+	if ((board_hardware_subtype() == HW_PLATFORM_SUBTYPE_8909_PM660) ||
+		(board_hardware_subtype() == HW_PLATFORM_SUBTYPE_8909_PM660_V1) ||
+		(board_hardware_subtype() == HW_PLATFORM_SUBTYPE_8909_COMPAL_ALPHA))
 		return PMIC_IS_PM660;
 	else
 		return PMIC_IS_PM8909;
