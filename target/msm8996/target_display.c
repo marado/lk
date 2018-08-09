@@ -960,7 +960,8 @@ void target_display_init(const char *panel_name)
 
 	target_display_set_panel_type(oem.panel);
 
-	if (!strcmp(oem.panel, NO_PANEL_CONFIG)
+	if (!strcmp(oem.panel, "")
+		|| !strcmp(oem.panel, NO_PANEL_CONFIG)
 		|| !strcmp(oem.panel, SIM_VIDEO_PANEL)
 		|| !strcmp(oem.panel, SIM_DUALDSI_VIDEO_PANEL)
 		|| !strcmp(oem.panel, SIM_CMD_PANEL)
