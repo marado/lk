@@ -63,7 +63,7 @@ struct target_layer layer_cam;
 struct target_display * disp;
 struct fbcon_config *fb;
 int num_configs = 0;
-int firstframe = 0;
+bool firstframe = true;
 int raw_size = 1280*720*2.0;
 int early_cam_on = 1;
 uint32 frame_counter = 0;
@@ -1796,6 +1796,7 @@ void early_camera_stop(void) {
 					0);
 
 	target_release_layer(&layer_cam);
+	firstframe = true;  // reset firstframe for next cycle
 
 	// Signal Kernel were done to allow camera daemon to start.
 	msm_camera_io_w_mb(EARLY_CAMERA_SIGNAL_DONE,
@@ -1834,7 +1835,7 @@ void early_camera_flip(void)
 		// wait for ping pong irq;
 		ping = msm_vfe_poll_irq(PING_PONG_IRQ_MASK);
 
-		if (firstframe == 0) {
+		if (firstframe == true) {
 			dprintf(CRITICAL,
 				"Early Camera - First Camera image frame KPI\n");
 			cam_place_kpi_marker("Camera Image in memory");
@@ -1858,9 +1859,14 @@ void early_camera_flip(void)
 					if (pingpong_buffer_updated < 2) {
 						target_display_update(&update_cam,1,RVC_DISPLAY_ID);
 						pingpong_buffer_updated++;
-					} else
-						target_display_update_pipe(&update_cam, 1,
+					} else {
+						if (firstframe)
+							target_display_update(&update_cam, 1,
 									RVC_DISPLAY_ID);
+						else
+							target_display_update_pipe(&update_cam, 1,
+									RVC_DISPLAY_ID);
+					}
 				}
 			} else {
 				if(toggle ==1) {
@@ -1872,9 +1878,9 @@ void early_camera_flip(void)
 					pingpong_buffer_updated = 0;
 				}
 			}
-			if (firstframe == 0) {
+			if (firstframe == true) {
 				cam_place_kpi_marker("Camera display post done");
-				firstframe = 1;
+				firstframe = false;
 			}
 		}
 }

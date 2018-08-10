@@ -1061,6 +1061,7 @@ int animated_splash() {
 	bool camera_on = FALSE;
 	bool camera_frame_on = false;
 	bool stop_display_splash = false;
+	bool firstframe[disp_cnt];
 #if EARLYCAMERA_NO_GPIO
 	uint32_t frame_count = 0;
 #endif
@@ -1078,6 +1079,7 @@ int animated_splash() {
 
 	for (j = 0; j < disp_cnt; j ++) {
 		frame_cnt[j] = 0;
+		firstframe[j] = true;
 		disp_ptr = target_display_open(j);
 		if (disp_ptr == NULL) {
 			dprintf(CRITICAL, "Display open failed\n");
@@ -1152,6 +1154,7 @@ int animated_splash() {
 				if (early_camera_on()) {
 					if(layer_list[j].layer) {
 						target_release_layer(&layer_list[j]);
+						firstframe[j] = true; // reset firstframe for the RVC display
 						layer_list[j].layer = NULL;
 					}
 					camera_frame_on = true;
@@ -1180,7 +1183,12 @@ int animated_splash() {
 			layer_list[j].fb->base = buffers[j][frame_cnt[j]];
 			layer_list[j].fb->format = kFormatRGB888;
 			layer_list[j].fb->bpp = 24;
-			ret = target_display_update(&update[j],1, j);
+			if (firstframe[j] == true) {
+				ret = target_display_update(&update[j],1, j);
+				firstframe[j] = false;
+			} else {
+				ret = target_display_update_pipe(&update[j],1, j);
+			}
 			frame_cnt[j]++;
 			if (frame_cnt[j] >= img_header[j].num_frames) {
 				frame_cnt[j] = 0;
@@ -1197,8 +1205,8 @@ int animated_splash() {
 #if EARLYCAMERA_NO_GPIO
 		if (EARLYCAM_NO_GPIO_FRAME_LIMIT < frame_count) {
 			early_camera_enabled = 0;
-			early_camera_stop();
-			if(!layer_list[RVC_DISPLAY_ID].layer) {
+			if(camera_frame_on) {
+				early_camera_stop();
 				layer_ptr = target_display_acquire_layer(
 					update[RVC_DISPLAY_ID].disp, "as", kFormatRGB888);
 				layer_list[RVC_DISPLAY_ID].layer = layer_ptr;

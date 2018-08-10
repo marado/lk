@@ -298,8 +298,7 @@
 void mdp_set_revision(int rev);
 int mdp_get_revision();
 int mdp_dsi_video_config(struct msm_panel_info *pinfo, struct fbcon_config *fb);
-int mdp_dsi_video_config_pipe(struct msm_panel_info *pinfo, struct fbcon_config *fb);
-int mdp_dsi_video_update_pipe(struct msm_panel_info *pinfo);
+int mdp_dsi_video_update_pipe(struct msm_panel_info *pinfo, struct fbcon_config *fb);
 int mdp_dsi_video_reset_interrupt_status(void);
 int mdp_dsi_cmd_config(struct msm_panel_info *pinfo, struct fbcon_config *fb);
 int mipi_dsi_cmd_config(struct fbcon_config mipi_fb_cfg,
@@ -333,8 +332,7 @@ int mdss_hdmi_on(struct msm_panel_info *pinfo);
 int mdss_hdmi_off(struct msm_panel_info *pinfo);
 int mdss_hdmi_config(struct msm_panel_info *pinfo, struct fbcon_config *fb);
 int mdss_hdmi_update(struct msm_panel_info *pinfo);
-int mdss_hdmi_update_pipe(struct msm_panel_info *pinfo);
-int mdss_hdmi_config_pipe(struct msm_panel_info *pinfo, struct fbcon_config *fb);
+int mdss_hdmi_update_pipe(struct msm_panel_info *pinfo, struct fbcon_config *fb);
 void mdss_hdmi_get_vic(char *buf);
 void hdmi_phy_init(void);
 int msm_display_off();
