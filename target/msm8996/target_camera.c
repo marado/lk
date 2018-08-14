@@ -1795,7 +1795,6 @@ void early_camera_stop(void) {
 					cam_data[SENSOR_STOP_IDX].i2c_num_bytes_data,
 					0);
 
-	target_release_layer(&layer_cam);
 	firstframe = true;  // reset firstframe for next cycle
 
 	// Signal Kernel were done to allow camera daemon to start.
