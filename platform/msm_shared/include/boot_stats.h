@@ -45,6 +45,8 @@ enum bs_entry {
 	BS_BOOTIMAGE_CHECKSUM_TIME,
 	BS_BOOTIMAGE_CHECKSUM_START,
 	BS_BOOTIMAGE_CHECKSUM_DONE,
+	BS_DTB_OVERLAY_START,
+	BS_DTB_OVERLAY_END,
 	BS_MAX,
 };
 void bs_set_timestamp(enum bs_entry bs_id);

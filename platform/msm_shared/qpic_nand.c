@@ -1,7 +1,7 @@
 /*
  * Copyright (c) 2008, Google Inc.
  * All rights reserved.
- * Copyright (c) 2009-2016, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2009-2016,2018 The Linux Foundation. All rights reserved.
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
  * are met:
@@ -885,6 +885,10 @@ nand_result_t qpic_nand_block_isbad(unsigned page)
 		 * Bad block value is stored in the first page of the block.
 		 */
 		/* Read the first page in the block. */
+		/* Ensure we always read first page of block */
+		if (page & flash.num_pages_per_blk_mask)
+			page = page - (page & flash.num_pages_per_blk_mask);
+
 		cwperpage = flash.cws_per_page;
 
 		/* Read page cmd */
@@ -2062,7 +2066,7 @@ flash_erase(struct ptentry *ptn)
 			dprintf(CRITICAL, "Erase operation failed @ page #%d\n",
 					ptn->start + i);
 	}
-	return ret;
+	return NANDC_RESULT_SUCCESS;
 }
 
 int

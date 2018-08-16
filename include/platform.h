@@ -1,7 +1,7 @@
 /*
  * Copyright (c) 2008 Travis Geiselbrecht
  *
- * Copyright (c) 2014-2017, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2014-2018, The Linux Foundation. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining
  * a copy of this software and associated documentation files
@@ -75,6 +75,8 @@ uint32_t platform_get_apcs_ipc_base();
 int platform_is_msm8952();
 int platform_is_msm8953();
 int platform_is_msm8956();
+int platform_is_sdm429();
+int platform_is_sdm439();
 uint32_t platform_is_msm8976_v_1_1();
 uint32_t platform_get_tz_app_add();
 uint32_t platform_get_tz_app_size();
@@ -99,4 +101,15 @@ uint64_t platform_get_ddr_start();
 bool platform_is_glink_enabled();
 bool platform_is_mdm9206();
 int is_vb_le_enabled();
+void* get_rpmb_snd_rcv_buff();
+int LoadImage(char *Pname, void **ImgBuf, uint32_t *ImgSzActual);
+void boot_verifier_init();
+uint32_t get_page_size();
+int read_rollback_index(uint32_t loc, uint64_t *roll_back_index);
+int write_rollback_index(uint32_t loc, uint64_t roll_back_index);
+int get_userkey(uint8_t **user_key, uint32_t *user_key_size);
+int erase_userkey();
+int store_userkey(uint8_t *user_key, uint32_t user_key_size);
+bool is_device_locked_critical();
+bool is_verity_enforcing();
 #endif

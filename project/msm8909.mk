@@ -14,6 +14,11 @@ endif
 
 EMMC_BOOT := 1
 
+ifeq ($(ENABLE_DISPLAY),1)
+DEFINES += ENABLE_DISPLAY=1
+DEFINES += DISPLAY_SPLASH_SCREEN=1
+endif
+
 ifeq ($(VERIFIED_BOOT),1)
 ENABLE_SECAPP_LOADER := 1
 ENABLE_RPMB_SUPPORT := 1
@@ -92,7 +97,6 @@ endif
 
 #SCM call before entering DLOAD mode
 DEFINES += PLATFORM_USE_SCM_DLOAD=1
-DEFINES += NO_SCM_V8_SUPPORT=1
 
 #Enable the external reboot functions
 ENABLE_REBOOT_MODULE := 1
@@ -102,6 +106,15 @@ DEFINES += USE_PON_REBOOT_REG=1
 #Enable fbcon display for verified boot.
 ifeq ($(ENABLE_FBCON_DISPLAY_MSG),1)
 DEFINES += FBCON_DISPLAY_MSG=1
+endif
+
+#TZ apps region address based on version
+ifeq ($(TARGET_USE_QSEECOM_V4),1)
+ DEFINES += QSEECOM_SECAPP_REGION_3MB=1
+endif
+
+ifeq ($(QSEECOM_SECAPP_REGION_2MB),1)
+ DEFINES += QSEECOM_SECAPP_REGION_2MB=1
 endif
 
 #enable battery voltage check

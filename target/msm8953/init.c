@@ -1,4 +1,4 @@
-/* Copyright (c) 2015-2017, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2015-2018, The Linux Foundation. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -59,6 +59,8 @@
 #include <qmp_phy.h>
 #include <qusb2_phy.h>
 #include "target/display.h"
+#include "recovery.h"
+#include <ab_partition_parser.h>
 
 #if LONG_PRESS_POWER_ON
 #include <shutdown_detect.h>
@@ -73,10 +75,21 @@
 #define PMIC_ARB_OWNER_ID       0
 #define TLMM_VOL_UP_BTN_GPIO    85
 
+#define PRI_PMIC_SLAVE_ID	0
+#define SEC_PMIC_SLAVE_ID	2
+
 #define FASTBOOT_MODE           0x77665500
 #define RECOVERY_MODE           0x77665502
 #define PON_SOFT_RB_SPARE       0x88F
-#define EXT4_CMDLINE  " rootfstype=ext4 root=/dev/mmcblk0p"
+
+#if VERITY_LE
+#define ROOTDEV_CMDLINE    " root=/dev/dm-0 dm=\"system none ro,0 1 android-verity /dev/mmcblk0p"
+#else
+#define ROOTDEV_CMDLINE    " root=/dev/mmcblk0p"
+#endif
+
+#define RECOVERY_ROOTDEV_CMDLINE  " root=/dev/mmcblk0p"
+#define ROOTDEV_FSTYPE_CMDLINE   (" rootfstype=ext4 ")
 
 #define CE1_INSTANCE            1
 #define CE_EE                   1
@@ -89,6 +102,7 @@
 
 #define SMBCHG_USB_RT_STS 0x21310
 #define USBIN_UV_RT_STS BIT(0)
+#define USBIN_UV_RT_STS_PMI632 BIT(2)
 
 struct mmc_device *dev;
 
@@ -109,6 +123,25 @@ void target_early_init(void)
 }
 
 #if _APPEND_CMDLINE
+/*
+   get_target_boot_params: appends bootparam as per following conditions:
+
+      1. Always appends "rootfstype=ext4", if it is emmc boot path.
+
+      2. Appends more bootparams only if multi-slot is not supported
+         2.1 If booting into recovery:
+             rootfstype=ext4 root=/dev/mmcblk0p<NN>
+             where: root=/dev/mmcblk0p<NN> is block device to "recoveryfs" partition
+
+         2.2 If booting into normal boot path:
+             2.2.1 If verity is enabled:
+                   root=/dev/dm-0 dm=\"system none ro,0 1 android-verity /dev/mmcblk0p<NN>
+                   where: root=/dev/mmcblk0p<NN> is block device to "system" partition
+
+             2.2.2 If verity is not enabled
+                   rootfstype=ext4 root=/dev/mmcblk0p<NN>
+                   where: root=/dev/mmcblk0p<NN> is block device to "system" partition
+*/
 int get_target_boot_params(const char *cmdline, const char *part, char **buf)
 {
 	int system_ptn_index = -1;
@@ -123,7 +156,39 @@ int get_target_boot_params(const char *cmdline, const char *part, char **buf)
 	if (!strstr(cmdline, "root=/dev/ram")) /* This check is to handle kdev boot */
 	{
 		if (target_is_emmc_boot()) {
-			buflen = strlen(EXT4_CMDLINE) + sizeof(int) +1;
+			/*
+			  Calculate length for "rootfstype=ext4"
+			  The "rootfstype=ext4" is appended to kernel commandline in all conditions
+			  The conditions are subsequently documented.
+			*/
+			buflen = sizeof(ROOTDEV_FSTYPE_CMDLINE);
+
+			/*
+			  Append other bootparams to command line
+			  only if multi-slot is not supported.
+			*/
+			if(!partition_multislot_is_supported()) {
+				/*
+				   When booting into recovery append
+				   block device number for "recoveryfs"
+				   Eventual command line looks like:
+				   ...rootfstype=ext4 root=/dev/mmcblk0p<NN>...
+				*/
+				if(boot_into_recovery == true) {
+					buflen += strlen(RECOVERY_ROOTDEV_CMDLINE) + sizeof(int) + 1;
+				} else {
+					/*
+					   When booting normally append command line
+					   with verity bootparam only if VERITY_LE is
+					   defined. The command line is as follows:
+					   ...root=/dev/dm-0 dm=\"system none ro,0 1 android-verity /dev/mmcblk0p<NN>...
+					   OR
+					   ...root=/dev/mmcblk0p<NN>...
+					*/
+					buflen += strlen(ROOTDEV_CMDLINE) + sizeof(int) + 1;
+				}
+			}
+
 			*buf = (char *)malloc(buflen);
 			if(!(*buf)) {
 				dprintf(CRITICAL,"Unable to allocate memory for boot params\n");
@@ -133,11 +198,21 @@ int get_target_boot_params(const char *cmdline, const char *part, char **buf)
 			system_ptn_index = partition_get_index(part) + 1; /* Adding +1 as offsets for eMMC start at 1 and NAND at 0 */
 			if (system_ptn_index < 0) {
 				dprintf(CRITICAL,
-						"WARN: Cannot get partition index for %s\n", part);
+					"WARN: Cannot get partition index for %s\n", part);
 				free(*buf);
 				return -1;
 			}
-			snprintf(*buf, buflen, EXT4_CMDLINE"%d", system_ptn_index);
+
+			if(!partition_multislot_is_supported()) {
+				if(boot_into_recovery == true) {
+					snprintf(*buf, buflen, "%s %s%d", ROOTDEV_FSTYPE_CMDLINE,
+						 RECOVERY_ROOTDEV_CMDLINE, system_ptn_index);
+				} else {
+					snprintf(*buf, buflen, "%s %s%d", ROOTDEV_FSTYPE_CMDLINE,
+						 ROOTDEV_CMDLINE, system_ptn_index);
+				}
+			}
+
 			ret = 0;
 		}
 	}
@@ -236,10 +311,25 @@ uint32_t target_volume_down()
 
 uint32_t target_is_pwrkey_pon_reason()
 {
-	uint8_t pon_reason = pm8950_get_pon_reason();
-	bool usb_present_sts = !(USBIN_UV_RT_STS &
+	uint32_t pmic = target_get_pmic();
+	uint8_t pon_reason = 0;
+	bool usb_present_sts = 1;
+
+	if (pmic == PMIC_IS_PMI632)
+	{
+		pon_reason = pmi632_get_pon_reason();
+		usb_present_sts = !(USBIN_UV_RT_STS_PMI632 &
 				pm8x41_reg_read(SMBCHG_USB_RT_STS));
-	if (pm8x41_get_is_cold_boot() && ((pon_reason == KPDPWR_N) || (pon_reason == (KPDPWR_N|PON1))))
+	}
+	else
+	{
+		pon_reason = pm8950_get_pon_reason();
+		usb_present_sts = !(USBIN_UV_RT_STS &
+				pm8x41_reg_read(SMBCHG_USB_RT_STS));
+	}
+
+	if (pm8x41_get_is_cold_boot() && ((pon_reason == KPDPWR_N) ||
+				(pon_reason == (KPDPWR_N|PON1))))
 		return 1;
 	else if ((pon_reason == PON1) && (!usb_present_sts))
 		return 1;
@@ -274,19 +364,20 @@ void target_init(void)
 	}
 
 #if LONG_PRESS_POWER_ON
-	shutdown_detect();
+	if (target_is_pmi_enabled())
+		shutdown_detect();
 #endif
 
 #if PON_VIB_SUPPORT
-	vib_timed_turn_on(VIBRATE_TIME);
+	if (target_is_pmi_enabled())
+		vib_timed_turn_on(VIBRATE_TIME);
 #endif
 
 
 	if (target_use_signed_kernel())
 		target_crypto_init_params();
 
-#if VERIFIED_BOOT
-	if (VB_V2 == target_get_vb_version())
+	if (VB_M <= target_get_vb_version())
 	{
 		clock_ce_enable(CE1_INSTANCE);
 
@@ -319,7 +410,6 @@ void target_init(void)
 			ASSERT(0);
 		}
 	}
-#endif
 
 #if SMD_SUPPORT
 	rpm_smd_init();
@@ -356,9 +446,12 @@ void target_baseband_detect(struct board_data *board)
 	switch(platform) {
 	case MSM8953:
 	case SDM450:
+	case SDM632:
 		board->baseband = BASEBAND_MSM;
 		break;
 	case APQ8053:
+	case SDA450:
+	case SDA632:
 		board->baseband = BASEBAND_APQ;
 		break;
 	default:
@@ -389,10 +482,21 @@ int emmc_recovery_init(void)
 
 unsigned target_pause_for_battery_charge(void)
 {
+	uint32_t pmic = target_get_pmic();
 	uint8_t pon_reason = pm8x41_get_pon_reason();
 	uint8_t is_cold_boot = pm8x41_get_is_cold_boot();
-	bool usb_present_sts = !(USBIN_UV_RT_STS &
+	bool usb_present_sts = 1;
+
+	if (target_is_pmi_enabled())
+	{
+		if (pmic == PMIC_IS_PMI632)
+			usb_present_sts = !(USBIN_UV_RT_STS_PMI632 &
 				pm8x41_reg_read(SMBCHG_USB_RT_STS));
+		else
+			usb_present_sts = !(USBIN_UV_RT_STS &
+				pm8x41_reg_read(SMBCHG_USB_RT_STS));
+	}
+
 	dprintf(INFO, "%s : pon_reason is:0x%x cold_boot:%d usb_sts:%d\n", __func__,
 		pon_reason, is_cold_boot, usb_present_sts);
 	/* In case of fastboot reboot,adb reboot or if we see the power key
@@ -411,6 +515,10 @@ unsigned target_pause_for_battery_charge(void)
 
 void target_uninit(void)
 {
+#if PON_VIB_SUPPORT
+	if(target_is_pmi_enabled())
+		turn_off_vib_early();
+#endif
 	mmc_put_card_to_sleep(dev);
 	sdhci_mode_disable(&dev->host);
 	if (crypto_initialized())
@@ -419,8 +527,7 @@ void target_uninit(void)
 	if (target_is_ssd_enabled())
 		clock_ce_disable(CE1_INSTANCE);
 
-#if VERIFIED_BOOT
-	if (VB_V2 == target_get_vb_version())
+	if (VB_M <= target_get_vb_version())
 	{
 		if (is_sec_app_loaded())
 		{
@@ -439,7 +546,6 @@ void target_uninit(void)
 
 		clock_ce_disable(CE1_INSTANCE);
 	}
-#endif
 
 #if SMD_SUPPORT
 	rpm_smd_uninit();
@@ -585,14 +691,38 @@ void target_crypto_init_params()
 	crypto_init_params(&ce_params);
 }
 
-void pmic_reset_configure(uint8_t reset_type)
-{
-	pm8994_reset_configure(reset_type);
-}
-
 uint32_t target_get_pmic()
 {
-	return PMIC_IS_PMI8950;
+	if (target_is_pmi_enabled()) {
+		uint32_t pmi_type = board_pmic_target(1) & PMIC_TYPE_MASK;
+		if (pmi_type == PMIC_IS_PMI632)
+			return PMIC_IS_PMI632;
+		else
+			return PMIC_IS_PMI8950;
+	}
+	else {
+		return PMIC_IS_UNKNOWN;
+	}
+}
+
+void pmic_reset_configure(uint8_t reset_type)
+{
+	uint32_t pmi_type;
+	uint8_t sec_reset_type = reset_type;
+
+	pmi_type = target_get_pmic();
+	if (pmi_type == PMIC_IS_PMI632)
+	{
+		pmi632_reset_configure(reset_type);
+	}
+	else
+	{
+		if (reset_type == PON_PSHOLD_HARD_RESET)
+			sec_reset_type = PON_PSHOLD_SHUTDOWN;
+
+		pm8996_reset_configure(PRI_PMIC_SLAVE_ID, reset_type);
+		pm8996_reset_configure(SEC_PMIC_SLAVE_ID, sec_reset_type);
+	}
 }
 
 struct qmp_reg qmp_settings[] =

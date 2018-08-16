@@ -50,7 +50,7 @@ ifeq ($(ENABLE_TRUSTZONE),1)
 endif
 
 INCLUDES := -I$(BUILDDIR) -Iinclude
-CFLAGS := -O2 -g -fno-builtin -finline -W -Wall -Wno-multichar -Wno-unused-parameter -Wno-unused-function -include $(CONFIGHEADER)
+CFLAGS := -O2 -g -fno-builtin -finline -W -Wall -Wno-multichar -Wno-unused-parameter -Wno-unused-function $(LKLE_CFLAGS) -include $(CONFIGHEADER)
 #CFLAGS += -Werror
 ifeq ($(EMMC_BOOT),1)
   CFLAGS += -D_EMMC_BOOT=1
@@ -145,9 +145,17 @@ ifeq ($(VERIFIED_BOOT_LE),1)
     DEFINES += DEFAULT_UNLOCK=1
   endif
 endif
+ifeq ($(VERIFIED_BOOT_2),1)
+  DEFINES += VERIFIED_BOOT_2=1
+  DEFINES += _SIGNED_KERNEL=1
+endif
 
 ifeq ($(OSVERSION_IN_BOOTIMAGE),1)
  DEFINES += OSVERSION_IN_BOOTIMAGE=1
+endif
+
+ifeq ($(HIBERNATION_SUPPORT),1)
+DEFINES += HIBERNATION_SUPPORT=1
 endif
 
 ifeq ($(ENABLE_VB_ATTEST),1)
@@ -162,6 +170,25 @@ ifeq ($(USE_LE_SYSTEMD),true)
   DEFINES += USE_LE_SYSTEMD=1
 else
   DEFINES += USE_LE_SYSTEMD=0
+endif
+
+ifeq ($(MOUNT_EMMC_LE),true)
+  DEFINES += MOUNT_EMMC_LE=1
+else
+  DEFINES += MOUNT_EMMC_LE=0
+endif
+
+#Enable kaslr seed support
+ifeq ($(ENABLE_KASLRSEED),1)
+  DEFINES += ENABLE_KASLRSEED_SUPPORT=1
+else
+  DEFINES += ENABLE_KASLRSEED_SUPPORT=0
+endif
+
+ifeq ($(TARGET_USE_SYSTEM_AS_ROOT_IMAGE),1)
+  DEFINES += TARGET_USE_SYSTEM_AS_ROOT_IMAGE=1
+else
+  DEFINES += TARGET_USE_SYSTEM_AS_ROOT_IMAGE=0
 endif
 
 # these need to be filled out by the project/target/platform rules.mk files
@@ -201,7 +228,6 @@ ALLOBJS := \
 
 # add some automatic configuration defines
 DEFINES += \
-	BOARD=$(BOARD_NAME) \
 	PROJECT_$(PROJECT)=1 \
 	TARGET_$(TARGET)=1 \
 	PLATFORM_$(PLATFORM)=1 \
@@ -252,6 +278,7 @@ $(CONFIGHEADER): configheader
 	@rm -f $(CONFIGHEADER).tmp; \
 	echo \#ifndef __CONFIG_H > $(CONFIGHEADER).tmp; \
 	echo \#define __CONFIG_H >> $(CONFIGHEADER).tmp; \
+	echo \#define BOARD $(BOARD_NAME) >> $(CONFIGHEADER).tmp; \
 	for d in `echo $(DEFINES) | tr [:lower:] [:upper:]`; do \
 		echo "#define $$d" | sed "s/=/\ /g;s/-/_/g;s/\//_/g" >> $(CONFIGHEADER).tmp; \
 	done; \

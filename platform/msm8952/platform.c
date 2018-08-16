@@ -1,4 +1,4 @@
-/* Copyright (c) 2015-2016, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2015-2016, 2018, The Linux Foundation. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -68,7 +68,7 @@ static mmu_section_t mmu_section_table[] = {
 	{    MSM_SHARED_IMEM_BASE,  MSM_SHARED_IMEM_BASE,    1,                      COMMON_MEMORY},
 	{    SCRATCH_ADDR,          SCRATCH_ADDR,            SCRATCH_SIZE,           SCRATCH_MEMORY},
 	{    MIPI_FB_ADDR,          MIPI_FB_ADDR,            20,                     COMMON_MEMORY},
-	{    RPMB_SND_RCV_BUF,      RPMB_SND_RCV_BUF,        RPMB_SND_RCV_BUF_SZ,    IOMAP_MEMORY},
+	{    RPMB_SND_RCV_BUF_STRT, RPMB_SND_RCV_BUF_STRT,   RPMB_SND_RCV_BUF_SZ,    IOMAP_MEMORY},
 };
 
 static mmu_section_t mmu_section_table_512[] = {
@@ -260,6 +260,43 @@ int platform_is_msm8952()
 	return ret;
 }
 
+int platform_is_sdm429()
+{
+	uint32_t platform = board_platform_id();
+	uint32_t ret = 0;
+
+	switch(platform)
+	{
+	case SDM429:
+	case SDA429:
+		ret = 1;
+		break;
+	default:
+		ret = 0;
+	};
+
+	return ret;
+}
+
+int platform_is_sdm439()
+{
+	uint32_t platform = board_platform_id();
+	uint32_t ret = 0;
+
+	switch(platform)
+	{
+	case SDM439:
+	case SDA439:
+		ret = 1;
+		break;
+	default:
+		ret = 0;
+	};
+
+	return ret;
+}
+
+
 int platform_is_msm8956()
 {
 	uint32_t platform = board_platform_id();
@@ -282,7 +319,8 @@ int platform_is_msm8956()
 
 uint32_t platform_get_tz_app_add()
 {
-	if(platform_is_msm8937() || platform_is_msm8917())
+	if(platform_is_msm8937() || platform_is_msm8917() ||
+		platform_is_sdm429() || platform_is_sdm439())
 		return APP_REGION_ADDR_8937;
 	else
 		return APP_REGION_ADDR_8952;
@@ -290,7 +328,8 @@ uint32_t platform_get_tz_app_add()
 
 uint32_t platform_get_tz_app_size()
 {
-	if(platform_is_msm8937() || platform_is_msm8917())
+	if(platform_is_msm8937() || platform_is_msm8917() ||
+		platform_is_sdm429() || platform_is_sdm439())
 		return APP_REGION_SIZE_8937;
 	else
 		return APP_REGION_SIZE_8952;
@@ -298,7 +337,7 @@ uint32_t platform_get_tz_app_size()
 
 uint32_t platform_get_apcs_ipc_base()
 {
-	if(platform_is_msm8917())
+	if(platform_is_msm8917() || platform_is_sdm429())
 		return APCS_ALIAS1_IPC_INTERRUPT_1;
 	else
 		return APCS_ALIAS0_IPC_INTERRUPT_2;
@@ -313,4 +352,12 @@ uint32_t platform_is_msm8976_v_1_1()
 		ret = 1;
 
 	return ret;
+}
+
+void *get_rpmb_snd_rcv_buff()
+{
+	if(smem_get_ddr_size() > 0x20000000)
+		return (void *)RPMB_SND_RCV_BUF_STRT;
+	else
+		return (void *)RPMB_SND_RCV_BUF_512;
 }

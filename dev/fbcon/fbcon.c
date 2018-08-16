@@ -21,7 +21,7 @@
  * COPYRIGHT OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT,
  * INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING,
  * BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS
- * OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED 
+ * OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED
  * AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
  * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT
  * OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
@@ -88,7 +88,7 @@ static struct pos		max_pos;
 static struct fb_color		*fb_color_formats;
 static struct fb_color		fb_color_formats_555[] = {
 					[FBCON_COMMON_MSG] = {RGB565_WHITE, RGB565_BLACK},
-					[FBCON_UNLOCK_TITLE_MSG] = {RGB565_CYAN, RGB565_BLACK},
+					[FBCON_UNLOCK_TITLE_MSG] = {RGB565_RED, RGB565_BLACK},
 					[FBCON_TITLE_MSG] = {RGB565_WHITE, RGB565_BLACK},
 					[FBCON_SUBTITLE_MSG] = {RGB565_SILVER, RGB565_BLACK},
 					[FBCON_YELLOW_MSG] = {RGB565_YELLOW, RGB565_BLACK},
@@ -99,7 +99,7 @@ static struct fb_color		fb_color_formats_555[] = {
 
 static struct fb_color		fb_color_formats_888[] = {
 					[FBCON_COMMON_MSG] = {RGB888_WHITE, RGB888_BLACK},
-					[FBCON_UNLOCK_TITLE_MSG] = {RGB888_CYAN, RGB888_BLACK},
+					[FBCON_UNLOCK_TITLE_MSG] = {RGB888_RED, RGB888_BLACK},
 					[FBCON_TITLE_MSG] = {RGB888_WHITE, RGB888_BLACK},
 					[FBCON_SUBTITLE_MSG] = {RGB888_SILVER, RGB888_BLACK},
 					[FBCON_YELLOW_MSG] = {RGB888_YELLOW, RGB888_BLACK},
@@ -183,8 +183,13 @@ void fbcon_draw_msg_background(unsigned y_start, unsigned y_end,
 	unsigned i, j;
 	uint32_t bg_color, check_color, tmp_color, tmp1_color;
 	char *pixels;
-	unsigned count = config->width * (FONT_HEIGHT * (y_end - y_start) - 1);
+	unsigned count;
 
+	/* ignore anything that happens before fbcon is initialized */
+	if (!config)
+		return;
+
+	count = config->width * (FONT_HEIGHT * (y_end - y_start) - 1);
 	pixels = config->base;
 	pixels += y_start * ((config->bpp / 8) * FONT_HEIGHT * config->width);
 
@@ -221,6 +226,10 @@ static void fbcon_flush(void)
 	unsigned total_x, total_y;
 	unsigned bytes_per_bpp;
 
+	/* ignore anything that happens before fbcon is initialized */
+	if (!config)
+		return;
+
 	if (config->update_start)
 		config->update_start();
 	if (config->update_done)
@@ -235,9 +244,17 @@ static void fbcon_flush(void)
 /* TODO: Take stride into account */
 static void fbcon_scroll_up(void)
 {
-	unsigned short *dst = config->base;
-	unsigned short *src = dst + (config->width * FONT_HEIGHT);
-	unsigned count = config->width * (config->height - FONT_HEIGHT);
+	unsigned short *dst = NULL;
+	unsigned short *src = NULL;
+	unsigned count = 0;
+
+	/* ignore anything that happens before fbcon is initialized */
+	if (!config)
+		return;
+
+	dst = config->base;
+	src = dst + (config->width * FONT_HEIGHT);
+	count = config->width * (config->height - FONT_HEIGHT);
 
 	while(count--) {
 		*dst++ = *src++;
@@ -256,6 +273,10 @@ void fbcon_draw_line(uint32_t type)
 	char *pixels;
 	uint32_t line_color, tmp_color;
 	int i, j;
+
+	/* ignore anything that happens before fbcon is initialized */
+	if (!config)
+		return;
 
 	/* set line's color via diffrent type */
 	line_color = fb_color_formats[type].fg;
@@ -291,9 +312,16 @@ static void fbcon_set_colors(int type)
 void fbcon_clear(void)
 {
 	unsigned long i = 0, j = 0;
-	unsigned char *pixels = config->base;
-	unsigned count = config->width * config->height;
+	unsigned char *pixels = NULL;
+	unsigned count;
 	uint32_t bg_color;
+
+	/* ignore anything that happens before fbcon is initialized */
+	if (!config)
+		return;
+
+	pixels = config->base;
+	count =  config->width * config->height;
 
 	fbcon_set_colors(FBCON_COMMON_MSG);
 	for (i = 0; i < count; i++) {
@@ -373,6 +401,22 @@ uint32_t fbcon_get_current_line(void)
 uint32_t fbcon_get_max_x(void)
 {
 	return max_pos.x;
+}
+
+uint32_t fbcon_get_width(void)
+{
+	if (config)
+		return config->width;
+	else
+		return 0;
+}
+
+uint32_t fbcon_get_height(void)
+{
+	if (config)
+		return config->height;
+	else
+		return 0;
 }
 
 uint32_t fbcon_get_current_bg(void)
@@ -506,7 +550,6 @@ void display_default_image_on_screen(void)
 	image_base = ((((total_y/2) - (SPLASH_IMAGE_HEIGHT / 2) - 1) *
 			(config->width)) + (total_x/2 - (SPLASH_IMAGE_WIDTH / 2)));
 
-#if DISPLAY_TYPE_MIPI
 #if ENABLE_WBC
 	image = (pm_appsbl_charging_in_progress() ? image_batt888 : imageBuffer_rgb888);
 #else
@@ -520,13 +563,6 @@ void display_default_image_on_screen(void)
 			SPLASH_IMAGE_WIDTH * bytes_per_bpp);
 		}
 	}
-	fbcon_flush();
-#if DISPLAY_MIPI_PANEL_NOVATEK_BLUE
-	if(is_cmd_mode_enabled())
-		mipi_dsi_cmd_mode_trigger();
-#endif
-
-#else
 
 	if (bytes_per_bpp == 2) {
 		for (i = 0; i < SPLASH_IMAGE_HEIGHT; i++) {
@@ -535,7 +571,12 @@ void display_default_image_on_screen(void)
 			SPLASH_IMAGE_WIDTH * bytes_per_bpp);
 		}
 	}
+
 	fbcon_flush();
+
+#if DISPLAY_MIPI_PANEL_NOVATEK_BLUE
+	if(is_cmd_mode_enabled())
+		mipi_dsi_cmd_mode_trigger();
 #endif
 }
 

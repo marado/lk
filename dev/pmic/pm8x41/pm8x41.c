@@ -1,4 +1,4 @@
-/* Copyright (c) 2012-2015, 2017, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2012-2015, 2017-2018, The Linux Foundation. All rights reserved.
 
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -389,6 +389,40 @@ uint32_t pm8x41_get_pwrkey_is_pressed()
 		return 0;
 }
 
+void pmi632_reset_configure(uint8_t reset_type)
+{
+	/* Slave ID of pm8953 and pmi632 */
+	uint8_t slave_id[] = {0, 2};
+	uint8_t i;
+
+	/* Reset sequence
+	1. Disable the ps hold for pm8953 and pmi632
+	2. set reset type for both pm8953 & pmi632
+	3. Enable ps hold for pm8953 to trigger the reset
+	*/
+	/* disable PS_HOLD_RESET */
+	pm8xxx_reg_write(slave_id[0], PON_PS_HOLD_RESET_CTL2, 0x0);
+	pm8xxx_reg_write(slave_id[1], PON_PS_HOLD_RESET_CTL2, 0x0);
+
+	/* Delay needed for disable to kick in. */
+	udelay(300);
+
+	/* configure reset type */
+	for (i = 0; i < ARRAY_SIZE(slave_id); i++)
+		pm8xxx_reg_write(slave_id[i], PON_PS_HOLD_RESET_CTL, reset_type);
+
+	if (reset_type == PON_PSHOLD_WARM_RESET)
+	{
+		/* enable PS_HOLD_RESET */
+		for (i = 0; i < ARRAY_SIZE(slave_id); i++)
+			pm8xxx_reg_write(slave_id[i], PON_PS_HOLD_RESET_CTL2, BIT(S2_RESET_EN_BIT));
+	}
+	else
+	{
+			pm8xxx_reg_write(slave_id[0], PON_PS_HOLD_RESET_CTL2, BIT(S2_RESET_EN_BIT));
+	}
+}
+
 void pm8994_reset_configure(uint8_t reset_type)
 {
 	/* Slave ID of pm8994 and pmi8994 */
@@ -414,6 +448,25 @@ void pm8994_reset_configure(uint8_t reset_type)
 	/* enable PS_HOLD_RESET */
 	for (i = 0; i < ARRAY_SIZE(slave_id); i++)
 		pm8xxx_reg_write(slave_id[i], PON_PS_HOLD_RESET_CTL2, BIT(S2_RESET_EN_BIT));
+}
+
+void pm8996_reset_configure(uint8_t slave_id, uint8_t reset_type)
+{
+	/* Reset sequence
+	1. Disable the ps hold
+	2. set reset type
+	3. Enable ps hold to trigger the reset
+	*/
+	/* disable PS_HOLD_RESET */
+	pm8xxx_reg_write(slave_id, PON_PS_HOLD_RESET_CTL2, 0x0);
+
+	/* Delay needed for disable to kick in. */
+	udelay(300);
+
+	/* configure reset type */
+	pm8xxx_reg_write(slave_id, PON_PS_HOLD_RESET_CTL, reset_type);
+	/* enable PS_HOLD_RESET */
+	pm8xxx_reg_write(slave_id, PON_PS_HOLD_RESET_CTL2, BIT(S2_RESET_EN_BIT));
 }
 
 void pm8x41_v2_reset_configure(uint8_t reset_type)
@@ -581,6 +634,11 @@ uint8_t pm8x41_get_pmic_rev()
 	return REG_READ(REVID_REVISION4);
 }
 
+uint8_t pm660_get_pon_reason()
+{
+	return REG_READ(PM660_PON_REASON1);
+}
+
 uint8_t pm8x41_get_pon_reason()
 {
 	return REG_READ(PON_PON_REASON1);
@@ -593,6 +651,18 @@ uint8_t pm8950_get_pon_reason()
 	pon_reason = REG_READ(SMBCHGL_USB_ICL_STS_2|PMI8950_SLAVE_ID);
 	/* check usbin/dcin status on pmi and set the corresponding bits for pon */
 	pon_reason = (pon_reason & (USBIN_ACTIVE_PWR_SRC|DCIN_ACTIVE_PWR_SRC)) << 3 ;
+	pon_reason |= REG_READ(PON_PON_REASON1);
+
+	return pon_reason;
+}
+
+uint8_t pmi632_get_pon_reason()
+{
+	uint8_t pon_reason = 0;
+
+	pon_reason = REG_READ(SCHG_USB_INT_RT_STS|PMI8950_SLAVE_ID);
+	/* Check USBIN status on PMI and set the corresponding bits for pon */
+	pon_reason = (pon_reason & USBIN_PLUGIN_RT_STS);
 	pon_reason |= REG_READ(PON_PON_REASON1);
 
 	return pon_reason;
@@ -629,6 +699,15 @@ void pm8x41_config_output_mpp(struct pm8x41_mpp *mpp)
 	REG_WRITE(((mpp->base + MPP_DIG_VIN_CTL) + (mpp_slave_id << 16)), mpp->vin);
 
 	REG_WRITE(((mpp->base + MPP_MODE_CTL) + (mpp_slave_id << 16)), mpp->mode | (MPP_DIGITAL_OUTPUT << MPP_MODE_CTL_MODE_SHIFT));
+}
+
+uint8_t pm660_get_is_cold_boot()
+{
+	if (REG_READ(PM660_PON_WARMBOOT_STATUS1)) {
+		dprintf(INFO,"%s: Warm boot\n", __func__);
+		return 0;
+	}
+	return 1;
 }
 
 uint8_t pm8x41_get_is_cold_boot()

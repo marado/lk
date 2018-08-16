@@ -2,7 +2,7 @@
  * Copyright (c) 2009, Google Inc.
  * All rights reserved.
  *
- * Copyright (c) 2014-2015, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2014-2015, 2017, The Linux Foundation. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -55,6 +55,7 @@ const char *hw_platform[] = {
 	[HW_PLATFORM_DTV] = "DTV",
 	[HW_PLATFORM_STP] = "STP",
 	[HW_PLATFORM_SBC] = "SBC",
+	[HW_PLATFORM_ATP] = "ATP",
 };
 
 /* DYNAMIC SMEM REGION feature enables LK to dynamically
@@ -201,6 +202,9 @@ size_t smem_get_hw_platform_name(void *buf, uint32 buf_size)
 	}
 
 	hw_id = board_hardware_id();
+	if (hw_id >= ARRAY_SIZE(hw_platform) || hw_platform[hw_id] == '\0')
+		return 1;
+
 	if (buf_size < strlen(hw_platform[hw_id]) + 1)
 		return 1;
 

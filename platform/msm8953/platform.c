@@ -65,7 +65,7 @@ static mmu_section_t mmu_section_table[] = {
 	{    MSM_IOMAP_BASE,        MSM_IOMAP_BASE,          MSM_IOMAP_SIZE,   IOMAP_MEMORY},
 	{    APPS_SS_BASE,          APPS_SS_BASE,            APPS_SS_SIZE,      IOMAP_MEMORY},
 	{    MSM_SHARED_IMEM_BASE,  MSM_SHARED_IMEM_BASE,    1,                COMMON_MEMORY},
-	{    SCRATCH_ADDR,          SCRATCH_ADDR,            512,              SCRATCH_MEMORY},
+	{    SCRATCH_ADDR,          SCRATCH_ADDR,            SCRATCH_SIZE,     SCRATCH_MEMORY},
 	{    MIPI_FB_ADDR,          MIPI_FB_ADDR,            20,                     COMMON_MEMORY},
 	{    RPMB_SND_RCV_BUF,      RPMB_SND_RCV_BUF,        RPMB_SND_RCV_BUF_SZ,    IOMAP_MEMORY},
 };
@@ -180,10 +180,19 @@ int platform_is_msm8953()
 {
 	uint32_t platform = board_platform_id();
 
-	if ((platform == MSM8953) || (platform == APQ8053) || (platform == SDM450))
-		return 1;
-	else
-		return 0;
+	switch (platform)
+	{
+		case MSM8953:
+		case APQ8053:
+		case SDM450:
+		case SDA450:
+		case SDM632:
+		case SDA632:
+			return 1;
+			break;
+		default:
+			return 0;
+	}
 }
 
 uint32_t platform_get_qmp_rev()

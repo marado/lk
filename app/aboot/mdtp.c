@@ -1,4 +1,4 @@
-/* Copyright (c) 2015-2016, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2015-2018, The Linux Foundation. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -74,7 +74,6 @@ uint32_t g_mdtp_version = (((MDTP_MAJOR_VERSION << 16) & 0xFFFF0000) | (MDTP_MIN
 static int is_mdtp_activated = -1;
 
 extern int check_aboot_addr_range_overlap(uintptr_t start, uint32_t size);
-int scm_random(uint32_t * rbuf, uint32_t  r_len);
 void free_mdtp_image(void);
 
 /********************************************************************************/
@@ -282,7 +281,7 @@ static int verify_partition_block_hash(char *name,
 	{
 		if (*force_verify_block == 0)
 		{
-			if(scm_random((uint32_t *)&rand_int, sizeof(rand_int)))
+			if(scm_random((uintptr_t *)&rand_int, sizeof(rand_int)))
 			{
 				dprintf(CRITICAL,"mdtp: scm_call for random failed\n");
 				return -1;
@@ -479,6 +478,7 @@ static int verify_ext_partition(mdtp_ext_partition_verification_t *ext_partition
 	bool restore_to_orange = false;
 	unsigned long long ptn = 0;
 	int index = INVALID_PTN;
+	uint32_t bootstate;
 
 	/* If image was already verified in aboot, return its status */
 	if (ext_partition->integrity_state == MDTP_PARTITION_STATE_INVALID)
@@ -539,7 +539,8 @@ static int verify_ext_partition(mdtp_ext_partition_verification_t *ext_partition
 		/* 4) Verify the image using its signature. */
 		ret = boot_verify_image((unsigned char *)ext_partition->image_addr,
 								ext_partition->image_size,
-								ext_partition->partition == MDTP_PARTITION_BOOT ? "/boot" : "/recovery");
+								ext_partition->partition == MDTP_PARTITION_BOOT ? "/boot" : "/recovery",
+								&bootstate);
 		break;
 
 	default:
@@ -655,14 +656,14 @@ static void validate_DIP_and_firmware(mdtp_ext_partition_verification_t *ext_par
 	uint32_t block_size = mmc_get_device_blocksize();
 	mdtp_cfg_t mdtp_cfg;
 
-	enc_dip = malloc(ROUNDUP(sizeof(DIP_t), block_size));
+	enc_dip = memalign(CACHE_LINE, ROUNDUP(sizeof(DIP_t), block_size));
 	if (enc_dip == NULL)
 	{
 		dprintf(CRITICAL, "mdtp: validate_DIP_and_firmware: ERROR, cannot allocate DIP\n");
 		display_error_msg(); /* This will never return */
 	}
 
-	dec_dip = malloc(ROUNDUP(sizeof(DIP_t), block_size));
+	dec_dip = memalign(CACHE_LINE, ROUNDUP(sizeof(DIP_t), block_size));
 	if (dec_dip == NULL)
 	{
 		dprintf(CRITICAL, "mdtp: validate_DIP_and_firmware: ERROR, cannot allocate DIP\n");

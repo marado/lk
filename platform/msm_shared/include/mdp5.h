@@ -346,4 +346,9 @@ void mdss_dsc_mdp_config(struct msm_panel_info *pinfo,
 	bool mux, bool split_mode);
 
 int mdss_layer_mixer_remove_pipe(struct msm_panel_info *pinfo);
+
+int mdss_spi_init(void);
+int mdss_spi_panel_init(struct msm_panel_info *pinfo);
+int mdss_spi_on(struct msm_panel_info *pinfo, struct fbcon_config *fb);
+int mdss_spi_cmd_post_on(struct msm_panel_info *pinfo);
 #endif

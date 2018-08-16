@@ -1,7 +1,7 @@
 /*
  * Copyright (c) 2008 Travis Geiselbrecht
  *
- * Copyright (c) 2015-2017, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2015-2018, The Linux Foundation. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining
  * a copy of this software and associated documentation files
@@ -43,7 +43,7 @@
 #include <pm_fg_adc_usr.h>
 #endif
 
-#if VERIFIED_BOOT
+#if VERIFIED_BOOT || VERIFIED_BOOT_2
 #include <partition_parser.h>
 #include <ab_partition_parser.h>
 #endif
@@ -57,12 +57,14 @@
 #define BAT_IF_INT_RT_STS		0x1210
 #define BATT_INFO_VBATT_LSB		0x41A0
 #define BATT_INFO_VBATT_MSB		0x41A1
+#define ADC_V_DATA_LSB			0x248C0
+#define ADC_V_DATA_MSB			0x248C1
 #define BATT_VOLTAGE_NUMR		122070
+#define QGAUGE_VOLTAGE_NUMR		194637
 #define BATT_VOLTAGE_DENR		1000
-
-#if VERIFIED_BOOT
+#define INVALID  -1
 static int vb_version = INVALID;
-#endif
+
 /*
  * default implementations of these routines, if the target code
  * chooses not to implement.
@@ -282,6 +284,17 @@ __WEAK uint32_t target_ddr_cfg_val()
 __WEAK void earlydomain()
 {
 }
+
+/* Target uses system as root */
+bool target_uses_system_as_root(void)
+{
+#if TARGET_USE_SYSTEM_AS_ROOT_IMAGE
+	if (target_get_vb_version() >= VB_M)
+		return true;
+#endif
+		return false;
+}
+
 /* Default CFG register value */
 uint32_t target_ddr_cfg_reg()
 {
@@ -301,6 +314,13 @@ uint32_t target_ddr_cfg_reg()
 		case MSM8953:
 		case APQ8053:
 		case SDM450:
+		case SDA450:
+		case SDM632:
+		case SDA632:
+		case SDM429:
+		case SDM439:
+		case SDA429:
+		case SDA439:
 		/* SDCC HC DDR CONFIG has shifted by 4 bytes for these platform */
 			ret += 4;
 			break;
@@ -309,21 +329,24 @@ uint32_t target_ddr_cfg_reg()
 	}
 	return ret;
 }
-
-#if VERIFIED_BOOT
+#if VERIFIED_BOOT || VERIFIED_BOOT_2
 int target_get_vb_version()
 {
 	if (vb_version == INVALID)
 	{
-		/* check vb version on first time. */
-		/* Incase of keymaster present, its VB2.0 */
+		/* Incase of keymaster present,verified boot for M version */
 		if (partition_get_index("keymaster") != INVALID_PTN)
-			vb_version = VB_V2;
+			vb_version = VB_M;
 		else
 		/* Incase keymaster is not present,
 		we use keystore for verification. */
-			vb_version = VB_V1;
+			vb_version = VB_L;
 	}
+	return vb_version;
+}
+#else
+int target_get_vb_version()
+{
 	return vb_version;
 }
 #endif
@@ -341,6 +364,7 @@ int is_vb_le_enabled(void)
 	switch(platform)
 	{
 		case APQ8053:
+		case APQ8009:
 			return verified_boot_le;
 		default:
 			break;
@@ -379,6 +403,13 @@ void get_vibration_type(struct qpnp_hap *config)
 		case MSM8953:
 		case APQ8053:
 		case SDM450:
+		case SDA450:
+		case SDM632:
+		case SDA632:
+		case SDM429:
+		case SDM439:
+		case SDA429:
+		case SDA439:
 			config->vib_type = VIB_LRA_TYPE;
 			config->hap_rate_cfg1 = QPNP_HAP_RATE_CFG1_41;
 			config->hap_rate_cfg2 = QPNP_HAP_RATE_CFG2_03;
@@ -413,6 +444,10 @@ __WEAK uint32_t target_get_pmic()
 	return PMIC_IS_UNKNOWN;
 }
 
+__WEAK bool is_display_disabled()
+{
+	return false;
+}
 /* Check battery if it's exist */
 bool target_battery_is_present()
 {
@@ -440,6 +475,15 @@ bool target_battery_is_present()
 			break;
 		case PMIC_IS_PM660:
 			value = REG_READ(BAT_IF_INT_RT_STS);
+			/* If BAT_TERMINAL_MISSING_RT_STS BIT(5) or BAT_THERM_OR_ID_MISSING_RT_STS BIT(4)
+			   are set, battery is not present. */
+			if (value & (BIT(5) | BIT(4)))
+				return false;
+			else
+				return true;
+			break;
+		case PMIC_IS_PMI632:
+			value = REG_READ(PMIC_SLAVE_ID|BAT_IF_INT_RT_STS);
 			/* If BAT_TERMINAL_MISSING_RT_STS BIT(5) or BAT_THERM_OR_ID_MISSING_RT_STS BIT(4)
 			   are set, battery is not present. */
 			if (value & (BIT(5) | BIT(4)))
@@ -493,7 +537,14 @@ uint32_t target_get_battery_voltage()
 			buff[1] = REG_READ(BATT_INFO_VBATT_MSB);
 			temp = buff[1] << 8 | buff[0];
 			/* {MSB,LSB} to decode the voltage level, refer register description. */
-			vbat = (((uint32_t)temp)*BATT_VOLTAGE_NUMR/BATT_VOLTAGE_DENR);
+			vbat = (((uint64_t)temp)*BATT_VOLTAGE_NUMR/BATT_VOLTAGE_DENR);
+			break;
+		case PMIC_IS_PMI632:
+			buff[0] = REG_READ(ADC_V_DATA_LSB);
+			buff[1] = REG_READ(ADC_V_DATA_MSB);
+			temp = buff[1] << 8 | buff[0];
+			/* {MSB,LSB} to decode the voltage level, refer register description. */
+			vbat = (((uint64_t)temp)*QGAUGE_VOLTAGE_NUMR/BATT_VOLTAGE_DENR);
 			break;
 		default:
 			dprintf(CRITICAL, "ERROR: Couldn't get the pmic type\n");

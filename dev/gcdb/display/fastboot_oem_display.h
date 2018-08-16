@@ -1,4 +1,4 @@
-/* Copyright (c) 2013-2017, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2013-2018, The Linux Foundation. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -117,6 +117,10 @@ struct panel_lookup_list lookup_skip_panels[] = {
 		true},
 	{"dual_720p_single_hdmi_video", "qcom,mdss_dsi_adv7533_720p60_video", false},
 	{"mirrorlake1_hdplus_video", "qcom,mdss_dsi_icn9706_720_1440p_video", false},
+	{"hx8399c_fhd_plus_video", "qcom,mdss_dsi_hx8399c_truly_video", false},
+	{"hx8399c_hd_plus_video", "qcom,mdss_dsi_hx8399c_hd_video", false},
+	{"nt35695b_truly_fhd_video", "qcom,mdss_dsi_nt35695b_truly_fhd_video", false},
+	{"nt35695b_truly_fhd_cmd", "qcom,mdss_dsi_nt35695b_truly_fhd_cmd", false},
 };
 
 struct sim_lookup_list lookup_sim[] = {

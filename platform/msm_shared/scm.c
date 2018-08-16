@@ -1,4 +1,4 @@
-/* Copyright (c) 2011-2017, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2011-2018, The Linux Foundation. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -37,6 +37,8 @@
 #include <dload_util.h>
 #include <platform/iomap.h>
 #include <board.h>
+#include <qseecomi_lk.h>
+#include <qseecom_lk_api.h>
 #include "scm.h"
 
 #pragma GCC optimize ("O0")
@@ -70,12 +72,10 @@ static bool scm_initialized;
 
 bool is_scm_armv8_support()
 {
-#if !NO_SCM_V8_SUPPORT
 	if (!scm_initialized)
 	{
 		scm_init();
 	}
-#endif
 
 	return scm_arm_support;
 }
@@ -439,8 +439,8 @@ int decrypt_scm(uint32_t ** img_ptr, uint32_t * img_len_ptr)
 static int ssd_image_is_encrypted(uint32_t ** img_ptr, uint32_t * img_len_ptr, uint32 * ctx_id)
 {
 	int              ret     = 0;
-	ssd_parse_md_req parse_req;
-	ssd_parse_md_rsp parse_rsp;
+	ssd_parse_md_req parse_req = {0};
+	ssd_parse_md_rsp parse_rsp = {0};
 	int              prev_len = 0;
 	scmcall_arg scm_arg = {0};
 	scmcall_ret scm_ret = {0};
@@ -1281,12 +1281,15 @@ void scm_check_boot_fuses()
 	}
 
 	if (!ret) {
-		/* Check for secure device: Bit#0 = 0, Bit#1 = 0 Bit#2 = 0 , Bit#5 = 0 , Bit#6 = 1 */
+		/* Check for secure device: Bit#0 = 0, Bit#1 = 0 Bit#2 = 0 , Bit#5 = 0 */
+		/* Check Bit#6 = 1 only for TZ.BF.4.0 */
         	if (!CHECK_BIT(resp[0], SECBOOT_FUSE_BIT) && !CHECK_BIT(resp[0], SECBOOT_FUSE_SHK_BIT) &&
         		!CHECK_BIT(resp[0], SECBOOT_FUSE_DEBUG_DISABLED_BIT) &&
-        		!CHECK_BIT(resp[0], SECBOOT_FUSE_RPMB_ENABLED_BIT) &&
-        		CHECK_BIT(resp[0], SECBOOT_FUSE_DEBUG_RE_ENABLED_BIT)) {
-        		secure_boot_enabled = true;
+                        !CHECK_BIT(resp[0], SECBOOT_FUSE_RPMB_ENABLED_BIT)) {
+                        if ((qseecom_get_version() < QSEE_VERSION_40))
+	                        secure_boot_enabled = true;
+                        else if (CHECK_BIT(resp[0], SECBOOT_FUSE_DEBUG_RE_ENABLED_BIT))
+	                        secure_boot_enabled = true;
         	}
 		/* Bit 2 - DEBUG_DISABLE_CHECK */
 		if (CHECK_BIT(resp[0], SECBOOT_FUSE_DEBUG_DISABLED_BIT))

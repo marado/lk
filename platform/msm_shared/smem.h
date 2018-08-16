@@ -2,7 +2,7 @@
  * Copyright (c) 2009, Google Inc.
  * All rights reserved.
  *
- * Copyright (c) 2009-2017, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2009-2018, The Linux Foundation. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -142,6 +142,7 @@ typedef enum
 	PMIC_IS_PMI8994   = 10,
 	PMIC_IS_PMI8996   = 19,
 	PMIC_IS_PM660     = 27,
+	PMIC_IS_PMI632    = 37,
 } pm_model_type_bfly;
 
 struct smem_board_info_v3 {
@@ -467,7 +468,14 @@ enum {
 	SDM450 = 338,
 	MDM9206 = 322,
 	MSM8996SGAU = 315,
-	APQ8096SGAU = 316
+	APQ8096SGAU = 316,
+	SDA450 = 351,
+	SDM632 = 349,
+	SDA632 = 350,
+	SDM429 = 354,
+	SDM439 = 353,
+	SDA429 = 364,
+	SDA439 = 363
 };
 
 enum platform {
@@ -493,6 +501,7 @@ enum platform {
 	HW_PLATFORM_STP = 23,
 	HW_PLATFORM_SBC = 24,
 	HW_PLATFORM_ADP = 25,
+	HW_PLATFORM_ATP = 33,
 	HW_PLATFORM_32BITS = 0x7FFFFFFF,
 };
 
@@ -506,6 +515,7 @@ enum platform_subtype {
 	HW_PLATFORM_SUBTYPE_SAP = 2,
 	HW_PLATFORM_SUBTYPE_SAP_NOPMI = 3,
 	HW_PLATFORM_SUBTYPE_SVLTE2A = 3,
+	HW_PLATFORM_SUBTYPE_MTP_WEAR = 5,
 	HW_PLATFORM_SUBTYPE_SGLTE = 6,
 	HW_PLATFORM_SUBTYPE_DSDA = 7,
 	HW_PLATFORM_SUBTYPE_DSDA2 = 8,
@@ -515,6 +525,9 @@ enum platform_subtype {
 	HW_PLATFORM_SUBTYPE_SWOC_WEAR = 9,
 	HW_PLATFORM_SUBTYPE_SWOC_NOWGR_CIRC = 13,
 	HW_PLATFORM_SUBTYPE_8909_PM660 = 15,
+	HW_PLATFORM_SUBTYPE_8909_COMPAL_ALPHA = 19,
+	HW_PLATFORM_SUBTYPE_8909_PM660_V1 = 18,
+	HW_PLATFORM_SUBTYPE_INTRINSIC_SOM = 20,
 	HW_PLATFORM_SUBTYPE_32BITS = 0x7FFFFFFF
 };
 
