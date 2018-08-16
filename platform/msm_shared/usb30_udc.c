@@ -940,16 +940,19 @@ static void udc_update_ep_desc(udc_t *udc, uint16_t max_pkt_sz_bulk)
 	 */
 	for (desc = udc->desc_list; desc; desc = desc->next)
 	{
+		if (desc->data[1] != TYPE_CONFIGURATION)
+			continue;
+
 		if (desc->data[EP_BULK_IN_INDEX] == EP_TYPE_BULK)
 		{
 			desc->data[EP_BULK_IN_INDEX + 1] = max_pkt_sz_bulk;
-			desc->data[EP_BULK_IN_INDEX + 2]  = max_pkt_sz_bulk >> 8;
+			desc->data[EP_BULK_IN_INDEX + 2] = max_pkt_sz_bulk >> 8;
 		}
 
 		if (desc->data[EP_BULK_OUT_INDEX] == EP_TYPE_BULK)
 		{
 			desc->data[EP_BULK_OUT_INDEX + 1] = max_pkt_sz_bulk;
-			desc->data[EP_BULK_OUT_INDEX + 2]  = max_pkt_sz_bulk >> 8;
+			desc->data[EP_BULK_OUT_INDEX + 2] = max_pkt_sz_bulk >> 8;
 		}
 	}
 
