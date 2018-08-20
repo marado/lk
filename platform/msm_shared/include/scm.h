@@ -335,17 +335,8 @@ scm_call(uint32_t svc_id, uint32_t cmd_id, const void *cmd_buf,
 #define WINSECAPP_LOADED_FUSE       1 /**< Used by the WinSec application to	                                        prevent reloading. */
 #define UEFISECAPP_LOADED_FUSE      2 /**< Used by UefiSecApp to prevent
  	                                        reloading. */
-#define OEM_FUSE_1                  3 /**< Reserved fuse bit for OEMs. */
-#define OEM_FUSE_2                  4 /**< Reserved fuse bit for OEMs. */
-#define OEM_FUSE_3                  5 /**< Reserved fuse bit for OEMs. */
-#define OEM_FUSE_4                  6 /**< Reserved fuse bit for OEMs. */
-#define OEM_FUSE_5                  7 /**< Reserved fuse bit for OEMs. */
-#define OEM_FUSE_6                  8 /**< Reserved fuse bit for OEMs. */
-#define OEM_FUSE_7                  9 /**< Reserved fuse bit for OEMs. */
-#define OEM_FUSE_8                  10 /**< Reserved fuse bit for OEMs. */
-#define HLOS_BL_MILESTONE_FUSE      11 /**< Used to notify the bootloader milestone call.*/
-#define HLOS_TAMPER_NOTIFY_FUSE     12 /**< Used to notify TZ that HLOS has been tampered.*/
-#define NUM_SW_FUSES                13  /**< Number of supported software fuses.
+#define HLOS_BL_MILESTONE_FUSE      3 /**< Used to notify the bootloader milestone call.*/
+#define NUM_SW_FUSES                4 /**< Number of supported software fuses.
  	                                       @newpage */
 
 #define SCM_SVC_CE_CHN_SWITCH_ID    0x04
