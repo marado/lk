@@ -1205,10 +1205,8 @@ int animated_splash() {
 			 * scratch register to stop early display, so release display layer.
 			 */
 			if (stop_display_splash) {
-				if(layer_list[j].layer) {
-					target_release_layer(&layer_list[j]);
+				if(layer_list[j].layer)
 					layer_list[j].layer = NULL;
-				}
 				continue;
 			}
 
@@ -1252,10 +1250,6 @@ int animated_splash() {
 	}
 	if (early_camera_enabled == 1)
 		early_camera_stop();
-
-	for (j = 0; j < disp_cnt; j++) {
-		target_release_layer(&layer_list[j]);
-	}
 
 	return ret;
 }
