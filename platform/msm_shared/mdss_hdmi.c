@@ -1160,15 +1160,7 @@ static uint8_t mdss_hdmi_cable_status(void)
 
 static int mdss_hdmi_update_panel_info(void)
 {
-	mdss_hdmi_set_mode(true);
-
-	if (!mdss_hdmi_read_edid())
-		mdss_hdmi_parse_res();
-	else
-		mdss_hdmi_video_fmt = DEFAULT_RESOLUTION;
-
-	mdss_hdmi_set_mode(false);
-
+	mdss_hdmi_video_fmt = DEFAULT_RESOLUTION;
 	mdss_hdmi_panel_init(&(panel.panel_info));
 
 	panel.fb.width   = panel.panel_info.xres;
