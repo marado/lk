@@ -110,7 +110,7 @@ static struct mipi_dsi_i2c_cmd adv7533_720p_tg_i2c_command[] = {
 	/* hsync and vsync active low */
 	{ADV7533_MAIN, 0x17, 0x02, 0},
 	/* Control for Pixel Clock Divider */
-	{ADV7533_CEC_DSI, 0x16, 0x24, 0},
+	{ADV7533_CEC_DSI, 0x16, 0x00, 0},
 	/* h_width 0x672 1650*/
 	{ADV7533_CEC_DSI, 0x28, 0x67, 0},
 	{ADV7533_CEC_DSI, 0x29, 0x20, 0},
