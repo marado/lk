@@ -35,6 +35,7 @@
 /* TZ Diagnostic Area legacy version number */
 #define TZBSP_DIAG_MAJOR_VERSION_LEGACY 2
 #define QSEE_VERSION_40                 0x1000000
+#define QSEE_VERSION_409                0x1001000
 
 /*
  * Log ring buffer position
