@@ -62,6 +62,7 @@
 #include <rpmb.h>
 #include <rpm-glink.h>
 #include <psci.h>
+#include <early_domain.h>
 #if ENABLE_WBC
 #include <pm_app_smbchg.h>
 #endif
@@ -168,6 +169,17 @@ bool target_charging_in_progress();
 
 /* Enable openssl ARMv8 implemetation */
 unsigned int OPENSSL_armcap_P = ARMV8_SHA256;
+
+#if EARLYDOMAIN_SUPPORT
+static struct early_domain_header *early_domain_header;
+void *service_shm_address[NUM_SERVICES] =
+	{
+	EARLY_DISPLAY_SHM_START,
+	EARLY_CAMERA_SHM_START,
+	EARLY_AUDIO_SHM_START,
+	};
+
+#endif
 
 void target_early_init(void)
 {
@@ -393,6 +405,13 @@ void *target_mmc_device()
 	else
 		return (void *) &ufs_device;
 }
+
+#if EARLYDOMAIN_SUPPORT
+void *get_target_early_domain_shm_start()
+{
+	return ((void*) EARLY_DOMAIN_SHARED_MEM);
+}
+#endif
 
 #if ENABLE_EARLY_ETHERNET
 void toggle_neutrino(void) {
@@ -862,6 +881,83 @@ uint32_t target_get_pmic()
 
 #if EARLYDOMAIN_SUPPORT
 
+/* Early services call this to update they are
+ * up and running, should be called during service's
+ * init routines.
+ */
+void set_early_service_active_bit(enum service_id sid)
+{
+	unsigned long long *status;
+	status = &early_domain_header->status;
+	*status = (*status) | BIT(sid);
+}
+
+/* Early services call this to update they have
+ * ended and kernel can take over their resources,
+ * should be called during service's exit routines.
+ */
+void clear_early_service_active_bit(enum service_id sid)
+{
+	unsigned long long *status;
+	status = &early_domain_header->status;
+	*status = (*status) & ~(BIT(sid));
+}
+
+/* This can be called to check the running status
+ * of any early service.
+ */
+bool get_early_service_active_bit(enum service_id sid)
+{
+	bool service_status;
+	unsigned long long *status;
+
+	status = &early_domain_header->status;
+	if (*status & (BIT(sid)))
+		service_status = true;
+	else
+		service_status = false;
+	return service_status;
+}
+
+/* Early services call this to check if they have received
+ * any shutdown request from their kernel counteparts.
+ */
+bool get_early_service_shutdown_request(enum service_id sid)
+{
+	bool request_set;
+	volatile unsigned long long *request;
+
+	request = &early_domain_header->request;
+	if (*request & (BIT(sid)))
+		request_set = true;
+	else
+		request_set = false;
+
+	return request_set;
+}
+
+/* Early services call this to get the start address
+ * of service specific scratch area. This area can be
+ * used to pass service specific information to their
+ * kernel counterparts.
+ */
+void *get_service_shared_mem_start(enum service_id sid)
+{
+	if (sid > NUM_SERVICES || sid < EARLY_DISPLAY) {
+		dprintf(CRITICAL,"Invaild service id\n");
+		return NULL;
+	}
+	return service_shm_address[sid - 1];
+}
+
+
+void clear_early_domain_status()
+{
+	unsigned long long *status;
+	status = &early_domain_header->status;
+	*status = 0;
+}
+
 /* calls psci to turn on the secondary core */
 void enable_secondary_core()
 {
@@ -877,7 +973,9 @@ void enable_secondary_core()
 /* handles the early domain */
 void earlydomain()
 {
-    /* init and run early domain services*/
+    /* Initialize the early domain header in early_domain
+     * shared memory betweek LK & kernel
+     */
     earlydomain_init();
 
     /* run all early domain services */
@@ -890,12 +988,24 @@ void earlydomain()
 /* early domain initialization */
 void earlydomain_init()
 {
-    dprintf(INFO, "started early domain on secondary CPU\n");
+   /* Initialize the early domain header in early domain shared memory betweek LK & kernel */
+   early_domain_header = get_target_early_domain_shm_start();
+   memset(early_domain_header,0,sizeof(struct early_domain_header));
+   memcpy(early_domain_header->magic,EARLY_DOMAIN_MAGIC,MAGIC_SIZE);
+   early_domain_header->cpumask = BIT(SECONDARY_CPU);
+   set_early_service_active_bit(EARLY_DOMAIN_CORE);
+   dprintf(SPEW, "early domain header in early_domain_shared page initialized");
 }
 
 /* early domain cleanup and exit */
 void earlydomain_exit()
 {
+ /* By this time it is expected all early services which were active
+  * have ended and they have cleared their active bit.
+  */
+    clear_early_service_active_bit(EARLY_DOMAIN_CORE);
+    if (early_domain_header->status)
+	dprintf(CRITICAL,"Early domain status is not clear: 0x%llx\n",early_domain_header->status);
     isb();
 
     /* clean-up */
@@ -1303,6 +1413,7 @@ void earlydomain_services()
 	int i = 0;
 	bool panel_is_selected;
 
+	dprintf(SPEW, "earlydomain services started on secondary cpu\n");
 	dprintf(CRITICAL, "earlydomain_services: Waiting for display init to complete\n");
 
 	while((FALSE == target_display_is_init_done()) && (i < 100))

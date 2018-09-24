@@ -1,4 +1,4 @@
-/* Copyright (c) 2014-2016, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2014-2018, The Linux Foundation. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -73,14 +73,15 @@ static uint64_t ddr_start;
 
 static mmu_section_t default_mmu_section_table[] =
 {
-/*       Physical addr,    Virtual addr,     Mapping type ,              Size (in MB),            Flags */
-    {    0x00000000,        0x00000000,       MMU_L2_NS_SECTION_MAPPING,  512,                IOMAP_MEMORY},
-    {    MEMBASE,           MEMBASE,          MMU_L2_NS_SECTION_MAPPING,  (MEMSIZE / MB),      LK_MEMORY},
-    {    MIPI_FB_ADDR,      MIPI_FB_ADDR,     MMU_L2_NS_SECTION_MAPPING,  42,                  COMMON_MEMORY},
-    {    SCRATCH_ADDR,      SCRATCH_ADDR,     MMU_L2_NS_SECTION_MAPPING,  SCRATCH_SIZE,        SCRATCH_MEMORY},
-    {    HDMI_FB_ADDR,      HDMI_FB_ADDR,     MMU_L2_NS_SECTION_MAPPING,  35,                  COMMON_MEMORY},
-    {    MSM_SHARED_BASE,   MSM_SHARED_BASE,  MMU_L2_NS_SECTION_MAPPING,  MSM_SHARED_SIZE,     COMMON_MEMORY},
-    {    RPMB_SND_RCV_BUF,  RPMB_SND_RCV_BUF, MMU_L2_NS_SECTION_MAPPING,  RPMB_SND_RCV_BUF_SZ, IOMAP_MEMORY},
+/*       Physical addr,           Virtual addr,            Mapping type ,              Size (in MB),               Flags */
+    {    0x00000000,              0x00000000,              MMU_L2_NS_SECTION_MAPPING,  512,                        IOMAP_MEMORY},
+    {    MEMBASE,                 MEMBASE,                 MMU_L2_NS_SECTION_MAPPING,  (MEMSIZE / MB),             LK_MEMORY},
+    {    MIPI_FB_ADDR,            MIPI_FB_ADDR,            MMU_L2_NS_SECTION_MAPPING,  42,                         COMMON_MEMORY},
+    {    SCRATCH_ADDR,            SCRATCH_ADDR,            MMU_L2_NS_SECTION_MAPPING,  SCRATCH_SIZE,               SCRATCH_MEMORY},
+    {    HDMI_FB_ADDR,            HDMI_FB_ADDR,            MMU_L2_NS_SECTION_MAPPING,  35,                         COMMON_MEMORY},
+    {    MSM_SHARED_BASE,         MSM_SHARED_BASE,         MMU_L2_NS_SECTION_MAPPING,  MSM_SHARED_SIZE,            COMMON_MEMORY},
+    {    RPMB_SND_RCV_BUF,        RPMB_SND_RCV_BUF,        MMU_L2_NS_SECTION_MAPPING,  RPMB_SND_RCV_BUF_SZ,        IOMAP_MEMORY},
+    {    EARLY_DOMAIN_SHARED_MEM, EARLY_DOMAIN_SHARED_MEM, MMU_L2_NS_SECTION_MAPPING,  EARLY_DOMAIN_SHARED_MEM_SZ, IOMAP_MEMORY},
 };
 
 /* Map the ddr for download mode, this region belongs to non-hlos images and pil */
