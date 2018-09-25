@@ -396,7 +396,7 @@ void target_init(void)
                 dprintf(CRITICAL, "Failed to initialize qseecom, error: %d\n", ret);
                 ASSERT(0);
         }
-        if (qseecom_get_version() == QSEE_VERSION_40)
+        if (qseecom_get_version() >= QSEE_VERSION_40)
         {
             /* Start Qseecom */
             ret = qseecom_tz_init();
@@ -652,7 +652,7 @@ void target_uninit(void)
 		clock_ce_disable(CE1_INSTANCE);
 #if VERIFIED_BOOT
 #if !VBOOT_MOTA
-        if (qseecom_get_version() == QSEE_VERSION_40)
+        if (qseecom_get_version() >= QSEE_VERSION_40)
         {
             if (is_sec_app_loaded())
             {

@@ -305,7 +305,7 @@ unsigned char *update_cmdline(const char * cmdline)
 #if VERIFIED_BOOT
 #if !VBOOT_MOTA
     uint32_t boot_state = 0;
-	if (qseecom_get_version() == QSEE_VERSION_40)
+	if (qseecom_get_version() >= QSEE_VERSION_40)
 		boot_state = boot_verify_get_state();
 #endif
 #endif
@@ -335,7 +335,7 @@ unsigned char *update_cmdline(const char * cmdline)
 
 #if VERIFIED_BOOT
 #if !VBOOT_MOTA
-	if (qseecom_get_version() == QSEE_VERSION_40)
+	if (qseecom_get_version() >= QSEE_VERSION_40)
 	{
 		cmdline_len += strlen(verified_state) + strlen(vbsn[boot_state].name);
 		cmdline_len += strlen(verity_mode) + strlen(vbvm[device.verity_mode].name);
@@ -467,7 +467,7 @@ unsigned char *update_cmdline(const char * cmdline)
 
 #if VERIFIED_BOOT
 #if !VBOOT_MOTA
-		if (qseecom_get_version() == QSEE_VERSION_40)
+		if (qseecom_get_version() >= QSEE_VERSION_40)
 		{
 			src = verified_state;
 			if(have_cmdline) --dst;
@@ -750,7 +750,7 @@ void boot_linux(void *kernel, unsigned *tags,
 
 #if VERIFIED_BOOT
 #if !VBOOT_MOTA
-	if (qseecom_get_version() == QSEE_VERSION_40)
+	if (qseecom_get_version() >= QSEE_VERSION_40)
 	{
 		if (device.verity_mode == 0) {
 #if FBCON_DISPLAY_MSG
@@ -768,7 +768,7 @@ void boot_linux(void *kernel, unsigned *tags,
 #endif
 
 #if VERIFIED_BOOT
-	if (qseecom_get_version() == QSEE_VERSION_40)
+	if (qseecom_get_version() >= QSEE_VERSION_40)
 	{
 		/* Write protect the device info */
 		if (target_build_variant_user() && devinfo_present && mmc_write_protect("devinfo", 1))
@@ -853,7 +853,7 @@ static void verify_signed_bootimg(uint32_t bootimg_addr, uint32_t bootimg_size)
 	dprintf(INFO, "Authenticating boot image (%d): start\n", bootimg_size);
 
 #if VERIFIED_BOOT
-	if (qseecom_get_version() == QSEE_VERSION_40)
+	if (qseecom_get_version() >= QSEE_VERSION_40)
 	{
 		if(boot_into_recovery)
 		{
@@ -894,7 +894,7 @@ static void verify_signed_bootimg(uint32_t bootimg_addr, uint32_t bootimg_size)
 #endif
 
 #if VERIFIED_BOOT
-	if (qseecom_get_version() == QSEE_VERSION_40)
+	if (qseecom_get_version() >= QSEE_VERSION_40)
 	{
 		switch(boot_verify_get_state())
 		{
@@ -925,7 +925,7 @@ static void verify_signed_bootimg(uint32_t bootimg_addr, uint32_t bootimg_size)
 		}
 	}
 #endif
-	if (qseecom_get_version() != QSEE_VERSION_40)
+	if (qseecom_get_version() != QSEE_VERSION_40 && qseecom_get_version() != QSEE_VERSION_409)
 	{
 		if(device.is_tampered)
 		{
@@ -1126,7 +1126,7 @@ int boot_linux_from_mmc(void)
 #endif
 
 #if VERIFIED_BOOT
-	if (qseecom_get_version() == QSEE_VERSION_40)
+	if (qseecom_get_version() >= QSEE_VERSION_40)
 		boot_verifier_init();
 #endif
 
@@ -1182,7 +1182,10 @@ int boot_linux_from_mmc(void)
 			return -1;
 		}
 
+#if VERIFIED_BOOT
+	if (qseecom_get_version() >= QSEE_VERSION_40)
 		verify_signed_bootimg((uint32_t)image_addr, imagesize_actual);
+#endif
 	} else {
 		second_actual  = ROUND_TO_PAGE(hdr->second_size,  page_mask);
 		#ifdef TZ_SAVE_KERNEL_HASH
@@ -1190,7 +1193,7 @@ int boot_linux_from_mmc(void)
 		#endif /* TZ_SAVE_KERNEL_HASH */
 
 #if VERIFIED_BOOT
-	if (qseecom_get_version() == QSEE_VERSION_40)
+	if (qseecom_get_version() >= QSEE_VERSION_40)
 	{
 #if !VBOOT_MOTA
 		if(boot_verify_get_state() == ORANGE)
@@ -1227,7 +1230,7 @@ int boot_linux_from_mmc(void)
 	}
 
 #if VERIFIED_BOOT
-	if (qseecom_get_version() == QSEE_VERSION_40)
+	if (qseecom_get_version() >= QSEE_VERSION_40)
 	{
 #if !VBOOT_MOTA
 	// send root of trust
@@ -1503,7 +1506,7 @@ int boot_linux_from_flash(void)
 #endif
 
 #if VERIFIED_BOOT
-	if (qseecom_get_version() == QSEE_VERSION_40)
+	if (qseecom_get_version() >= QSEE_VERSION_40)
 		boot_verifier_init();
 #endif
 
@@ -2291,7 +2294,7 @@ void cmd_boot(const char *arg, void *data, unsigned sz)
 
 
 #if VERIFIED_BOOT
-	if (qseecom_get_version() == QSEE_VERSION_40)
+	if (qseecom_get_version() >= QSEE_VERSION_40)
 	{
 		if(!device.is_unlocked)
 		{
@@ -2347,7 +2350,7 @@ void cmd_boot(const char *arg, void *data, unsigned sz)
 
 	// Initialize boot state before trying to verify boot.img
 #if VERIFIED_BOOT
-		if (qseecom_get_version() == QSEE_VERSION_40)
+		if (qseecom_get_version() >= QSEE_VERSION_40)
 			boot_verifier_init();
 #endif
 	/* Handle overflow if the input image size is greater than
@@ -2511,7 +2514,7 @@ void cmd_erase_mmc(const char *arg, void *data, unsigned sz)
 	uint8_t lun = 0;
 
 #if VERIFIED_BOOT
-	if (qseecom_get_version() == QSEE_VERSION_40)
+	if (qseecom_get_version() >= QSEE_VERSION_40)
 	{
 		if(!strcmp(arg, KEYSTORE_PTN_NAME))
 		{
@@ -2553,7 +2556,7 @@ void cmd_erase_mmc(const char *arg, void *data, unsigned sz)
 		return;
 	}
 #if VERIFIED_BOOT
-	if (qseecom_get_version() == QSEE_VERSION_40)
+	if (qseecom_get_version() >= QSEE_VERSION_40)
 	{
 #if !VBOOT_MOTA
 		if(!(strncmp(arg, "userdata", 8)))
@@ -2576,7 +2579,7 @@ void cmd_erase(const char *arg, void *data, unsigned sz)
 #endif
 
 #if VERIFIED_BOOT
-	if (qseecom_get_version() == QSEE_VERSION_40)
+	if (qseecom_get_version() >= QSEE_VERSION_40)
 	{
 		if(!device.is_unlocked)
 		{
@@ -2639,7 +2642,7 @@ void cmd_flash_mmc_img(const char *arg, void *data, unsigned sz)
 		else
 		{
 #if VERIFIED_BOOT
-			if (qseecom_get_version() == QSEE_VERSION_40)
+			if (qseecom_get_version() >= QSEE_VERSION_40)
 			{
 				if(!strcmp(pname, KEYSTORE_PTN_NAME))
 				{
@@ -3102,7 +3105,7 @@ void cmd_flash_mmc(const char *arg, void *data, unsigned sz)
 #endif /* SSD_ENABLE */
 
 #if VERIFIED_BOOT
-	if (qseecom_get_version() == QSEE_VERSION_40)
+	if (qseecom_get_version() >= QSEE_VERSION_40)
 	{
 		if(!device.is_unlocked)
 		{
@@ -3138,7 +3141,7 @@ void cmd_flash_mmc(const char *arg, void *data, unsigned sz)
                 cmd_flash_mmc_img(arg, data, sz);
 
 #if VERIFIED_BOOT
-	if (qseecom_get_version() == QSEE_VERSION_40)
+	if (qseecom_get_version() >= QSEE_VERSION_40)
 	{
 #if !VBOOT_MOTA
 		if((!strncmp(arg, "system", 6)) && !device.verity_mode)
