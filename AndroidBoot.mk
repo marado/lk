@@ -92,7 +92,7 @@ ifeq ($(TARGET_BOARD_PLATFORM),msm8660)
 endif
 
 ifeq ($(TARGET_BOARD_PLATFORM),msm8996)
-  ENABLE_QSEED_SCALAR := ENABLE_QSEED_SCALAR=1
+  ENABLE_QSEED_SCALAR := ENABLE_QSEED_SCALAR=0
 ifneq ($(wildcard ../../../vendor/qcom/proprietary/prebuilt_HY22),)
   # directory HY22_DIR exists:
   EXT_LIB := ../../../vendor/qcom/proprietary/prebuilt_HY22/target/product/msm8996/vendor/lib64/liblkscalar.a
@@ -125,8 +125,6 @@ ABOOT_CLEAN:
 # ELF binary for ABOOT
 TARGET_ABOOT_ELF := $(PRODUCT_OUT)/aboot.elf
 $(TARGET_ABOOT_ELF): ABOOT_CLEAN | $(ABOOT_OUT)
-	$(shell mkdir -p $(EXT_LIB_DIR))
-	$(shell cp ../../../vendor/qcom/proprietary/prebuilt_HY11/target/product/msm8996/vendor/lib64/liblkscalar.a ../../../out/target/product/msm8996/vendor/lib64/liblkscalar.a)
 	$(MAKE) -C $(LK_PATH) TOOLCHAIN_PREFIX=$(CROSS_COMPILE) BOOTLOADER_OUT=$(CROOT_DIR)/$(ABOOT_OUT) $(BOOTLOADER_PLATFORM) $(EMMC_BOOT) $(SIGNED_KERNEL) $(VERIFIED_BOOT) $(ENABLE_DISPLAY) $(ENABLE_BOOTDEVICE_MOUNT) $(DEVICE_STATUS) $(BUILD_VARIANT) $(BOARD_NAME) $(ENABLE_VB_ATTEST) $(OSVERSION_IN_BOOTIMAGE) $(ENABLE_RECOVERY) $(ENABLE_HW_CRYPTO) $(ENABLE_QSEED_SCALAR) $(EXT_LIB)
 
 # NAND variant output

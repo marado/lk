@@ -97,7 +97,7 @@ ifneq ($(wildcard ../../../vendor/qcom/proprietary/prebuilt_HY11),)
   # directory HY11_DIR exists
   EXT_LIB := ../../../vendor/qcom/proprietary/prebuilt_HY11/target/product/msm8996/vendor/lib64/liblkscalar.a
 else
-  EXT_LIB := ../../../out/target/product/msm8996/vendor/lib64/liblkscalar.a
+  EXT_LIB := ../../../out/target/product/msm8996/obj/STATIC_LIBRARIES/liblkscalar_intermediates/liblkscalar.a
 endif
 endif
 else
