@@ -127,6 +127,10 @@ ifeq ($(VERIFIED_BOOT_2),1)
   DEFINES += _SIGNED_KERNEL=1
 endif
 
+ifeq ($(TARGET_DTBO_NOT_SUPPORTED),1)
+  DEFINES += TARGET_DTBO_NOT_SUPPORTED=1
+endif
+
 ifeq ($(OSVERSION_IN_BOOTIMAGE),1)
  DEFINES += OSVERSION_IN_BOOTIMAGE=1
 endif
@@ -205,12 +209,18 @@ ALLOBJS := \
 
 # add some automatic configuration defines
 DEFINES += \
-	BOARD=$(BOARD_NAME) \
 	PROJECT_$(PROJECT)=1 \
 	TARGET_$(TARGET)=1 \
 	PLATFORM_$(PLATFORM)=1 \
 	ARCH_$(ARCH)=1 \
 	$(addsuffix =1,$(addprefix WITH_,$(ALLMODULES)))
+
+# Add MEMRWOFF as . for targets this is not declared.
+# . will be replaced as string in linker file.
+ifeq ($(MEMRWOFF),)
+MEMRWOFF:= .
+DEFINES += MEMRWOFF=$(MEMRWOFF)
+endif
 
 # debug build?
 ifneq ($(DEBUG),)
@@ -256,6 +266,7 @@ $(CONFIGHEADER): configheader
 	@rm -f $(CONFIGHEADER).tmp; \
 	echo \#ifndef __CONFIG_H > $(CONFIGHEADER).tmp; \
 	echo \#define __CONFIG_H >> $(CONFIGHEADER).tmp; \
+	echo \#define BOARD $(BOARD_NAME) >> $(CONFIGHEADER).tmp; \
 	for d in `echo $(DEFINES) | tr [:lower:] [:upper:]`; do \
 		echo "#define $$d" | sed "s/=/\ /g;s/-/_/g;s/\//_/g" >> $(CONFIGHEADER).tmp; \
 	done; \

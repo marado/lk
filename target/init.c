@@ -347,6 +347,7 @@ int is_vb_le_enabled(void)
 	switch(platform)
 	{
 		case APQ8053:
+		case APQ8009:
 			return verified_boot_le;
 		default:
 			break;
@@ -482,6 +483,15 @@ bool target_battery_is_present()
 
 	return batt_is_exist;
 
+}
+
+bool is_target_support_dtbo(void)
+{
+#if TARGET_DTBO_NOT_SUPPORTED
+  return false;
+#else
+  return true;
+#endif
 }
 
 #if CHECK_BAT_VOLTAGE

@@ -331,7 +331,7 @@ void target_init(void)
 {
 	uint32_t base_addr;
 	uint8_t slot;
-#if VERIFIED_BOOT
+#if VERIFIED_BOOT || VERIFIED_BOOT_2
 	int ret = 0;
 #endif
 	dprintf(INFO, "target_init()\n");
@@ -390,7 +390,7 @@ void target_init(void)
 	if (target_use_signed_kernel())
 		target_crypto_init_params();
 
-#if VERIFIED_BOOT
+#if VERIFIED_BOOT || VERIFIED_BOOT_2
 	if (VB_M <= target_get_vb_version())
 	{
 		clock_ce_enable(CE1_INSTANCE);
@@ -708,7 +708,7 @@ void target_uninit(void)
 	if (target_is_ssd_enabled())
 		clock_ce_disable(CE1_INSTANCE);
 
-#if VERIFIED_BOOT
+#if VERIFIED_BOOT || VERIFIED_BOOT_2
 	if(VB_M <= target_get_vb_version())
 	{
 		if (is_sec_app_loaded())
@@ -870,7 +870,8 @@ void pmic_reset_configure(uint8_t reset_type)
 uint32_t target_get_pmic()
 {
 	if ((board_hardware_subtype() == HW_PLATFORM_SUBTYPE_8909_PM660) ||
-		(board_hardware_subtype() == HW_PLATFORM_SUBTYPE_8909_PM660_V1))
+		(board_hardware_subtype() == HW_PLATFORM_SUBTYPE_8909_PM660_V1) ||
+		(board_hardware_subtype() == HW_PLATFORM_SUBTYPE_8909_COMPAL_ALPHA))
 		return PMIC_IS_PM660;
 	else
 		return PMIC_IS_PM8909;
