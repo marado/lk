@@ -2,7 +2,7 @@
  * Copyright (c) 2009, Google Inc.
  * All rights reserved.
  *
- * Copyright (c) 2009-2017, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2009-2017,2019 The Linux Foundation. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are met:
@@ -3970,7 +3970,11 @@ int splash_screen_flash()
 
 	fb_display = fbcon_display();
 	if (fb_display) {
-		if (logo_header->type && (logo_header->blocks != 0)) { // RLE24 compressed data
+		if (logo_header->type && (logo_header->blocks != 0) &&
+				(UINT_MAX >= logo_header->blocks * 512) &&
+				((logo_header->blocks * 512) <=  (fb_display->width *
+				fb_display->height * (fb_display->bpp / 8)))) {
+			/* RLE24 compressed data */
 			uint8_t *base = (uint8_t *) fb_display->base + LOGO_IMG_OFFSET;
 
 			/* if the logo is full-screen size, remove "fbcon_clear()" */
@@ -4085,7 +4089,11 @@ int splash_screen_mmc()
 	}
 
 	if (fb_display) {
-		if (header->type && (header->blocks != 0)) { /* 1 RLE24 compressed data */
+		if (header->type && (header->blocks != 0) &&
+			(UINT_MAX >= header->blocks * 512 + LOGO_IMG_HEADER_SIZE) &&
+			((header->blocks * 512) <=  (fb_display->width *
+			fb_display->height * (fb_display->bpp / 8)))) {
+			/* 1 RLE24 compressed data */
 			base += LOGO_IMG_OFFSET;
 
 			realsize =  header->blocks * 512;

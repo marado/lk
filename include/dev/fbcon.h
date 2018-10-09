@@ -2,7 +2,7 @@
  * Copyright (c) 2008, Google Inc.
  * All rights reserved.
  *
- * Copyright (c) 2009-2015, 2018, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2009-2015, 2018-2019, The Linux Foundation. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -39,6 +39,7 @@
 #define LOGO_IMG_OFFSET (12*1024*1024)
 #define LOGO_IMG_MAGIC "SPLASH!!"
 #define LOGO_IMG_MAGIC_SIZE sizeof(LOGO_IMG_MAGIC) - 1
+#define LOGO_IMG_HEADER_SIZE 512
 
 enum fbcon_msg_type {
 	/* type for menu */
