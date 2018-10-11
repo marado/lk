@@ -4652,7 +4652,6 @@ int fetch_image_from_partition()
 	if (TRUE == target_animated_splash_screen() &&
 		TRUE == device.early_domain_enabled
 		) {
-		dprintf(INFO, "Skip fetching static splash image\n");
 		return 0;
 	}
 	if (target_is_emmc_boot()) {
