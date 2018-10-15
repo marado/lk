@@ -60,6 +60,7 @@
 
 void gpio_config_uart_dm(uint8_t id);
 void gpio_config_blsp_i2c(uint8_t, uint8_t);
+void gpio_config_blsp_spi(uint8_t blsp_id, uint8_t qup_id);
 void gpio_set(uint32_t gpio, uint32_t dir);
 int gpio_get(uint32_t gpio);
 void gpio_tlmm_config(uint32_t gpio, uint8_t func, uint8_t dir, uint8_t pull,

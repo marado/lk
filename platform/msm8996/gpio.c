@@ -32,6 +32,89 @@
 #include <platform/gpio.h>
 #include <blsp_qup.h>
 
+struct qup_gpio_func {
+	uint32_t gpio;
+	uint8_t func;
+};
+
+struct qup_gpio_func blsp1_qup_gpio_func[][4] = {
+	{
+		{.gpio = 0, .func = 1},
+		{.gpio = 1, .func = 1},
+		{.gpio = 2, .func = 1},
+		{.gpio = 3, .func = 1},
+	},
+	{
+		{.gpio = 41, .func = 1},
+		{.gpio = 42, .func = 1},
+		{.gpio = 43, .func = 1},
+		{.gpio = 44, .func = 1},
+	},
+	{
+		{.gpio = 45, .func = 1},
+		{.gpio = 46, .func = 1},
+		{.gpio = 47, .func = 1},
+		{.gpio = 48, .func = 1},
+	},
+	{
+		{.gpio = 65, .func = 2},
+		{.gpio = 66, .func = 2},
+		{.gpio = 67, .func = 2},
+		{.gpio = 68, .func = 2},
+	},
+	{
+		{.gpio = 81, .func = 2},
+		{.gpio = 82, .func = 2},
+		{.gpio = 83, .func = 2},
+		{.gpio = 84, .func = 2},
+	},
+	{
+		{.gpio = 25, .func = 3},
+		{.gpio = 26, .func = 2},
+		{.gpio = 27, .func = 1},
+		{.gpio = 28, .func = 1},
+	}
+};
+
+struct qup_gpio_func blsp2_qup_gpio_func[][4] = {
+	{
+		{.gpio = 53, .func = 1},
+		{.gpio = 54, .func = 1},
+		{.gpio = 55, .func = 1},
+		{.gpio = 56, .func = 1},
+	},
+	{
+		{.gpio = 4, .func = 1},
+		{.gpio = 5, .func = 1},
+		{.gpio = 6, .func = 1},
+		{.gpio = 7, .func = 1},
+	},
+	{
+		{.gpio = 49, .func = 2},
+		{.gpio = 50, .func = 2},
+		{.gpio = 51, .func = 2},
+		{.gpio = 52, .func = 2},
+	},
+	{
+		{.gpio = 8, .func = 1},
+		{.gpio = 9, .func = 1},
+		{.gpio = 10, .func = 2},
+		{.gpio = 11, .func = 2},
+	},
+	{
+		{.gpio = 58, .func = 3},
+		{.gpio = 59, .func = 3},
+		{.gpio = 60, .func = 3},
+		{.gpio = 61, .func = 3},
+	},
+	{
+		{.gpio = 85, .func = 1},
+		{.gpio = 86, .func = 1},
+		{.gpio = 87, .func = 1},
+		{.gpio = 88, .func = 1},
+	}
+};
+
 /* Remove the file after the gpio patch to move this to msm_shared gets merged. */
 void gpio_tlmm_config(uint32_t gpio, uint8_t func,
 		      uint8_t dir, uint8_t pull,
@@ -91,6 +174,28 @@ void gpio_config_blsp_i2c(uint8_t blsp_id, uint8_t qup_id)
 				dprintf(CRITICAL, "Incorrect QUP id %d\n", qup_id);
 				ASSERT(0);
 		};
+	} else {
+		dprintf(CRITICAL, "Incorrect BLSP id %d\n",blsp_id);
+		ASSERT(0);
+	}
+}
+
+void gpio_config_blsp_spi(uint8_t blsp_id, uint8_t qup_id)
+{
+	int i;
+
+	if(blsp_id == BLSP_ID_1) {
+		for (i = 0; i < 4; i++)
+			gpio_tlmm_config(blsp1_qup_gpio_func[qup_id][i].gpio,
+					 blsp1_qup_gpio_func[qup_id][i].func,
+					 GPIO_OUTPUT, GPIO_NO_PULL, GPIO_16MA,
+					 GPIO_DISABLE);
+	} else if (blsp_id == BLSP_ID_2) {
+		for (i = 0; i < 4; i++)
+			gpio_tlmm_config(blsp2_qup_gpio_func[qup_id][i].gpio,
+					 blsp2_qup_gpio_func[qup_id][i].func,
+					 GPIO_OUTPUT, GPIO_NO_PULL, GPIO_16MA,
+					 GPIO_DISABLE);
 	} else {
 		dprintf(CRITICAL, "Incorrect BLSP id %d\n",blsp_id);
 		ASSERT(0);
