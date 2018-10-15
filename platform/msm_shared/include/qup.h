@@ -85,6 +85,13 @@
 #define QUP_CONFIG_NO_INPUT			BIT(7)
 #define QUP_CONFIG_NO_OUTPUT		BIT(6)
 #define QUP_CONFIG_N				0x001f
+#define EN_EXT_OUT_FLAG			BIT(16)
+#define QUP_CONFIG_SPI_SLAVE          0x0400
+
+#define APP_CLK_ON_EN                   BIT(12)
+#define CORE_CLK_ON_EN                  BIT(13)
+#define FIFO_CLK_ON_EN                  BIT(14)
+#define CORE_EX_CLK_ON_EN               BIT(15)
 
 /* QUP_MX_OUTPUT_CNT only supports
  * 0:15 bits as Number of writes of
