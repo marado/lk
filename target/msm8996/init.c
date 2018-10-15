@@ -896,19 +896,19 @@ typedef struct animated_img_header {
 	uint32_t blocks;
 	uint32_t img_size;
 	uint32_t offset;
-	uint8_t reserved[512-44];
+	uint8_t reserved[];
 } animated_img_header;
 
 #define NUM_DISPLAYS 3
 void **buffers[NUM_DISPLAYS];
-struct animated_img_header img_header[NUM_DISPLAYS];
+struct animated_img_header *img_header = NULL;
 
 int animated_splash_screen_mmc()
 {
 	int index = INVALID_PTN;
 	unsigned long long ptn = 0;
 	struct fbcon_config *fb_display = NULL;
-	struct animated_img_header *header;
+	struct animated_img_header *header = NULL;
 	uint32_t blocksize, realsize, readsize;
 	void *buffer;
 	uint32_t i = 0, j = 0;
@@ -942,16 +942,30 @@ int animated_splash_screen_mmc()
 		return -1;
 	}
 
+	// dynamical allocaton for img header structure based on blocksize
+	img_header = (animated_img_header *)malloc(NUM_DISPLAYS * (blocksize * sizeof(uint8_t)));
+	if (!img_header) {
+		dprintf(CRITICAL, "ERROR: dynamical allocaton splash img header failed\n");
+		return -1;
+	}
+
 	buffer = (void *)ANIMATED_SPLASH_BUFFER;
 	for (j = 0; j < NUM_DISPLAYS; j++)
 	{
 		head = (void *)&(img_header[j]);
 		if (mmc_read(ptn, (uint32_t *)(head), blocksize)) {
 			dprintf(CRITICAL, "ERROR: Cannot read splash image header\n");
-			return -1;
+			ret = -1;
+			goto end;
 		}
 
-		header = (animated_img_header *)head;
+		header = (animated_img_header *)malloc(blocksize * sizeof(uint8_t));
+		if (!header) {
+			dprintf(CRITICAL, "Error: Alloc header file falied\n");
+			ret = -1;
+			goto end;
+		}
+		memcpy(header, (animated_img_header *)head, blocksize);
 		if (memcmp(header->magic, LOGO_IMG_MAGIC, 8)) {
 			dprintf(CRITICAL, "Invalid magic number in header %s %d\n",
 				header->magic, header->height);
@@ -991,19 +1005,14 @@ int animated_splash_screen_mmc()
 				readsize =  ROUNDUP(realsize, blocksize) - blocksize;
 			else
 				readsize = realsize;
-			if (blocksize == LOGO_IMG_HEADER_SIZE) {
-				if (mmc_read((ptn + LOGO_IMG_HEADER_SIZE), (uint32_t *)buffer, readsize)) {
-					dprintf(CRITICAL, "ERROR: Cannot read splash image from partition 1\n");
-					ret = -1;
-					goto end;
-				}
-			} else {
-				if (mmc_read(ptn + blocksize , (uint32_t *)buffer, realsize)) {
-					dprintf(CRITICAL, "ERROR: Cannot read splash image from partition 2\n");
-					ret = -1;
-					goto end;
-				}
+
+			//read splash buffer directly
+			if (mmc_read((ptn + blocksize), (uint32_t *)buffer, readsize)) {
+				dprintf(CRITICAL, "ERROR: Cannot read splash image from partition 1\n");
+				ret = -1;
+				goto end;
 			}
+
 			tmp = buffer;
 			for (i = 0; i < header->num_frames; i++) {
 				buffers[j][i] = tmp;
@@ -1012,9 +1021,17 @@ int animated_splash_screen_mmc()
 
 		}
 		buffer = tmp;
-		ptn += LOGO_IMG_HEADER_SIZE + readsize;
+		ptn += blocksize + readsize;
+		free(header);
 	}
+
+	return ret;
+
 end:
+	if (img_header) {
+		free(img_header);
+		img_header = NULL;
+	}
 	return ret;
 }
 
@@ -1218,6 +1235,11 @@ int animated_splash() {
 	}
 	if (early_camera_enabled == 1)
 		early_camera_stop();
+
+	if (img_header) {
+		free(img_header);
+		img_header = NULL;
+	}
 
 	return ret;
 }
