@@ -1173,6 +1173,8 @@ partition_parse_gpt_header(unsigned char *buffer,
 	}
 fail:
 	free(new_buffer);
+	new_buffer = NULL;
+
 	return ret;
 }
 
