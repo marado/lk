@@ -15,7 +15,8 @@ OBJS += \
 	$(LOCAL_DIR)/partition_parser.o \
 	$(LOCAL_DIR)/hsusb.o \
 	$(LOCAL_DIR)/boot_stats.o \
-	$(LOCAL_DIR)/crc32.o
+	$(LOCAL_DIR)/crc32.o \
+	$(LOCAL_DIR)/partial_goods.o
 
 ifeq ($(ENABLE_WDOG_SUPPORT),1)
 OBJS += \
