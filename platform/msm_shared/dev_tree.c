@@ -1,4 +1,4 @@
-/* Copyright (c) 2012-2014, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2012-2014, 2018, The Linux Foundation. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -37,6 +37,7 @@
 #include <board.h>
 #include <list.h>
 #include <kernel/thread.h>
+#include <partial_goods.h>
 
 struct dt_entry_v1
 {
@@ -1361,6 +1362,7 @@ int update_device_tree(void *fdt, const char *cmdline,
 	}
 
 	fdt_pack(fdt);
+	update_partial_goods_dtb_nodes(fdt);
 
 	return ret;
 }
