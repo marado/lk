@@ -1112,6 +1112,8 @@ int animated_splash() {
 	bool camera_frame_on = false;
 	bool stop_display_splash = false;
 	bool firstframe[disp_cnt];
+	int camera_error_count = 0;
+	int camera_status = 0;
 #if EARLYCAMERA_NO_GPIO
 	uint32_t frame_count = 0;
 #endif
@@ -1246,12 +1248,29 @@ int animated_splash() {
 			}
 		}
 
-		if(early_camera_enabled == 1)
+		if(early_camera_enabled == 1) {
 			// Rely on camera timing to flip.
-			early_camera_flip();
-		else
+			camera_status = early_camera_flip();
+			if(camera_status ==-1) {
+				camera_error_count++;
+				mdelay_optimal(16);
+			} else {
+				camera_error_count = 0;
+			}
+			if(camera_error_count > MAX_CAM_ERROR_EXIT) {
+				//Force an early exit for early camera.
+				frame_count = EARLYCAM_NO_GPIO_FRAME_LIMIT +1;
+				early_camera_stop();
+				layer_ptr = target_display_acquire_layer(
+				update[RVC_DISPLAY_ID].disp, "as", kFormatRGB888);
+				layer_list[RVC_DISPLAY_ID].layer = layer_ptr;
+				layer_list[RVC_DISPLAY_ID].z_order = 2;
+				camera_frame_on = false;
+			}
+		} else {
 			// assume all displays have the same fps
 			mdelay_optimal(sleep_time);
+		}
 		k++;
 #if EARLYCAMERA_NO_GPIO
 		if (EARLYCAM_NO_GPIO_FRAME_LIMIT < frame_count) {
@@ -1305,6 +1324,8 @@ void earlydomain_services()
 	} else {
 		dprintf(CRITICAL, "earlydomain_services: panel is not selected\n");
 	}
+
+	dprintf(CRITICAL, "Early Camera starting\n");
 
 	/* starting early domain services */
 	if (early_camera_init() == -1) {

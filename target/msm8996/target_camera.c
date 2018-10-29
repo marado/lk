@@ -42,6 +42,7 @@
 #include <kernel/thread.h>
 #include <target/target_camera.h>
 #include <dev/keys.h>
+#include <pm8x41_hw.h>
 
 
 #define EARLY_CAMERA_SIGNAL_DONE 0xa5a5a5a5
@@ -52,7 +53,6 @@
 #define PING_PONG_IRQ_MASK 0x100
 
 #define EARLY_CAM_NUM_FRAMES 60*20
-#define MAX_POLL_COUNT 1000
 #define CAM_RESET_GPIO 23
 #define MMSS_A_VFE_0_SPARE 0x00A10C84
 
@@ -64,7 +64,25 @@ struct target_display * disp;
 struct fbcon_config *fb;
 int num_configs = 0;
 bool firstframe = true;
-int raw_size = 1280*720*2.0;
+#define VFE_TIME_OUT_POLL_NUM 33 * 3
+int queue_id = 1;
+#ifdef ADV7481
+#define MAX_POLL_COUNT 100000
+#define CVBS_HEADER_SIZE 13*720*2
+int raw_size = 720*507*2;
+int csi = 1;
+int cci_master = 0;
+int msg_count = 0;
+#else
+#define MAX_POLL_COUNT 100000
+int raw_size = 1280*720*2;
+int csi = 2;
+int cci_master = 1;
+#endif
+
+int lock = 1;
+
+
 int early_cam_on = 1;
 uint32 frame_counter = 0;
 int index = 0;
@@ -143,7 +161,8 @@ int32_t msm_cci_i2c_write(struct camera_i2c_reg_array *pArray,
 						  int sync_en,
 						  int add_size,
 						  int data_size,
-						  int readback);
+						  int readback,
+						  int master);
 
 int32_t msm_cci_data_queue(struct camera_i2c_reg_array *pArray,
 							int arraySize,
@@ -151,7 +170,8 @@ int32_t msm_cci_data_queue(struct camera_i2c_reg_array *pArray,
 							int queue,
 							int sync_en,
 							int add_size,
-							int data_size);
+							int data_size,
+							int master);
 
 unsigned msm_cci_poll_irq(int irq_num,int master);
 
@@ -359,6 +379,12 @@ struct sensor_id_info_t {
 #define CSI2_PHY_BASE 0x00A36000
 #define CSI2_CLK_MUX_BASE 0x00A00040
 #define CSI2_D_BASE 0x00A30800
+
+#define CSI1_PHY_BASE 0x00A35000
+#define CSI1_CLK_MUX_BASE 0x00A00038
+#define CSI1_D_BASE 0x00A30400
+
+
 #define VFE0_BASE 0x00A10000
 #define VFE_SIZE 801
 #define VBIF0_BASE 0x00A40000
@@ -368,12 +394,246 @@ struct sensor_id_info_t {
 #define MMSS_A_VFE_0_BUS_PING_PONG_STATUS 0x00A10338
 #define ISPIF_BASE 0x00A31000
 #define ISPIF_CLK_MUX_BASE 0x00A00020
-#define settle_time 0x1a
 
+#ifdef ADV7481
+#define settle_time 0x10
+#define EARLY_CAM_CSI_PORT_NUM 1
+#else
+#define settle_time 0x1a
+#define EARLY_CAM_CSI_PORT_NUM 2
+#endif
+
+#ifdef ADV7481
 #define CSI_PHY_INIT(_csi_phy_base_, _csi_clk_mux_base_) \
 	{_csi_phy_base_+0x800,0x1,10}, \
 	{_csi_phy_base_+0x800,0x0,0}, \
-	{_csi_clk_mux_base_+0x0,2,0}, \
+	{_csi_clk_mux_base_+0x0,EARLY_CAM_CSI_PORT_NUM,0}, \
+	{_csi_phy_base_+0x814,0x00000081,0}, \
+	{_csi_phy_base_+0x818,0x1,0}, \
+	{_csi_phy_base_+0x030,0x2,0}, \
+	{_csi_phy_base_+0x02c,0x1,0}, \
+	{_csi_phy_base_+0x034,0x10,0}, \
+	{_csi_phy_base_+0x028,0x0,0}, \
+	{_csi_phy_base_+0x03c,0x000000b8,0}, \
+	{_csi_phy_base_+0x004,0x8,0}, \
+	{_csi_phy_base_+0x008,settle_time,0}, \
+	{_csi_phy_base_+0x000,0x000000d7,0}, \
+	{_csi_phy_base_+0x010,0x50,0}, \
+	{_csi_phy_base_+0x038,0x1,0}, \
+	{_csi_phy_base_+0x01c,0x0000000a,0}, \
+	{_csi_phy_base_+0x730,0x2,0}, \
+	{_csi_phy_base_+0x72c,0x1,0}, \
+	{_csi_phy_base_+0x734,0x10,0}, \
+	{_csi_phy_base_+0x728,0x4,0}, \
+	{_csi_phy_base_+0x73c,0x000000b8,0}, \
+	{_csi_phy_base_+0x704,0x8,0}, \
+	{_csi_phy_base_+0x708,settle_time,0}, \
+	{_csi_phy_base_+0x700,0x000000c0,0}, \
+	{_csi_phy_base_+0x70c,0x000000ff,0}, \
+	{_csi_phy_base_+0x710,0x50,0}, \
+	{_csi_phy_base_+0x738,0x1,0}, \
+	{_csi_phy_base_+0x71c,0x0000000a,0}, \
+	{_csi_phy_base_+0x230,0x2,0}, \
+	{_csi_phy_base_+0x22c,0x1,0}, \
+	{_csi_phy_base_+0x234,0x1,0}, \
+	{_csi_phy_base_+0x228,0x0,0}, \
+	{_csi_phy_base_+0x23c,0x000000b8,0}, \
+	{_csi_phy_base_+0x204,0x8,0}, \
+	{_csi_phy_base_+0x200,0x000000d7,0}, \
+	{_csi_phy_base_+0x210,0x50,0}, \
+	{_csi_phy_base_+0x238,0x1,0}, \
+	{_csi_phy_base_+0x21c,0x0000000a,0}, \
+	{_csi_phy_base_+0x430,0x2,0}, \
+	{_csi_phy_base_+0x42c,0x1,0}, \
+	{_csi_phy_base_+0x434,0x1,0}, \
+	{_csi_phy_base_+0x428,0x0,0}, \
+	{_csi_phy_base_+0x43c,0x000000b8,0}, \
+	{_csi_phy_base_+0x404,0x8,0}, \
+	{_csi_phy_base_+0x400,0x000000d7,0}, \
+	{_csi_phy_base_+0x410,0x50,0}, \
+	{_csi_phy_base_+0x438,0x1,0}, \
+	{_csi_phy_base_+0x41c,0x0000000a,0}, \
+	{_csi_phy_base_+0x630,0x2,0}, \
+	{_csi_phy_base_+0x62c,0x1,0}, \
+	{_csi_phy_base_+0x634,0x1,0}, \
+	{_csi_phy_base_+0x628,0x0,0}, \
+	{_csi_phy_base_+0x63c,0x000000b8,0}, \
+	{_csi_phy_base_+0x604,0x8,0}, \
+	{_csi_phy_base_+0x600,0x000000d7,0}, \
+	{_csi_phy_base_+0x610,0x50,0}, \
+	{_csi_phy_base_+0x638,0x1,0}, \
+	{_csi_phy_base_+0x61c,0x0000000a,0}, \
+	{_csi_phy_base_+0x82c,0x000000ff,0}, \
+	{_csi_phy_base_+0x830,0x000000ff,0}, \
+	{_csi_phy_base_+0x834,0x000000fb,0}, \
+	{_csi_phy_base_+0x838,0x000000ff,0}, \
+	{_csi_phy_base_+0x83c,0x0000007f,0}, \
+	{_csi_phy_base_+0x840,0x000000ff,0}, \
+	{_csi_phy_base_+0x844,0x000000ff,0}, \
+	{_csi_phy_base_+0x848,0x000000ef,0}, \
+	{_csi_phy_base_+0x84c,0x000000ff,0}, \
+	{_csi_phy_base_+0x850,0x000000ff,0}, \
+	{_csi_phy_base_+0x854,0x000000ff,0},
+
+#define CSI_D_INIT(_csid_base_) \
+	{_csid_base_+0x10,0x00007fff,10}, \
+	{_csid_base_+0x64,0x800,0}, \
+	{_csid_base_+0x04,0x32100,0}, \
+	{_csid_base_+0x08,0x0003000f,0}, \
+	{_csid_base_+0x14,0x0000001e,0}, \
+	{_csid_base_+0x24,0x13,0}, \
+	{_csid_base_+0x18,0x00000000,0}, \
+	{_csid_base_+0x34,0x0,0}, \
+	{_csid_base_+0x1c,0x00000000,0}, \
+	{_csid_base_+0x44,0x0,0}, \
+	{_csid_base_+0x20,0x00000,0}, \
+	{_csid_base_+0x54,0x0,0},
+
+#define VFE_INIT(_vfe_base_, _vfe_vbif_base_) \
+	{_vfe_base_ +0x05c,0x80000000,0}, \
+	{_vfe_base_ +0x060,0x0,0,}, \
+	{_vfe_base_ +0x064,0xffffffff,0}, \
+	{_vfe_base_ +0x068,0xffffffff,0}, \
+	{_vfe_base_ +0x058,0x1,0,}, \
+	{_vfe_base_ +0x018,0x000003ff,10}, \
+	{_vfe_base_ +0x064,0x80000000,0}, \
+	{_vfe_base_ +0x068,0x0,0,}, \
+	{_vfe_base_ +0x058,0x1,0,}, \
+	{_vfe_vbif_base_ +0x0004,0x0,0}, \
+	{_vfe_base_ +0x404,0xaaa9aaa9,0}, \
+	{_vfe_base_ +0x408,0xaaa9aaa9,0}, \
+	{_vfe_base_ +0x40c,0xaaa9aaa9,0}, \
+	{_vfe_base_ +0x410,0xaaa9aaa9,0}, \
+	{_vfe_base_ +0x414,0xaaa9aaa9,0}, \
+	{_vfe_base_ +0x418,0xaaa9aaa9,0}, \
+	{_vfe_base_ +0x41c,0xaaa9aaa9,0}, \
+	{_vfe_base_ +0x420,0x0001aaa9,0}, \
+	{_vfe_base_ +0x424,0xcccc0011,0}, \
+	{_vfe_base_ +0x428,0xcccc0011,0}, \
+	{_vfe_base_ +0x42c,0xcccc0011,0}, \
+	{_vfe_base_ +0x430,0xcccc0011,0}, \
+	{_vfe_base_ +0x434,0xcccc0011,0}, \
+	{_vfe_base_ +0x438,0xcccc0011,0}, \
+	{_vfe_base_ +0x43c,0xcccc0011,0}, \
+	{_vfe_base_ +0x440,0xcccc0011,0}, \
+	{_vfe_base_ +0x444,0xcccc0011,0}, \
+	{_vfe_base_ +0x448,0xcccc0011,0}, \
+	{_vfe_base_ +0x44c,0xcccc0011,0}, \
+	{_vfe_base_ +0x450,0xcccc0011,0}, \
+	{_vfe_base_ +0x454,0xcccc0011,0}, \
+	{_vfe_base_ +0x458,0xcccc0011,0}, \
+	{_vfe_base_ +0x45c,0xcccc0011,0}, \
+	{_vfe_base_ +0x460,0xcccc0011,0}, \
+	{_vfe_base_ +0x464,0x40000103,0}, \
+	{_vfe_vbif_base_ +0x124,3,0}, \
+	{_vfe_base_ +0x084,0x001,0}, \
+	{_vfe_base_ +0x05c,0xe00000f3,0}, \
+	{_vfe_base_ +0x060,0xffffffff,0}, \
+	{_vfe_base_ +0x064,0xffffffff,0}, \
+	{_vfe_base_ +0x068,0xffffffff,0}, \
+	{_vfe_base_ +0x46c,0x5,0}, \
+	{_vfe_base_ +0x05c,0xe00001f3,0}, \
+	{_vfe_base_ +0x0b4,0x0,0}, \
+	{_vfe_base_ +0x0c8,0xffffffff,0}, \
+	{_vfe_base_ +0x090,0xc00,0}, \
+	{_vfe_base_ +0x0a4,0x83D00000,0}, \
+	{_vfe_base_ +0x0a8,0x84532800,0}, \
+	{_vfe_base_ +0x0ac,0x83400000,0}, \
+	{_vfe_base_ +0x0b0,0x83C32800,0}, \
+	{_vfe_base_ +0x0b8,0xd800d7,0}, \
+	{_vfe_base_ +0x0bc,0x2c01fa,0}, \
+	{_vfe_base_ +0x0c0,0x5a07ea,0}, \
+	{_vfe_base_ +0x0e4,0x0,0}, \
+	{_vfe_base_ +0x110,0x0,0}, \
+	{_vfe_base_ +0x13c,0x0,0}, \
+	{_vfe_base_ +0x168,0x0,0}, \
+	{_vfe_base_ +0x194,0x0,0}, \
+	{_vfe_base_ +0x1c0,0x0,0}, \
+	{_vfe_base_ +0x03c,0x1,0}, \
+	{_vfe_base_ +0x0c4,0x1,0}, \
+	{_vfe_base_ +0x0b4,0x0,0}, \
+	{_vfe_base_ +0x0a0,0x1,0}, \
+	{_vfe_base_ +0x4ac,0x2,0}, \
+	{_vfe_base_ +0x080,0x1,0},
+
+#define ISPIF_INIT(_ispif_base_, _ispif_clk_mux_base_) \
+	{_ispif_base_ +0x008,0xfe7f1fff,10}, \
+	{_ispif_base_ +0x230,0x8000000,0}, \
+	{_ispif_base_ +0x234,0x0,0}, \
+	{_ispif_base_ +0x238,0x0,0}, \
+	{_ispif_base_ +0x430,0x8000000,0}, \
+	{_ispif_base_ +0x434,0x0,0}, \
+	{_ispif_base_ +0x438,0x0,0}, \
+	{_ispif_base_ +0x01c,0x1,0}, \
+	{_ispif_base_ +0x00c,0xfc7f1ff9,10}, \
+	{_ispif_base_ +0x230,0x8000000,0}, \
+	{_ispif_base_ +0x234,0x0,0}, \
+	{_ispif_base_ +0x238,0x0,0}, \
+	{_ispif_base_ +0x430,0x8000000,0}, \
+	{_ispif_base_ +0x434,0x0,0}, \
+	{_ispif_base_ +0x438,0x0,0}, \
+	{_ispif_base_ +0x01c,0x1,0}, \
+	{_ispif_base_ +0x200,0x40,0}, \
+	{_ispif_base_ +0x208,0x0,0}, \
+	{_ispif_base_ +0x20c,0x0,0}, \
+	{_ispif_base_ +0x210,0x0,0}, \
+	{_ispif_base_ +0x230,0xffffffff,0}, \
+	{_ispif_base_ +0x234,0xffffffff,0}, \
+	{_ispif_base_ +0x238,0xffffffff,0}, \
+	{_ispif_base_ +0x244,0x10,0}, \
+	{_ispif_base_ +0x248,0xaaaaaaaa,0}, \
+	{_ispif_base_ +0x24c,0xaaaaaaaa,0}, \
+	{_ispif_base_ +0x254,0x0,0}, \
+	{_ispif_base_ +0x258,0x0,0}, \
+	{_ispif_base_ +0x264,0x0,0}, \
+	{_ispif_base_ +0x268,0x0,0}, \
+	{_ispif_base_ +0x26c,0x0,0}, \
+	{_ispif_base_ +0x288,0x0,0}, \
+	{_ispif_base_ +0x28c,0x0,0}, \
+	{_ispif_base_ +0x400,0x40,0}, \
+	{_ispif_base_ +0x408,0x0,0}, \
+	{_ispif_base_ +0x40c,0x0,0}, \
+	{_ispif_base_ +0x410,0x0,0}, \
+	{_ispif_base_ +0x430,0xffffffff,0}, \
+	{_ispif_base_ +0x434,0xffffffff,0}, \
+	{_ispif_base_ +0x438,0xffffffff,0}, \
+	{_ispif_base_ +0x444,0x0,0}, \
+	{_ispif_base_ +0x448,0xaaaaaaaa,0}, \
+	{_ispif_base_ +0x44c,0xaaaaaaaa,0}, \
+	{_ispif_base_ +0x454,0x0,0}, \
+	{_ispif_base_ +0x458,0x0,0}, \
+	{_ispif_base_ +0x464,0x0,0}, \
+	{_ispif_base_ +0x468,0x0,0}, \
+	{_ispif_base_ +0x46c,0x0,0}, \
+	{_ispif_base_ +0x488,0x0,0}, \
+	{_ispif_base_ +0x48c,0x0,0}, \
+	{_ispif_base_ +0x01c,0x1,0}, \
+	{_ispif_base_ +0x208,0x0,0}, \
+	{_ispif_base_ +0x20c,0x0,0}, \
+	{_ispif_base_ +0x210,0x0,0}, \
+	{_ispif_clk_mux_base_ +0x8,0x1,0}, \
+	{_ispif_base_ +0x244,0x10,0}, \
+	{_ispif_base_ +0x264,0x1,0}, \
+	{_ispif_base_ +0x208,0x0a493249,0}, \
+	{_ispif_base_ +0x230,0x0a493249,0}, \
+	{_ispif_base_ +0x20c,0x2493249,0}, \
+	{_ispif_base_ +0x234,0x2493249,0}, \
+	{_ispif_base_ +0x210,0x1249,0}, \
+	{_ispif_base_ +0x238,0x1249,0}, \
+	{_ispif_base_ +0x408,0x0a493249,0}, \
+	{_ispif_base_ +0x430,0x0a493249,0}, \
+	{_ispif_base_ +0x40c,0x2493249,0}, \
+	{_ispif_base_ +0x434,0x2493249,0}, \
+	{_ispif_base_ +0x410,0x1249,0}, \
+	{_ispif_base_ +0x438,0x1249,0}, \
+	{_ispif_base_ +0x01c,0x1,0}, \
+	{_ispif_base_ +0x248,0xfffffdff,0}
+
+#else
+#define CSI_PHY_INIT(_csi_phy_base_, _csi_clk_mux_base_) \
+	{_csi_phy_base_+0x800,0x1,10}, \
+	{_csi_phy_base_+0x800,0x0,0}, \
+	{_csi_clk_mux_base_+0x0,EARLY_CAM_CSI_PORT_NUM,0}, \
 	{_csi_phy_base_+0x814,0x000000d5,0}, \
 	{_csi_phy_base_+0x818,0x1,0}, \
 	{_csi_phy_base_+0x030,0x2,0}, \
@@ -594,7 +854,8 @@ struct sensor_id_info_t {
 	{_ispif_base_ +0x410,0x1249,0}, \
 	{_ispif_base_ +0x438,0x1249,0}, \
 	{_ispif_base_ +0x01c,0x1,0}, \
-	{_ispif_base_ +0x248,0xfffffdff,0}, \
+	{_ispif_base_ +0x248,0xfffffdff,0}
+#endif
 
 #define MMSS_HLOS1_VOTE_ALL_MMSS_SMMU_GDS 0x008C8104
 #define MMSS_HLOS2_VOTE_ALL_MMSS_SMMU_GDS 0x008C9104
@@ -646,8 +907,18 @@ struct camera_hw_reg_array other_init_regs[] ={
 	{0x008C3C48, 1,0},
 };
 
+
+struct camera_hw_reg_array hw_csi1_phy_init_regs[] = {
+	CSI_PHY_INIT(CSI1_PHY_BASE,CSI1_CLK_MUX_BASE) };
+
+
+
 struct camera_hw_reg_array hw_csi2_phy_init_regs[] = {
 	CSI_PHY_INIT(CSI2_PHY_BASE,CSI2_CLK_MUX_BASE) };
+
+struct camera_hw_reg_array hw_csi1_d_init_regs[] = {
+	CSI_D_INIT(CSI1_D_BASE) };
+
 
 struct camera_hw_reg_array hw_csi2_d_init_regs[] = {
 	CSI_D_INIT(CSI2_D_BASE) };
@@ -681,6 +952,18 @@ static uint32_t ldo29[][14]=
 
 };
 
+// Cam vana supply
+static uint32_t ldo17[][14]=
+{
+	{
+		LDOA_RES_TYPE, 17,
+		KEY_SOFTWARE_ENABLE, 4, GENERIC_ENABLE,
+		KEY_MICRO_VOLT, 4, 2500000,
+		KEY_CURRENT, 4, 5,
+	},
+
+};
+
 // Cam vio supply
 static uint32_t lvs1[][14]=
 {
@@ -691,7 +974,20 @@ static uint32_t lvs1[][14]=
 		KEY_CURRENT, 4, 5,
 	},
 };
-#define DEBUG_LOGS
+
+static uint32_t smps3[][14]=
+{
+	{
+		SMPS_RES_TYPE, 3,
+		KEY_SOFTWARE_ENABLE, 4, GENERIC_ENABLE,
+		KEY_MICRO_VOLT, 4, 1300000,
+		KEY_CURRENT, 4, 5,
+	},
+
+};
+
+
+//#define DEBUG_LOGS
 #ifdef DEBUG_LOGS
 #undef CDBG
 #define CDBG _dprintf
@@ -722,39 +1018,103 @@ void camera_gpio_init(void) {
 	gpio_set(CAM_RESET_GPIO, GPIO_LOW_VAL);
 	gpio_tlmm_config(CAM_RESET_GPIO, 0, GPIO_OUTPUT, GPIO_NO_PULL,
 						GPIO_2MA, GPIO_ENABLE);
-	mdelay(3);
+	mdelay_optimal(3);
 
 	gpio_set(CAM_RESET_GPIO, GPIO_HIGH_VAL);
 	gpio_tlmm_config(CAM_RESET_GPIO, 0, GPIO_OUTPUT, GPIO_NO_PULL,
 		GPIO_2MA, GPIO_ENABLE);
-	mdelay(30);
+	mdelay_optimal(30);
 
 	// Turn on mipi rail.
 	rpm_send_data(&ldo2[0][0], 36, RPM_REQUEST_TYPE);
 }
 
-int msm_vfe_poll_irq(int irq_num)
+void camera_adv_gpio_init(void) {
+	// CSI i2c setup
+	gpio_tlmm_config(17, 1, GPIO_OUTPUT, GPIO_PULL_UP,
+		GPIO_2MA, GPIO_ENABLE);
+	gpio_tlmm_config(18, 1, GPIO_OUTPUT, GPIO_PULL_UP,
+		GPIO_2MA, GPIO_ENABLE);
+
+	gpio_tlmm_config(19, 1, GPIO_OUTPUT, GPIO_PULL_UP,
+		GPIO_2MA, GPIO_ENABLE);
+	gpio_tlmm_config(20, 1, GPIO_OUTPUT, GPIO_PULL_UP,
+		GPIO_2MA, GPIO_ENABLE);
+
+	//Toggle reset GPIO
+		gpio_set(CAM_RESET_GPIO, GPIO_LOW_VAL);
+		gpio_tlmm_config(CAM_RESET_GPIO, 0, GPIO_OUTPUT, GPIO_NO_PULL,
+							GPIO_2MA, GPIO_ENABLE);
+
+
+	// Cam vana
+	rpm_send_data(&ldo17[0][0], 36, RPM_REQUEST_TYPE);
+	// Cam VIO
+	rpm_send_data(&lvs1[0][0], 36, RPM_REQUEST_TYPE);
+	rpm_send_data(&smps3[0][0], 36, RPM_REQUEST_TYPE);
+
+	mdelay_optimal(3);
+
+	gpio_set(CAM_RESET_GPIO, GPIO_HIGH_VAL);
+	gpio_tlmm_config(CAM_RESET_GPIO, 0, GPIO_OUTPUT, GPIO_NO_PULL,
+		GPIO_2MA, GPIO_ENABLE);
+	mdelay_optimal(30);
+
+	// Turn on mipi rail.
+	rpm_send_data(&ldo2[0][0], 36, RPM_REQUEST_TYPE);
+}
+
+void camera_adv_pmic_gpio_init(void) {
+
+     struct pm8x41_gpio gpio = {
+                .direction = PM_GPIO_DIR_OUT,
+                .function = PM_GPIO_FUNC_HIGH,
+                .vin_sel = 2,   /* VIN_2 */
+                .output_buffer = PM_GPIO_OUT_CMOS,
+                .out_strength = PM_GPIO_OUT_DRIVE_LOW,
+    };
+
+    pm8x41_gpio_config(4, &gpio);
+	mdelay_optimal(10);
+	pm8x41_gpio_set(4, 0);
+	mdelay_optimal(10);
+	pm8x41_gpio_set(4, 1);
+}
+
+
+
+int msm_vfe_poll_irq(int irq_num, int timeout_poll_num)
 {
 	uint32_t irq;
-	uint32_t poll_count=0;
+	int poll_count=0;
 	int ping;
+	int rc = 0;
 
 	irq = msm_camera_io_r_mb(MMSS_A_VFE_0_IRQ_STATUS_0);
 
 	if(irq_num == PING_PONG_IRQ_MASK) {
-		while(!(irq &PING_PONG_IRQ_MASK)) {
+		while(!(irq &PING_PONG_IRQ_MASK) ) {
 			mdelay_optimal(1);
 			irq = msm_camera_io_r_mb(MMSS_A_VFE_0_IRQ_STATUS_0);
 			poll_count++;
+			if(poll_count>timeout_poll_num) {
+				rc = -1;
+				break;
+			}
 		}
-		msm_camera_io_w_mb(PING_PONG_IRQ_MASK,
-			MMSS_A_VFE_0_IRQ_CLEAR_0);
-		msm_camera_io_w_mb(0x1, MMSS_A_VFE_0_IRQ_CMD);
+		if(rc == 0) {
+			msm_camera_io_w_mb(PING_PONG_IRQ_MASK,
+				MMSS_A_VFE_0_IRQ_CLEAR_0);
+			msm_camera_io_w_mb(0x1, MMSS_A_VFE_0_IRQ_CMD);
+		}
 	}
 
-	ping = msm_camera_io_r_mb(MMSS_A_VFE_0_BUS_PING_PONG_STATUS);
+	if(rc == 0) {
+		ping = msm_camera_io_r_mb(MMSS_A_VFE_0_BUS_PING_PONG_STATUS);
+		return (ping&0x1);
+	}
 
-	return (ping&0x1);
+	return rc;
 }
 
 unsigned msm_cci_poll_irq(int irq_num,int master)
@@ -778,51 +1138,112 @@ unsigned msm_cci_poll_irq(int irq_num,int master)
 		}
 	}
 
-	if(irq_num == CCI_IRQ_STATUS_0_I2C_M1_RD_DONE_BMSK) {
-		while(!(irq &CCI_IRQ_STATUS_0_I2C_M1_RD_DONE_BMSK)) {
-			irq = msm_camera_io_r_mb(CCI_DEV_BASE + CCI_IRQ_STATUS_0_ADDR);
-			poll_count++;
-			if(poll_count > MAX_POLL_COUNT)
-				goto error_exit;
+	if(cci_master == 1) {
+		if(irq_num == CCI_IRQ_STATUS_0_I2C_M1_RD_DONE_BMSK) {
+			while(!(irq &CCI_IRQ_STATUS_0_I2C_M1_RD_DONE_BMSK)) {
+				irq = msm_camera_io_r_mb(CCI_DEV_BASE + CCI_IRQ_STATUS_0_ADDR);
+				poll_count++;
+				if(poll_count > MAX_POLL_COUNT)
+					goto error_exit;
 
+			}
+			msm_camera_io_w_mb(CCI_IRQ_STATUS_0_I2C_M1_RD_DONE_BMSK, CCI_DEV_BASE + CCI_IRQ_CLEAR_0_ADDR);
+			msm_camera_io_w_mb(0x1, CCI_DEV_BASE + CCI_IRQ_GLOBAL_CLEAR_CMD_ADDR);
+
+			cci_master_info[master].status = 0;
 		}
-		msm_camera_io_w_mb(CCI_IRQ_STATUS_0_I2C_M1_RD_DONE_BMSK, CCI_DEV_BASE + CCI_IRQ_CLEAR_0_ADDR);
-		msm_camera_io_w_mb(0x1, CCI_DEV_BASE + CCI_IRQ_GLOBAL_CLEAR_CMD_ADDR);
-
-		cci_master_info[master].status = 0;
 	}
 
-	if(irq_num == CCI_IRQ_STATUS_0_I2C_M1_Q1_REPORT_BMSK) {
-		while(!(irq &CCI_IRQ_STATUS_0_I2C_M1_Q1_REPORT_BMSK)) {
-			irq = msm_camera_io_r_mb(CCI_DEV_BASE + CCI_IRQ_STATUS_0_ADDR);
-			poll_count++;
+	if(cci_master == 0) {
+		if(irq_num == CCI_IRQ_STATUS_0_I2C_M0_RD_DONE_BMSK) {
+			while(!(irq &CCI_IRQ_STATUS_0_I2C_M0_RD_DONE_BMSK)) {
+				irq = msm_camera_io_r_mb(CCI_DEV_BASE + CCI_IRQ_STATUS_0_ADDR);
+				poll_count++;
+				if(poll_count > MAX_POLL_COUNT) {
+					dprintf(CRITICAL, "CCI_IRQ_STATUS_0_I2C_M0_RD_DONE_BMSK::irq = %d\n", irq);
+					goto error_exit;
+				}
+			}
+			msm_camera_io_w_mb(CCI_IRQ_STATUS_0_I2C_M0_RD_DONE_BMSK, CCI_DEV_BASE + CCI_IRQ_CLEAR_0_ADDR);
+			msm_camera_io_w_mb(0x1, CCI_DEV_BASE + CCI_IRQ_GLOBAL_CLEAR_CMD_ADDR);
+
+			cci_master_info[master].status = 0;
 		}
-		cci_master_info[master].q_free[1] = 0;
-		cci_master_info[master].status = 0;
-		if (cci_master_info[master].done_pending[1] == 1) {
-			cci_master_info[master].done_pending[1] = 0;
+	}
+	if(cci_master == 1) {
+		if(irq_num == CCI_IRQ_STATUS_0_I2C_M1_Q1_REPORT_BMSK) {
+			while(!(irq &CCI_IRQ_STATUS_0_I2C_M1_Q1_REPORT_BMSK)) {
+				irq = msm_camera_io_r_mb(CCI_DEV_BASE + CCI_IRQ_STATUS_0_ADDR);
+				poll_count++;
+				if(poll_count > MAX_POLL_COUNT) {
+					goto error_exit;
+				}
+			}
+			cci_master_info[master].q_free[1] = 0;
+			cci_master_info[master].status = 0;
+			if (cci_master_info[master].done_pending[1] == 1) {
+				cci_master_info[master].done_pending[1] = 0;
+			}
+			msm_camera_io_w_mb(CCI_IRQ_STATUS_0_I2C_M1_Q1_REPORT_BMSK, CCI_DEV_BASE + CCI_IRQ_CLEAR_0_ADDR);
+			msm_camera_io_w_mb(0x1, CCI_DEV_BASE + CCI_IRQ_GLOBAL_CLEAR_CMD_ADDR);
 		}
-		msm_camera_io_w_mb(CCI_IRQ_STATUS_0_I2C_M1_Q1_REPORT_BMSK, CCI_DEV_BASE + CCI_IRQ_CLEAR_0_ADDR);
-		msm_camera_io_w_mb(0x1, CCI_DEV_BASE + CCI_IRQ_GLOBAL_CLEAR_CMD_ADDR);
+		if(irq_num == CCI_IRQ_STATUS_0_I2C_M1_Q0_REPORT_BMSK) {
+			while(!(irq &CCI_IRQ_STATUS_0_I2C_M1_Q0_REPORT_BMSK)) {
+				irq = msm_camera_io_r_mb(CCI_DEV_BASE + CCI_IRQ_STATUS_0_ADDR);
+				poll_count++;
+				if(poll_count > MAX_POLL_COUNT) {
+					goto error_exit;
+				}
+			}
+			cci_master_info[master].q_free[0] = 0;
+			cci_master_info[master].status = 0;
+			if (cci_master_info[master].done_pending[0] == 1) {
+				cci_master_info[master].done_pending[0] =0;
+			}
+			msm_camera_io_w_mb(CCI_IRQ_STATUS_0_I2C_M1_Q0_REPORT_BMSK, CCI_DEV_BASE + CCI_IRQ_CLEAR_0_ADDR);
+			msm_camera_io_w_mb(0x1, CCI_DEV_BASE + CCI_IRQ_GLOBAL_CLEAR_CMD_ADDR);
+		}
 	}
 
-	if(irq_num == CCI_IRQ_STATUS_0_I2C_M1_Q0_REPORT_BMSK) {
-		while(!(irq &CCI_IRQ_STATUS_0_I2C_M1_Q0_REPORT_BMSK)) {
-			irq = msm_camera_io_r_mb(CCI_DEV_BASE + CCI_IRQ_STATUS_0_ADDR);
-			poll_count++;
+	if(cci_master == 0) {
+		if(irq_num == CCI_IRQ_STATUS_0_I2C_M0_Q1_REPORT_BMSK) {
+			while(!(irq &CCI_IRQ_STATUS_0_I2C_M0_Q1_REPORT_BMSK)) {
+				irq = msm_camera_io_r_mb(CCI_DEV_BASE + CCI_IRQ_STATUS_0_ADDR);
+				poll_count++;
+				if(poll_count > MAX_POLL_COUNT)
+					goto error_exit;
+			}
+			cci_master_info[master].q_free[1] = 0;
+			cci_master_info[master].status = 0;
+			if (cci_master_info[master].done_pending[1] == 1) {
+				cci_master_info[master].done_pending[1] = 0;
+			}
+			msm_camera_io_w_mb(CCI_IRQ_STATUS_0_I2C_M0_Q1_REPORT_BMSK, CCI_DEV_BASE + CCI_IRQ_CLEAR_0_ADDR);
+			msm_camera_io_w_mb(0x1, CCI_DEV_BASE + CCI_IRQ_GLOBAL_CLEAR_CMD_ADDR);
 		}
-		cci_master_info[master].q_free[0] = 0;
-		cci_master_info[master].status = 0;
-		if (cci_master_info[master].done_pending[0] == 1) {
-			cci_master_info[master].done_pending[0] =0;
+
+		if(irq_num == CCI_IRQ_STATUS_0_I2C_M0_Q0_REPORT_BMSK) {
+			while(!(irq &CCI_IRQ_STATUS_0_I2C_M0_Q0_REPORT_BMSK)) {
+				irq = msm_camera_io_r_mb(CCI_DEV_BASE + CCI_IRQ_STATUS_0_ADDR);
+				poll_count++;
+				if(poll_count > MAX_POLL_COUNT){
+					dprintf(CRITICAL, "CCI_IRQ_STATUS_0_I2C_M0_Q0_REPORT_BMSK ::irq = %d\n", irq);
+					goto error_exit;
+				}
+			}
+			cci_master_info[master].q_free[0] = 0;
+			cci_master_info[master].status = 0;
+			if (cci_master_info[master].done_pending[0] == 1) {
+				cci_master_info[master].done_pending[0] =0;
+			}
+			msm_camera_io_w_mb(CCI_IRQ_STATUS_0_I2C_M0_Q0_REPORT_BMSK, CCI_DEV_BASE + CCI_IRQ_CLEAR_0_ADDR);
+			msm_camera_io_w_mb(0x1, CCI_DEV_BASE + CCI_IRQ_GLOBAL_CLEAR_CMD_ADDR);
 		}
-		msm_camera_io_w_mb(CCI_IRQ_STATUS_0_I2C_M1_Q0_REPORT_BMSK, CCI_DEV_BASE + CCI_IRQ_CLEAR_0_ADDR);
-		msm_camera_io_w_mb(0x1, CCI_DEV_BASE + CCI_IRQ_GLOBAL_CLEAR_CMD_ADDR);
 	}
 
 	return 0;
 	error_exit:
-		pr_err("CCI timeout waiting for %d",irq_num);
+		pr_err("msm_cci_poll_irq::CCI timeout waiting for %d",irq_num);
 		return -1;
 }
 
@@ -832,7 +1253,7 @@ void msm_hw_init(struct camera_hw_reg_array *pdata,int size,int flag) {
 	for (i = 0; i < size; i++) {
 		msm_camera_io_w_mb(pdata->reg_data,pdata->reg_addr);
 		if(pdata->delay)
-			mdelay(pdata->delay);
+			mdelay_optimal(pdata->delay);
 		pdata++;
 	}
 
@@ -841,12 +1262,14 @@ int32_t msm_cci_init(int master) {
 	msm_camera_io_w_mb(0,
 		CCI_DEV_BASE + CCI_IRQ_MASK_0_ADDR);
 
-	if (master == 0)
+	if (master == 0) {
 		msm_camera_io_w_mb(CCI_M0_RESET_RMSK,
 			CCI_DEV_BASE + CCI_RESET_CMD_ADDR);
-	else
+	}
+	else {
 		msm_camera_io_w_mb(CCI_M1_RESET_RMSK,
 			CCI_DEV_BASE + CCI_RESET_CMD_ADDR);
+	}
 
 	/* wait for reset done irq */
 	msm_cci_poll_irq(CCI_IRQ_STATUS_0_RST_DONE_ACK_BMSK,0);
@@ -924,13 +1347,22 @@ int32_t msm_cci_validate_queue(uint32_t len,int master,int queue)
 	uint32_t max_queue_size;
 	int irq_wait;
 
-	if(queue ==1) {
-		max_queue_size = CCI_I2C_QUEUE_1_SIZE;
-		irq_wait = CCI_IRQ_STATUS_0_I2C_M1_Q1_REPORT_BMSK;
-	}
-	else {
-		max_queue_size = CCI_I2C_QUEUE_0_SIZE;
-		irq_wait = CCI_IRQ_STATUS_0_I2C_M1_Q0_REPORT_BMSK;
+    if(master == 0) {
+		if(queue == 1) {
+			max_queue_size = CCI_I2C_QUEUE_1_SIZE;
+			irq_wait = CCI_IRQ_STATUS_0_I2C_M0_Q1_REPORT_BMSK;
+		} else {
+			max_queue_size = CCI_I2C_QUEUE_0_SIZE;
+			irq_wait = CCI_IRQ_STATUS_0_I2C_M0_Q0_REPORT_BMSK;
+		}
+	} else {
+		if(queue == 1) {
+			max_queue_size = CCI_I2C_QUEUE_1_SIZE;
+			irq_wait = CCI_IRQ_STATUS_0_I2C_M1_Q1_REPORT_BMSK;
+		} else {
+			max_queue_size = CCI_I2C_QUEUE_0_SIZE;
+			irq_wait = CCI_IRQ_STATUS_0_I2C_M1_Q0_REPORT_BMSK;
+		}
 	}
 
 	read_val = msm_camera_io_r_mb(CCI_DEV_BASE +
@@ -1027,7 +1459,7 @@ int32_t msm_cci_write_i2c_queue(int master,int queue,int val, int length)
 	return rc;
 }
 
-int32_t msm_cci_i2c_read(uint32_t address,
+int msm_cci_i2c_read(uint32_t address,
 						 int32_t length,
 						 uint32_t *read_val,
 						 unsigned int slave_address,
@@ -1036,7 +1468,7 @@ int32_t msm_cci_i2c_read(uint32_t address,
 						 int addr_type,
 						 int data_type)
 {
-	int32_t rc = 0;
+	int rc = 0;
 	uint32_t val = 0;
 	int32_t read_words = 0, exp_words = 0;
 	int32_t index = 0, first_byte = 0;
@@ -1128,7 +1560,12 @@ int32_t msm_cci_i2c_read(uint32_t address,
 	msm_camera_io_w_mb(val, CCI_DEV_BASE + CCI_QUEUE_START_ADDR);
 
 	// Wait for read done.
-	rc = msm_cci_poll_irq(CCI_IRQ_STATUS_0_I2C_M1_RD_DONE_BMSK,master);
+    if(master == 0) {
+	    rc = msm_cci_poll_irq(CCI_IRQ_STATUS_0_I2C_M0_RD_DONE_BMSK,master);
+    }
+    else {
+	    rc = msm_cci_poll_irq(CCI_IRQ_STATUS_0_I2C_M1_RD_DONE_BMSK,master);
+    }
 
 	read_words = msm_camera_io_r_mb(CCI_DEV_BASE +
 		CCI_I2C_M0_READ_BUF_LEVEL_ADDR + master * 0x100);
@@ -1190,12 +1627,12 @@ int32_t msm_cci_calc_cmd_len(int cmd_size,
 		for (i = 0; i < pack_max_len;) {
 			if (cmd->delay || ((cmd - pArray) >= (cmd_size - 1)))
 				break;
-			if (cmd->reg_addr + 1 ==
-				(cmd+1)->reg_addr) {
+			if (cmd->reg_addr + 1 == (cmd+1)->reg_addr) {
 				len += data_len;
 				*pack += data_len;
-			} else
+			} else {
 				break;
+			}
 			i += data_len;
 			cmd++;
 		}
@@ -1232,10 +1669,14 @@ uint32_t msm_cci_wait(int master,int queue)
 {
 	int32_t rc = 0;
 
-	if(queue == 1)
+	if(queue == 1 && master == 1)
 		msm_cci_poll_irq(CCI_IRQ_STATUS_0_I2C_M1_Q1_REPORT_BMSK, master);
-	else
+	else if (queue == 0 && master == 1)
 		msm_cci_poll_irq(CCI_IRQ_STATUS_0_I2C_M1_Q0_REPORT_BMSK,master);
+    else if (queue == 1 && master == 0)
+		msm_cci_poll_irq(CCI_IRQ_STATUS_0_I2C_M0_Q1_REPORT_BMSK, master);
+    else
+		msm_cci_poll_irq(CCI_IRQ_STATUS_0_I2C_M0_Q0_REPORT_BMSK, master);
 
 	rc = cci_master_info[master].status;
 	if (rc < 0) {
@@ -1360,7 +1801,8 @@ int32_t msm_cci_data_queue(struct camera_i2c_reg_array *pArray,
 							int queue,
 							int sync_en,
 							int add_size,
-							int data_size)
+							int data_size,
+							int master)
 {
 	uint16_t i = 0, j = 0, k = 0, h = 0, len = 0;
 	int32_t rc = 0, free_size = 0, en_seq_write = 0;
@@ -1374,7 +1816,6 @@ int32_t msm_cci_data_queue(struct camera_i2c_reg_array *pArray,
 	uint32_t reg_offset;
 	uint32_t val = 0;
 	uint32_t max_queue_size;
-	int master = 1;
 	int cid = 0;
 	int csid = 0;
 	int data_type = data_size;
@@ -1465,7 +1906,7 @@ int32_t msm_cci_data_queue(struct camera_i2c_reg_array *pArray,
 				data[i++] = i2c_cmd->reg_data;
 				reg_addr++;
 			} else {
-				if ((i + 1) <= MSM_CCI_WRITE_DATA_PAYLOAD_SIZE_11) {//??cci_dev->payload_size) {
+				if ((i + 1) <= MSM_CCI_WRITE_DATA_PAYLOAD_SIZE_11) {
 					data[i++] = (i2c_cmd->reg_data &
 						0xFF00) >> 8; /* MSB */
 					data[i++] = i2c_cmd->reg_data &
@@ -1537,10 +1978,10 @@ int32_t msm_cci_i2c_write(struct camera_i2c_reg_array *pArray,
 						  int sync_en,
 						  int add_size,
 						  int data_size,
-						  int readback){
+						  int readback,
+						  int master){
 	int32_t rc = 0;
 	uint32_t max_queue_size;
-	int master = 1;
 
 	/* Set the I2C Frequency */
 	rc = msm_cci_set_clk_param(master);
@@ -1549,7 +1990,7 @@ int32_t msm_cci_i2c_write(struct camera_i2c_reg_array *pArray,
 			__func__, __LINE__, rc);
 		return rc;
 	}
-	if(queue ==1)
+	if(queue == 1)
 		max_queue_size = CCI_I2C_QUEUE_1_SIZE;
 	else
 		max_queue_size = CCI_I2C_QUEUE_0_SIZE;
@@ -1574,7 +2015,8 @@ int32_t msm_cci_i2c_write(struct camera_i2c_reg_array *pArray,
 							queue,
 							sync_en,
 							add_size,
-							data_size);
+							data_size,
+							master);
 
 	if (rc < 0) {
 		CDBG("%s failed line %d\n", __func__, __LINE__);
@@ -1587,13 +2029,20 @@ ERROR:
 void target_early_camera_init(void)
 {
 #ifdef EARLYDOMAIN_SUPPORT
-	num_configs = get_cam_data(&cam_data);
+	num_configs = get_cam_data(csi, &cam_data);
 	if (num_configs) {
-	camera_gdsc_enable(1);
-	camera_clocks_enable(1);
-	msm_cci_init(1);
-	camera_gpio_init();
-}
+		camera_gdsc_enable(1);
+		if (csi == 0) {
+			camera_clocks_enable(csi, 1);
+			msm_cci_init(0);
+			camera_adv_gpio_init();
+			camera_adv_pmic_gpio_init();
+		} else {
+			camera_clocks_enable(csi, 1);
+			msm_cci_init(1);
+			camera_gpio_init();
+		}
+	}
 #endif
 }
 
@@ -1634,16 +2083,23 @@ static void early_camera_setup_layer(int display_id)
 	layer_cam.fb = fb;
 	fb->bpp = 16;
 	fb->format = kFormatYCbCr422H2V1Packed;
-	layer_cam.src_width = 1280;
-	layer_cam.src_height = 720;
-	layer_cam.dst_width = 1280;
-	layer_cam.dst_height = 720;
 	layer_cam.src_rect_x = 0;
 	layer_cam.src_rect_y = 0;
 	layer_cam.dst_rect_x = 0;
 	layer_cam.dst_rect_y = 0;
-    dprintf(SPEW,"Early Cam Layer src xy:%d-%d  dst xy:%d-%d  src wid/hig:%d-%d dst wid/hig:%d-%d  fb wid/hig:%d-%d\n",
-        layer_cam.src_rect_x, layer_cam.src_rect_y, layer_cam.dst_rect_x, layer_cam.dst_rect_y, layer_cam.src_width, layer_cam.src_height, layer_cam.dst_width, layer_cam.dst_height,fb->width, fb->height);
+
+#ifdef ADV7481
+	layer_cam.src_width =  720;
+	layer_cam.src_height =  240;
+	layer_cam.dst_width =   1920;
+	layer_cam.dst_height =  1080;
+#else
+	layer_cam.src_width  = 1280;
+	layer_cam.src_height = 720;
+	layer_cam.dst_width  = 1920;
+	layer_cam.dst_height = 1080;
+#endif
+
 }
 static void early_camera_remove_layer(void)
 {
@@ -1659,14 +2115,17 @@ static int early_camera_setup_display(void)
 	}
 	disp = target_get_display_info(disp_ptr);
 	if (disp == NULL){
-		dprintf(CRITICAL, "Display info failed\n");
+	dprintf(CRITICAL, "Display info failed\n");
 		return -1;
 	}
 	return 0;
 }
+
 static int early_camera_start(void *arg) {
 	int rc = -1;
-	num_configs = get_cam_data(&cam_data);
+	int i2c_wr_iter = 0;
+
+	num_configs = get_cam_data(csi, &cam_data);
 
 	if(num_configs == 0) {
 		dprintf(CRITICAL,
@@ -1685,8 +2144,8 @@ static int early_camera_start(void *arg) {
 					1,
 					&read_val,
 					cam_data[0].i2c_slave_address,
-					1,
-					1,
+					cci_master,
+					queue_id,
 					cam_data[0].i2c_num_bytes_address,
 					cam_data[0].i2c_num_bytes_data);
 
@@ -1702,22 +2161,25 @@ static int early_camera_start(void *arg) {
 				cam_data[0].i2c_revision_id_val[i]);
 		}
 		goto exit;
-	} else {
-		dprintf(CRITICAL,
-			"Early Camera - I2c revision match found checking sensor\n");
 	}
+
+#ifdef ADV7481
+	i2c_wr_iter = 1;
+#else
+	i2c_wr_iter = num_configs - 2;
+#endif
 
 	// Write setup configs for i2c devices.
 	// Last config is for starting the camera.
-	for(index = 0;index < num_configs - 2;index++) {
+	for(index = 0;index < i2c_wr_iter; index++) {
 		if(index == 1) {
 			// Check if sensor is present and exit if not
 			msm_cci_i2c_read(cam_data[index].i2c_revision_id_reg,
 							1,
 							&read_val,
 							cam_data[index].i2c_slave_address,
-							1,
-							1,
+							cci_master,
+							queue_id,
 							cam_data[index].i2c_num_bytes_address,
 							cam_data[index].i2c_num_bytes_data);
 			rc = -1;
@@ -1737,22 +2199,30 @@ static int early_camera_start(void *arg) {
 		msm_cci_i2c_write(cam_data[index].i2c_regs,
 						cam_data[index].size,
 						cam_data[index].i2c_slave_address,
-						0,
+						queue_id,
 						0,
 						cam_data[index].i2c_num_bytes_address,
 						cam_data[index].i2c_num_bytes_data,
-						0);
+						0,
+						cci_master);
 	}
 
 	// SMMU and anything else missed.
 	msm_hw_init(&other_init_regs[0],
 		sizeof(other_init_regs) / sizeof(other_init_regs[0]),0);
 
-	msm_hw_init(&hw_csi2_phy_init_regs[0],
-		sizeof(hw_csi2_phy_init_regs) / sizeof(hw_csi2_phy_init_regs[0]),0);
+	if(csi ==1){
+		msm_hw_init(&hw_csi1_phy_init_regs[0],
+				sizeof(hw_csi1_phy_init_regs) / sizeof(hw_csi1_phy_init_regs[0]),0);
+		msm_hw_init(&hw_csi1_d_init_regs[0],
+				sizeof(hw_csi1_d_init_regs) / sizeof(hw_csi1_d_init_regs[0]),0);
+	} else {
+		msm_hw_init(&hw_csi2_phy_init_regs[0],
+			sizeof(hw_csi2_phy_init_regs) / sizeof(hw_csi2_phy_init_regs[0]),0);
 
-	msm_hw_init(&hw_csi2_d_init_regs[0],
-		sizeof(hw_csi2_d_init_regs) / sizeof(hw_csi2_d_init_regs[0]),0);
+		msm_hw_init(&hw_csi2_d_init_regs[0],
+			sizeof(hw_csi2_d_init_regs) / sizeof(hw_csi2_d_init_regs[0]),0);
+	}
 
 	msm_hw_init(&hw_vfe0_init_regs[0],
 		sizeof(hw_vfe0_init_regs) / sizeof(hw_vfe0_init_regs[0]),0);
@@ -1760,6 +2230,152 @@ static int early_camera_start(void *arg) {
 	msm_hw_init(&hw_ispif_init_regs[0],
 		sizeof(hw_ispif_init_regs) / sizeof(hw_ispif_init_regs[0]),0);
 
+#ifdef ADV7481
+	// Select CVBS SDP in ADV Bridge chip
+	msm_cci_i2c_write(cam_data[1].i2c_regs,
+					cam_data[1].size,
+					cam_data[1].i2c_slave_address,
+					queue_id,
+					0,
+					cam_data[1].i2c_num_bytes_address,
+					cam_data[1].i2c_num_bytes_data,
+					0,cci_master);
+
+	// Start CVBS Camera Port.
+	msm_cci_i2c_write(cam_data[2].i2c_regs,
+					cam_data[2].size,
+					cam_data[2].i2c_slave_address,
+					queue_id,
+					0,
+					cam_data[2].i2c_num_bytes_address,
+					cam_data[2].i2c_num_bytes_data,
+					0,cci_master);
+
+	msm_cci_i2c_write(cam_data[3].i2c_regs,
+					cam_data[3].size,
+					cam_data[3].i2c_slave_address,
+					queue_id,
+					0,
+					cam_data[3].i2c_num_bytes_address,
+					cam_data[3].i2c_num_bytes_data,
+					0,cci_master);
+
+	msm_cci_i2c_write(cam_data[4].i2c_regs,
+						cam_data[4].size,
+						cam_data[4].i2c_slave_address,
+						queue_id,
+						0,
+						cam_data[4].i2c_num_bytes_address,
+						cam_data[4].i2c_num_bytes_data,
+						0,cci_master);
+
+	// wait for lock 1
+	rc = -1;
+		while(rc==-1) {
+			msm_cci_i2c_read(cam_data[5].i2c_revision_id_reg,
+								1,
+								&read_val,
+								cam_data[5].i2c_slave_address,
+								cci_master,
+								queue_id,
+								cam_data[5].i2c_num_bytes_address,
+								cam_data[5].i2c_num_bytes_data);
+
+			rc = early_camera_check_rev(&cam_data[5].i2c_revision_id_val[0],
+				cam_data[5].i2c_revision_id_num, read_val);
+
+
+			if(rc==-1 ) {
+				if
+(msg_count == 0)
+					dprintf(CRITICAL,
+							"Early Camera - lock1 not detected %x doesn't match for this target %x retrying\n",
+							read_val,
+							cam_data[5].i2c_revision_id_val[0]);
+				msg_count++;
+				mdelay_optimal(1);
+			} else {
+				break;
+			}
+			if(msg_count > MAX_CAM_ERROR_EXIT) {
+				dprintf(CRITICAL,
+						"Early Camera - lock1 not detected exiting after %d retrys\n",
+						msg_count);
+				goto exit;
+			}
+		}
+
+	msm_cci_i2c_write(cam_data[6].i2c_regs,
+						cam_data[6].size,
+						cam_data[6].i2c_slave_address,
+						queue_id,
+						0,
+						cam_data[6].i2c_num_bytes_address,
+						cam_data[6].i2c_num_bytes_data,
+						0,cci_master);
+
+
+	//////////////////////
+	msg_count = 0;
+	// wait for lock 2
+	rc = -1;
+		while(rc==-1) {
+			msm_cci_i2c_read(cam_data[7].i2c_revision_id_reg,
+								1,
+								&read_val,
+								cam_data[7].i2c_slave_address,
+								cci_master,
+								queue_id,
+								cam_data[7].i2c_num_bytes_address,
+								cam_data[7].i2c_num_bytes_data);
+
+			rc = early_camera_check_rev(&cam_data[7].i2c_revision_id_val[0],
+				cam_data[7].i2c_revision_id_num, read_val);
+
+
+			if(rc==-1) {
+				if(msg_count == 0)
+					dprintf(CRITICAL,
+							"Early Camera - lock2 not detected %x doesn't match for this target %x retrying\n",
+							read_val,
+							cam_data[7].i2c_revision_id_val[0]);
+				msg_count++;
+				mdelay_optimal(1);
+			} else {
+				break;
+			}
+			if(msg_count > MAX_CAM_ERROR_EXIT) {
+				dprintf(CRITICAL,
+						"Early Camera - lock2 not detected exiting after %d retrys\n",
+						msg_count);
+				goto exit;
+			}
+	}
+
+	mdelay_optimal(100);
+
+	adv7481_intr_enable();
+
+
+
+	msm_cci_i2c_write(cam_data[8].i2c_regs,
+					cam_data[8].size,
+					cam_data[8].i2c_slave_address,
+					queue_id,
+					0,
+					cam_data[8].i2c_num_bytes_address,
+					cam_data[8].i2c_num_bytes_data,
+					0,cci_master);
+
+	msm_cci_i2c_write(cam_data[9].i2c_regs,
+					cam_data[9].size,
+					cam_data[9].i2c_slave_address,
+					queue_id,
+					0,
+					cam_data[9].i2c_num_bytes_address,
+					cam_data[9].i2c_num_bytes_data,
+					0,cci_master);
+#else
 	// Start cam
 	msm_cci_i2c_write(cam_data[num_configs-2].i2c_regs,
 					cam_data[num_configs-2].size,
@@ -1768,11 +2384,12 @@ static int early_camera_start(void *arg) {
 					0,
 					cam_data[num_configs-2].i2c_num_bytes_address,
 					cam_data[num_configs-2].i2c_num_bytes_data,
-					0);
+					0,
+					1);
+#endif
 
-	// Signal Kernel early camera is active.
-	msm_camera_io_w_mb(EARLY_CAMERA_SIGNAL_ENABLED,
-		MMSS_A_VFE_0_SPARE);
+// Signal Kernel early camera is active.
+	msm_camera_io_w_mb(EARLY_CAMERA_SIGNAL_ENABLED, MMSS_A_VFE_0_SPARE);
 
 	return 0;
 	exit:
@@ -1781,10 +2398,28 @@ static int early_camera_start(void *arg) {
 
 #define SENSOR_STOP_IDX 3
 void early_camera_stop(void) {
+#ifdef ADV7481
+	struct camera_i2c_reg_array reg_stop[1] = {{ 0x0, 0x81, 0}};
+#endif
 	// stop VFE writes to memory
 	msm_hw_init(&stop_vfe_stream[0],
 		sizeof(stop_vfe_stream) / sizeof(stop_vfe_stream[0]),0);
 
+#ifdef ADV7481
+	// Stop ispif
+	msm_camera_io_w_mb(0xaaaaaaaa,0x00a31248);
+	// Reset ping pong to top of buffer.
+	msm_camera_io_w_mb(1,0x00A10080);
+	//stop csi tx
+	msm_cci_i2c_write(&reg_stop[0],
+						1,
+						cam_data[9].i2c_slave_address,
+						queue_id,
+						0,
+						1,
+						1,
+						0,cci_master);
+#else
 	// Stop cam
 	msm_cci_i2c_write(cam_data[SENSOR_STOP_IDX].i2c_regs,
 					cam_data[SENSOR_STOP_IDX].size,
@@ -1793,7 +2428,9 @@ void early_camera_stop(void) {
 					0,
 					cam_data[SENSOR_STOP_IDX].i2c_num_bytes_address,
 					cam_data[SENSOR_STOP_IDX].i2c_num_bytes_data,
-					0);
+					0,
+					cci_master);
+#endif
 
 	target_release_layer(&layer_cam);
 	firstframe = true;  // reset firstframe for next cycle
@@ -1823,8 +2460,16 @@ int early_camera_on(void)
 
 	return gpio_triggered;
 }
-void early_camera_flip(void)
+int early_camera_flip(void)
 {
+#ifdef ADV7481
+	static int msg_count = 0;
+	static int previous_lock_status = 1;
+	struct camera_i2c_reg_array reg_stop[1] = {{ 0x0, 0x81, 0}};
+	struct camera_i2c_reg_array reg_start[1] = {{ 0x0, 0x21, 0}};
+#endif
+
+
 #ifdef DEBUG_T32
 	while(delay_to_attach_t32 != 1)
 	{
@@ -1832,57 +2477,141 @@ void early_camera_flip(void)
 		dprintf(CRITICAL, "Waiting to attach to t.32\n");
 	}
 #endif
-		// wait for ping pong irq;
-		ping = msm_vfe_poll_irq(PING_PONG_IRQ_MASK);
 
-		if (firstframe == true) {
-			dprintf(CRITICAL,
-				"Early Camera - First Camera image frame KPI\n");
-			cam_place_kpi_marker("Camera Image in memory");
+
+#ifdef ADV7481
+	previous_lock_status = lock;
+	adv7481_sdp_isr();
+
+	// There has been a change in lock status.
+	if(previous_lock_status != lock)
+	{
+		if(lock == 0) {
+			// clear int
+			adv7481_isr();
+			if(msg_count == 0) {
+				dprintf(CRITICAL, "Lost Lock\n");
+				msg_count = 1;
+			}
+			// Stop vfe
+			msm_camera_io_w_mb(0,0x00A100a0);
+			msm_camera_io_w_mb(2,0x00A104ac);
+			// Stop ispif
+			msm_camera_io_w_mb(0xaaaaaaaa,0x00a31248);
+			// Reset ping pong to top of buffer.
+			msm_camera_io_w_mb(1,0x00A10080);
+			//stop csi tx
+			msm_cci_i2c_write(&reg_stop[0],
+								1,
+								cam_data[9].i2c_slave_address,
+								queue_id,
+								0,
+								1,
+								1,
+								0,cci_master);
+			goto ERROR;
+		} else
+		{
+			dprintf(CRITICAL, "got Lock\n");
+
+			// Start ispif on next frame.
+			msm_camera_io_w_mb(0xfffffdff,0x00a31248);
+
+			// Start vfe write masters.
+			// update ping /pong
+			msm_camera_io_w_mb(2,0x00A104ac);
+			//start vfe
+			msm_camera_io_w_mb(1,0x00A100a0);
+
+			//start csi tx
+			msm_cci_i2c_write(&reg_start[0],
+								1,
+								cam_data[9].i2c_slave_address,
+								queue_id,
+								0,
+								1,
+								1,
+								0,cci_master);
+			adv7481_intr_enable();
+			early_camera_start(&lock);
 		}
+	}
 
-		frame_counter++;
-		if(early_cam_on == 1) {
-			if (gpio_triggered) {
-				if(toggle ==0) {
-					toggle = 1;
-					early_camera_setup_layer(RVC_DISPLAY_ID);
-				}
+	msg_count = 0;
+	if(lock==0)
+		goto ERROR;
+#endif
+	// wait for ping pong irq;
+	ping = msm_vfe_poll_irq(PING_PONG_IRQ_MASK,VFE_TIME_OUT_POLL_NUM);
+	if(ping==-1)
+	{
+		ping = 0;
+		lock = 0;
+		dprintf(CRITICAL, "timeout waiting for ping/pong\n");
+		goto ERROR;
+	}
 
-				if (layer_cam.fb) {
+	if (firstframe == true) {
+		dprintf(CRITICAL,
+			"Early Camera - First Camera image frame KPI\n");
+		cam_place_kpi_marker("Camera Image in memory");
+	}
+
+	frame_counter++;
+	if(early_cam_on == 1) {
+		if (gpio_triggered) {
+			if(toggle ==0) {
+				toggle = 1;
+				early_camera_setup_layer(RVC_DISPLAY_ID);
+			}
+
+			if (layer_cam.fb) {
+#ifdef ADV7481
+				if(ping)
+					layer_cam.fb->base = (void *)(VFE_PING_ADDR+CVBS_HEADER_SIZE);
+				else
+					layer_cam.fb->base = (void *)(VFE_PONG_ADDR+CVBS_HEADER_SIZE);
+#else
 					if(ping)
 						layer_cam.fb->base = (void *)VFE_PING_ADDR;
 					else
 						layer_cam.fb->base = (void *)VFE_PONG_ADDR;
-					layer_cam.z_order = 1;
-					layer_cam.fb->format = kFormatYCbCr422H2V1Packed;
-					if (pingpong_buffer_updated < 2) {
-						target_display_update(&update_cam,1,RVC_DISPLAY_ID);
-						pingpong_buffer_updated++;
-					} else {
-						if (firstframe)
-							target_display_update(&update_cam, 1,
-									RVC_DISPLAY_ID);
-						else
-							target_display_update_pipe(&update_cam, 1,
-									RVC_DISPLAY_ID);
-					}
-				}
-			} else {
-				if(toggle ==1) {
-					layer_cam.z_order = 0;
-					early_camera_remove_layer();
-					layer_cam_ptr = NULL;
-					layer_cam.layer = layer_cam_ptr;
-					toggle = 0;
-					pingpong_buffer_updated = 0;
+#endif
+
+				layer_cam.z_order = 1;
+				layer_cam.fb->format = kFormatYCbCr422H2V1Packed;
+				if (pingpong_buffer_updated < 2) {
+					target_display_update(&update_cam,1,RVC_DISPLAY_ID);
+					pingpong_buffer_updated++;
+				} else {
+					if (firstframe)
+						target_display_update(&update_cam, 1,
+								RVC_DISPLAY_ID);
+					else
+						target_display_update_pipe(&update_cam, 1,
+								RVC_DISPLAY_ID);
 				}
 			}
-			if (firstframe == true) {
-				cam_place_kpi_marker("Camera display post done");
-				firstframe = false;
+		} else {
+			if(toggle ==1) {
+				layer_cam.z_order = 0;
+				early_camera_remove_layer();
+				layer_cam_ptr = NULL;
+				layer_cam.layer = layer_cam_ptr;
+				toggle = 0;
+				pingpong_buffer_updated = 0;
 			}
 		}
+		if (firstframe == true) {
+			cam_place_kpi_marker("Camera display post done");
+			firstframe = false;
+		}
+	}
+
+	return 0;
+
+	ERROR:
+		return -1;
 }
 
 int early_camera_init(void)
