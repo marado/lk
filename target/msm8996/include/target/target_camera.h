@@ -31,6 +31,12 @@
 
 //#define BRIDGE_REV_1  // For adashub rev 1 of TI 960 Bridge chip.
 #define RVC_DISPLAY_ID 0 // Use primary display
+#define MAX_CAM_ERROR_EXIT 1200
+
+// Enable ADV7481 early camera on CSI1
+// If not defined TI 964 on CSI2 is used.
+#define ADV7481
+
 
 #define MAX_REV_ID 2
 
@@ -51,14 +57,39 @@ struct i2c_config_data {
 	unsigned int	i2c_revision_id_reg;	// Address of the expected revision id of the device
 };
 
-int get_cam_data(struct i2c_config_data **cam_data);
+int get_cam_data(int csi, struct i2c_config_data **cam_data);
 int early_camera_init(void);
 void target_early_camera_init(void);
-void early_camera_flip(void);
+int early_camera_flip(void);
 int early_camera_on(void);
 
 void early_camera_stop(void);
 
 void set_early_camera_enabled(bool enabled);
+int msm_cci_i2c_read(uint32_t address,
+						 int32_t length,
+						 uint32_t *read_val,
+						 unsigned int slave_address,
+						 int master,
+						 int queue,
+						 int addr_type,
+						 int data_type);
+
+int32_t msm_cci_i2c_write(struct camera_i2c_reg_array *pArray,
+						  int arraySize,
+						  int slave_address,
+						  int queue,
+						  int sync_en,
+						  int add_size,
+						  int data_size,
+						  int readback,
+						  int master);
+
+
+#ifdef ADV7481
+int adv7481_intr_enable(void);
+int adv7481_sdp_isr(void);
+void adv7481_isr(void);
+#endif
 
 #endif

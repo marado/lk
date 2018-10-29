@@ -46,6 +46,11 @@
 #define CAMERA_SLAVEADDR 0x48
 #define BRIDGE_SLAVEADDR 0x7a
 
+#define ANALOG_CAMERA_SLAVEADDR 0x94 // REG_CSI_TXB_SADDR
+#define ADV_BRIDGE_SLAVEADDR 0xE0 // ADV7481_IO_MAP_SLAVE_ADDR (0x70<<1)
+extern int lock;
+
+
 static struct camera_i2c_reg_array ti960_init_regs[] =
 {
 	/* Global Settings */
@@ -524,10 +529,606 @@ struct camera_i2c_reg_array ov10635_regs[] = {
 	{ 0x0100, 0x01, 0 },
 };
 
-// I2C config data where last set is for stream start.
-struct i2c_config_data config_data[4];
+// Updated ADV7481 init Sequence for only CVBS (Analog) Camera
+static struct camera_i2c_reg_array adv7481_init_regs[]=
+{
+	/* Global Settings */
+	{ 0xff, 0xff, 5000},
+	{ 0x01, 0x76, 0},
+	//{ 0x05, 0x4a, 0},
+	{ 0x00, 0x30, 000},
+	{ 0xf2, 0x01, 0},
+	{ 0xf3, 0x4c, 0},
+	{ 0xf4, 0x44, 0},
+	{ 0xf5, 0x74, 0},
+	{ 0xf6, 0x78, 0},
+	{ 0xf7, 0x64, 0},
+	{ 0xf8, 0x62, 0},
+	{ 0xf9, 0xf0, 0},
+	{ 0xfa, 0x82, 0},
+	{ 0xfb, 0xf2, 0},
+	{ 0xfc, 0x90, 0},
+	{ 0xfd, 0x94, 0},
+};
 
-int get_cam_data(struct i2c_config_data **cam_data) {
+// Slave 0xE0
+static struct camera_i2c_reg_array adv7481_config_regs[]= {
+{ 0x0, 0x30, 0},
+{ 0xe, 0xff, 0},
+};
+
+//Slave 0xF2 SDP Main
+static struct camera_i2c_reg_array adv7481_config_sdp_regs[]= {
+	{ 0xe, 0x0, 0},
+    { 0xf, 0x0, 0},
+	{ 0x52, 0xCD, 0},
+	{ 0x00, 0x00, 0},
+	{ 0xe, 0x80, 0},
+	{ 0x9c, 0x0, 0},
+	{ 0x9c, 0xff, 0},
+	{ 0xe, 0x0, 0},
+	{ 0x80, 0x51, 0},
+	{ 0x81, 0x51, 0},
+	{ 0x82, 0x68, 0},
+	{ 0x03, 0x42, 0},
+	{ 0x04, 0x07, 0},
+	{ 0x13, 0x00, 0},
+	{ 0x17, 0x41, 0},
+	{ 0x31, 0x12, 0},
+};
+
+//check SDP lock/unlock status
+// 0xF2
+static struct camera_i2c_reg_array adv7481_lock_sdp_RO_MAP_1_regs[]= {
+	{ 0xe, 0x2, 0}
+};
+
+//check SDP lock/unlock status
+// 0xF2
+static struct camera_i2c_reg_array adv7481_lock_read_sdp_RO_MAP_1_regs[]= {
+	{ 0x49, 0x2, 0}
+};
+
+
+//check SDP lock/unlock status
+// 0xF2
+static struct camera_i2c_reg_array adv7481_lock_sdp_RO_MAP_regs[]= {
+	{ 0xe, 0x1, 0}
+};
+
+//check SDP lock/unlock status
+// 0xF2
+static struct camera_i2c_reg_array adv7481_lock_read_sdp_RO_MAP_regs[]= {
+	{ 0x10, 0x1, 0}
+};
+
+//Slave 0xE0
+static struct camera_i2c_reg_array adv7481_start_2_regs[] = {
+{ 0x10, 0xa8, 0}
+};
+
+//Slave F2
+static struct camera_i2c_reg_array adv7481_sensor_pre_start_regs[] = {
+	{ 0xe, 0x01, 0},
+};
+// Slave 0x90 / 0x94
+static struct camera_i2c_reg_array adv7481_sensor_start_regs[] = {
+	{ 0x0, 0x81, 0},
+	{ 0x0, 0xa1, 0},
+	{ 0xdb, 0x10, 0},
+	{ 0xd6, 0x7, 0},
+	{ 0xc4, 0xa, 0},
+	{ 0x71, 0x33, 0},
+	{ 0x72, 0x11, 0},
+	{ 0xf0, 0x0, 0},
+	{ 0x31, 0x82, 0},
+	{ 0x1e, 0x40, 0},
+	{ 0xda, 0x1, 2000},
+	{ 0x0, 0x21, 1000},
+	{ 0xc1, 0x2b, 1000},
+	{ 0x31, 0x80, 0},
+};
+
+// #ifdef ADV7481
+	struct i2c_config_data config_data[10];
+// #else
+// I2C config data where last set is for stream start.
+	// struct i2c_config_data config_data[4];
+// #endif
+#ifdef ADV7481
+
+#define ADV7481_IO_MAP_PAD_CTRL_1_ADDR                                      0x1D
+#define ADV7481_IO_MAP_SLAVE_ADDR                                           0xE0
+#define ADV7481_IO_MAP_PAD_CTRL_1_PDN_INT1_BMSK                             0x80
+#define ADV7481_IO_MAP_INT1_CONFIG_ADDR                                     0x40
+#define ADV7481_IO_MAP_INT1_CONFIG_INTRQ_DUR_SEL_SHFT                       6
+#define ADV7481_IO_MAP_INT1_CONFIG_INTRQ_OP_SEL_SHFT                        0
+#define ADV7481_IO_MAP_DATAPATH_INT_MASKB_ADDR                              0x47
+#define ADV7481_IO_MAP_DATAPATH_INT_MASKB_INT_SD_MB1_SHFT                   0
+#define ADV7481_SDP_MAIN_MAP_USER_MAP_RW_REG_0E_ADDR                        0x0E
+#define AD7V481_SDP_MAIN_MAP_USER_MAP_RW_REG_00_ADDR                        0x00
+#define ADV7481_SDP_MAIN_MAP_USER_MAP_RW_REG_0F_ADDR                        0x0F
+#define ADV7481_SDP_MAIN_MAP_USER_MAP_RW_REG_51_ADDR                        0x51
+#define ADV7481_SDP_MAP_SEL_SDP_MAP_1                                       0x20
+#define ADV7481_SDP_MAP_1_USER_SUB_MAP_1_RW_REG_44_ADDR                     0x44
+#define ADV7481_SDP_MAP_1_USER_SUB_MAP_1_RW_REG_44_SD_UNLOCK_MSKB_BMSK      0x02
+#define ADV7481_SDP_MAP_1_USER_SUB_MAP_1_RW_REG_44_SD_UNLOCK_MSKB_SHFT      1
+#define ADV7481_SDP_MAP_1_USER_SUB_MAP_1_RW_REG_44_SD_LOCK_MSKB_BMSK        0x01
+#define ADV7481_SDP_MAP_1_USER_SUB_MAP_1_RW_REG_44_SD_LOCK_MSKB_SHFT        0
+#define ADV7481_SDP_MAP_1_USER_SUB_MAP_1_RW_REG_4B_ADDR                     0x4B
+#define ADV7481_SDP_MAP_1_USER_SUB_MAP_1_RW_REG_4B_SD_H_LOCK_CHNG_CLR_BMSK  0x04
+#define ADV7481_SDP_MAP_1_USER_SUB_MAP_1_RW_REG_4B_SD_H_LOCK_CHNG_CLR_SHFT  2
+#define ADV7481_SDP_MAP_1_USER_SUB_MAP_1_RW_REG_4B_SD_V_LOCK_CHNG_CLR_BMSK  0x02
+#define ADV7481_SDP_MAP_1_USER_SUB_MAP_1_RW_REG_4B_SD_V_LOCK_CHNG_CLR_SHFT  1
+#define ADV7481_SDP_MAP_1_USER_SUB_MAP_1_RW_REG_4C_ADDR                     0x4C
+#define ADV7481_SDP_MAP_1_USER_SUB_MAP_1_RW_REG_4C_SD_H_LOCK_CHNG_MSKB_BMSK 0x04
+#define ADV7481_SDP_MAP_1_USER_SUB_MAP_1_RW_REG_4C_SD_H_LOCK_CHNG_MSKB_SHFT 2
+#define ADV7481_SDP_MAP_1_USER_SUB_MAP_1_RW_REG_4C_SD_V_LOCK_CHNG_MSKB_BMSK 0x02
+#define ADV7481_SDP_MAP_1_USER_SUB_MAP_1_RW_REG_4C_SD_V_LOCK_CHNG_MSKB_SHFT 1
+#define ADV7481_SDP_RO_MAP_1_USER_SUB_MAP_1_R_REG_42_ADDR                   0x42
+#define ADV7481_SDP_RO_MAP_1_USER_SUB_MAP_1_R_REG_42_SD_UNLOCK_Q_BMSK       0x02
+#define ADV7481_SDP_RO_MAP_1_USER_SUB_MAP_1_R_REG_42_SD_UNLOCK_Q_SHFT       1
+#define ADV7481_SDP_RO_MAP_1_USER_SUB_MAP_1_R_REG_42_SD_LOCK_Q_BMSK         0x01
+#define ADV7481_SDP_RO_MAP_1_USER_SUB_MAP_1_R_REG_42_SD_LOCK_Q_SHFT         0
+#define ADV7481_SDP_RO_MAP_1_USER_SUB_MAP_1_R_REG_49_ADDR                   0x49
+#define ADV7481_SDP_RO_MAP_1_USER_SUB_MAP_1_R_REG_49_SD_H_LOCK_BMSK         0x04
+#define ADV7481_SDP_RO_MAP_1_USER_SUB_MAP_1_R_REG_49_SD_H_LOCK_SHFT         2
+#define ADV7481_SDP_RO_MAP_1_USER_SUB_MAP_1_R_REG_49_SD_V_LOCK_BMSK         0x02
+#define ADV7481_SDP_RO_MAP_1_USER_SUB_MAP_1_R_REG_49_SD_V_LOCK_SHFT         1
+#define ADV7481_SDP_RO_MAP_1_USER_SUB_MAP_1_R_REG_4A_ADDR                   0x4A
+#define ADV7481_SDP_RO_MAP_1_USER_SUB_MAP_1_R_REG_4A_SD_H_LOCK_CHNG_Q_BMSK  0x04
+#define ADV7481_SDP_RO_MAP_1_USER_SUB_MAP_1_R_REG_4A_SD_H_LOCK_CHNG_Q_SHFT  2
+#define ADV7481_SDP_RO_MAP_1_USER_SUB_MAP_1_R_REG_4A_SD_V_LOCK_CHNG_Q_BMSK  0x02
+#define ADV7481_SDP_RO_MAP_1_USER_SUB_MAP_1_R_REG_4A_SD_V_LOCK_CHNG_Q_SHFT  1
+#define ADV7481_SDP_RO_MAP_1_USER_SUB_MAP_1_R_REG_45_ADDR                   0x45
+#define ADV7481_SDP_RO_MAP_1_USER_SUB_MAP_1_R_REG_45_EVEN_FIELD_BMSK        0x10
+#define ADV7481_SDP_RO_MAP_1_USER_SUB_MAP_1_R_REG_45_EVEN_FIELD_SHFT        4
+#define ADV7481_SDP_MAP_SLAVE_ADDR                                          0xF2
+#define ADV7481_SDP_MAP_SEL_SDP_MAIN_MAP                                    0x0
+#define ADV7481_SDP_MAP_SEL_ADDR                                            0x0E
+#define ADV7481_SDP_MAP_SEL_SDP_RO_MAP_1                                    0x02
+#define ADV7481_SDP_MAP_SEL_SDP_RO_MAIN_MAP                                 0x01
+#define ADV7481_SDP_RO_MAIN_MAP_USER_MAP_R_REG_10_ADDR                      0x10
+#define ADV7481_SDP_RO_MAIN_MAP_USER_MAP_R_REG_10_IN_LOCK_BMSK              0x01
+#define ADV7481_SDP_MAP_1_USER_SUB_MAP_1_RW_REG_43_ADDR                     0x43
+#define ADV7481_SDP_MAP_1_USER_SUB_MAP_1_RW_REG_43_SD_UNLOCK_CLR_BMSK       0x02
+#define ADV7481_SDP_MAP_1_USER_SUB_MAP_1_RW_REG_43_SD_LOCK_CLR_BMSK         0x01
+#define ADV7481_IO_MAP_INT_RAW_STATUS_ADDR                                  0x3F
+#define ADV7481_IO_MAP_INT_RAW_STATUS_INTRQ_RAW_BMSK                        0x01
+#define ADV7481_IO_MAP_DATAPATH_RAW_STATUS_ADDR                             0x43
+#define ADV7481_IO_MAP_DATAPATH_RAW_STATUS_INT_SD_RAW_BMSK                  0x01
+#define ADV7481_IO_MAP_DATAPATH_RAW_STATUS_ADDR                             0x43
+#define ADV7481_IO_MAP_DATAPATH_RAW_STATUS_INT_SD_RAW_BMSK                  0x01
+#define ADV7481_IO_MAP_DATAPATH_INT_STATUS_ADDR                             0x44
+#define ADV7481_IO_MAP_DATAPATH_INT_CLR_ADDR                                0x45
+#define ADV7481_IO_MAP_DATAPATH_INT_CLR_INT_SD_CLR_BMSK                     0x01
+
+int adv7481_intr_enable(void)
+{
+	int rc;
+	int cci_master = 0, queue_id = 1;
+	struct camera_i2c_reg_array int_enable[6];
+	int idx = 0;
+	uint32_t read_val = 0;
+
+	//power up INT1, which should be up by default.
+	rc = msm_cci_i2c_read(ADV7481_IO_MAP_PAD_CTRL_1_ADDR,
+							1,
+							&read_val,
+							ADV7481_IO_MAP_SLAVE_ADDR,
+							cci_master,
+							queue_id,
+							1,
+							1);
+
+	if (read_val & ADV7481_IO_MAP_PAD_CTRL_1_PDN_INT1_BMSK)
+	{
+		//power up INT1 if not up by default
+		read_val &= ~ADV7481_IO_MAP_PAD_CTRL_1_PDN_INT1_BMSK;
+
+		int_enable[0].delay = 0;
+		int_enable[0].reg_addr = ADV7481_IO_MAP_PAD_CTRL_1_ADDR;
+		int_enable[0].reg_data = read_val;
+
+		rc = msm_cci_i2c_write(&int_enable[0],
+							1,
+							ADV7481_IO_MAP_SLAVE_ADDR,
+							queue_id,
+							0,
+							1,
+							1,
+							0,cci_master);
+	}
+
+	//configure INT1 interrupt
+	int_enable[0].delay = 0;
+	int_enable[0].reg_addr = ADV7481_IO_MAP_INT1_CONFIG_ADDR;
+	int_enable[0].reg_data = (0x3 << ADV7481_IO_MAP_INT1_CONFIG_INTRQ_DUR_SEL_SHFT)
+							| (0x1 << ADV7481_IO_MAP_INT1_CONFIG_INTRQ_OP_SEL_SHFT);
+
+
+	rc = msm_cci_i2c_write(&int_enable[0],
+						1,
+						ADV7481_IO_MAP_SLAVE_ADDR,
+						queue_id,
+						0,
+						1,
+						1,
+						0,cci_master);
+
+	//unmask INT_SD_ST
+	int_enable[0].delay = 0;
+	int_enable[0].reg_addr = ADV7481_IO_MAP_DATAPATH_INT_MASKB_ADDR;
+	int_enable[0].reg_data = 0x1 << ADV7481_IO_MAP_DATAPATH_INT_MASKB_INT_SD_MB1_SHFT;
+
+	rc = msm_cci_i2c_write(&int_enable[0],
+						1,
+						ADV7481_IO_MAP_SLAVE_ADDR,
+						queue_id,
+						0,
+						1,
+						1,
+						0,cci_master);
+
+	//CVBS interrupt:
+	//set CVBS lock/unlock interrupts
+	//map to SDP MAP 1
+	idx = 0;
+
+	int_enable[idx].delay = 0;
+	int_enable[idx].reg_addr = ADV7481_SDP_MAIN_MAP_USER_MAP_RW_REG_0E_ADDR;
+	int_enable[idx].reg_data = ADV7481_SDP_MAP_SEL_SDP_MAP_1;
+	idx++;
+
+	int_enable[idx].delay = 0;
+	int_enable[idx].reg_addr = ADV7481_SDP_MAP_1_USER_SUB_MAP_1_RW_REG_44_ADDR;
+	int_enable[idx].reg_data = ADV7481_SDP_MAP_1_USER_SUB_MAP_1_RW_REG_44_SD_UNLOCK_MSKB_BMSK
+						| ADV7481_SDP_MAP_1_USER_SUB_MAP_1_RW_REG_44_SD_LOCK_MSKB_BMSK;
+	idx++;
+
+	//unmask SD_LOCK_MSKB/SD_UNLOCK_MSKB
+	int_enable[idx].delay = 0;
+	int_enable[idx].reg_addr = ADV7481_SDP_MAP_1_USER_SUB_MAP_1_RW_REG_44_ADDR;
+	int_enable[idx].reg_data = ADV7481_SDP_MAP_1_USER_SUB_MAP_1_RW_REG_44_SD_UNLOCK_MSKB_BMSK
+							| ADV7481_SDP_MAP_1_USER_SUB_MAP_1_RW_REG_44_SD_LOCK_MSKB_BMSK;
+	idx++;
+
+	//unmask sd_h_lock_chng_mask/sd_v_lock_chng_mask
+	int_enable[idx].reg_addr = ADV7481_SDP_MAP_1_USER_SUB_MAP_1_RW_REG_4C_ADDR;
+	int_enable[idx].reg_data = ADV7481_SDP_MAP_1_USER_SUB_MAP_1_RW_REG_4C_SD_H_LOCK_CHNG_MSKB_BMSK
+						| ADV7481_SDP_MAP_1_USER_SUB_MAP_1_RW_REG_4C_SD_V_LOCK_CHNG_MSKB_BMSK;
+	int_enable[idx].delay = 0;
+	idx++;
+
+	//map to SDP MAIN MAP
+	int_enable[idx].reg_addr = ADV7481_SDP_MAIN_MAP_USER_MAP_RW_REG_0E_ADDR;
+	int_enable[idx].reg_data = ADV7481_SDP_MAP_SEL_SDP_MAIN_MAP;
+	int_enable[idx].delay = 0;
+	idx++;
+
+	//enable fsc_lock
+	int_enable[idx].reg_addr = ADV7481_SDP_MAIN_MAP_USER_MAP_RW_REG_51_ADDR;
+	int_enable[idx].reg_data = 0xb6;
+	int_enable[idx].delay = 0;
+	idx++;
+
+	rc = msm_cci_i2c_write(&int_enable[0],
+						idx,
+						ADV7481_SDP_MAP_SLAVE_ADDR,
+						queue_id,
+						0,
+						1,
+						1,
+						0,cci_master);
+
+	return rc;
+}
+
+int adv7481_sdp_isr(void)
+{
+	int rc = 0;
+	struct camera_i2c_reg_array reg;
+	uint8 sd_lock_q_info = 0;
+	uint8 sd_lock_sts = 0;
+	uint8 sd_h_v_lock_q_info = 0;
+	int cci_master = 0, queue_id = 1;
+	uint32_t read_val = 0;
+
+
+	//check SDP lock/unlock interrupt
+
+	//map to SDP_RO_MAP_1
+	reg.reg_addr = ADV7481_SDP_MAP_SEL_ADDR;
+	reg.reg_data = ADV7481_SDP_MAP_SEL_SDP_RO_MAP_1;
+	reg.delay = 0;
+
+	rc = msm_cci_i2c_write(&reg,
+				1,
+				ADV7481_SDP_MAP_SLAVE_ADDR,
+				queue_id,
+				0,
+				1,
+				1,
+				0,cci_master);
+
+	if (rc != 0)
+	{
+		rc = -1;
+		goto EXIT_FLAG;
+	}
+
+	rc = msm_cci_i2c_read(ADV7481_SDP_RO_MAP_1_USER_SUB_MAP_1_R_REG_42_ADDR,
+					1,
+					&read_val,
+					ADV7481_SDP_MAP_SLAVE_ADDR,
+					cci_master,
+					queue_id,
+					1,
+					1);
+
+	if (rc != 0)
+	{
+		rc = -2;
+		goto EXIT_FLAG;
+	}
+
+	sd_lock_q_info = read_val;
+
+	rc = msm_cci_i2c_read(ADV7481_SDP_RO_MAP_1_USER_SUB_MAP_1_R_REG_4A_ADDR,
+									1,
+									&read_val,
+									ADV7481_SDP_MAP_SLAVE_ADDR,
+									cci_master,
+									queue_id,
+									1,
+									1);
+
+	if (rc != 0)
+	{
+		rc = -3;
+		goto EXIT_FLAG;
+	}
+
+	sd_h_v_lock_q_info = read_val;
+
+	rc = msm_cci_i2c_read(ADV7481_SDP_RO_MAP_1_USER_SUB_MAP_1_R_REG_49_ADDR,
+									1,
+									&read_val,
+									ADV7481_SDP_MAP_SLAVE_ADDR,
+									cci_master,
+									queue_id,
+									1,
+									1);
+
+	if (rc != 0)
+	{
+		rc = -4;
+		goto EXIT_FLAG;
+	}
+
+	//map to SDP_RO_MAIN
+	reg.reg_addr = ADV7481_SDP_MAP_SEL_ADDR;
+	reg.reg_data = ADV7481_SDP_MAP_SEL_SDP_RO_MAIN_MAP;
+	reg.delay = 0;
+
+	rc = msm_cci_i2c_write(&reg,
+							1,
+							ADV7481_SDP_MAP_SLAVE_ADDR,
+							queue_id,
+							0,
+							1,
+							1,
+							0,cci_master);
+
+	if (rc != 0)
+	{
+		rc = -5;
+		goto EXIT_FLAG;
+	}
+
+	rc = msm_cci_i2c_read(ADV7481_SDP_RO_MAIN_MAP_USER_MAP_R_REG_10_ADDR,
+									1,
+									&read_val,
+									ADV7481_SDP_MAP_SLAVE_ADDR,
+									cci_master,
+									queue_id,
+									1,
+									1);
+
+	if (rc != 0)
+	{
+		rc = -6;
+		goto EXIT_FLAG;
+	}
+
+	sd_lock_sts = read_val;
+
+
+	if (sd_lock_q_info
+		& (ADV7481_SDP_RO_MAP_1_USER_SUB_MAP_1_R_REG_42_SD_UNLOCK_Q_BMSK
+			| ADV7481_SDP_RO_MAP_1_USER_SUB_MAP_1_R_REG_42_SD_LOCK_Q_BMSK))
+	{
+		if (sd_lock_sts & ADV7481_SDP_RO_MAIN_MAP_USER_MAP_R_REG_10_IN_LOCK_BMSK)
+		{
+			if (sd_lock_q_info & ADV7481_SDP_RO_MAP_1_USER_SUB_MAP_1_R_REG_42_SD_LOCK_Q_BMSK)
+			{
+				lock = 1;
+				dprintf(CRITICAL,"Locked");
+			}
+		}
+		else
+		{
+			if (sd_lock_q_info & ADV7481_SDP_RO_MAP_1_USER_SUB_MAP_1_R_REG_42_SD_UNLOCK_Q_BMSK)
+			{
+				lock = 0;
+				dprintf(CRITICAL,"Lost Lock\n");
+			}
+		}
+
+		//map to SDP_MAP_1
+		reg.reg_addr = ADV7481_SDP_MAP_SEL_ADDR;
+		reg.reg_data = ADV7481_SDP_MAP_SEL_SDP_MAP_1;
+		rc = msm_cci_i2c_write(&reg,
+								1,
+								ADV7481_SDP_MAP_SLAVE_ADDR,
+								queue_id,
+								0,
+								1,
+								1,
+								0,cci_master);
+
+		if (rc != 0)
+		{
+			goto EXIT_FLAG;
+		}
+
+		//clear interrupt
+		reg.reg_addr = ADV7481_SDP_MAP_1_USER_SUB_MAP_1_RW_REG_43_ADDR;
+		reg.reg_data = ADV7481_SDP_MAP_1_USER_SUB_MAP_1_RW_REG_43_SD_UNLOCK_CLR_BMSK
+						| ADV7481_SDP_MAP_1_USER_SUB_MAP_1_RW_REG_43_SD_LOCK_CLR_BMSK;
+
+		rc = msm_cci_i2c_write(&reg,
+								1,
+								ADV7481_SDP_MAP_SLAVE_ADDR,
+								queue_id,
+								0,
+								1,
+								1,
+								0,cci_master);
+	}
+
+	if (sd_h_v_lock_q_info
+		& (ADV7481_SDP_RO_MAP_1_USER_SUB_MAP_1_R_REG_4A_SD_H_LOCK_CHNG_Q_BMSK
+			| ADV7481_SDP_RO_MAP_1_USER_SUB_MAP_1_R_REG_4A_SD_V_LOCK_CHNG_Q_BMSK))
+	{
+		if (sd_h_v_lock_q_info & ADV7481_SDP_RO_MAP_1_USER_SUB_MAP_1_R_REG_4A_SD_H_LOCK_CHNG_Q_BMSK)
+		{
+			dprintf(CRITICAL,"H Lock changed\n");
+		}
+
+		if (sd_h_v_lock_q_info & ADV7481_SDP_RO_MAP_1_USER_SUB_MAP_1_R_REG_4A_SD_V_LOCK_CHNG_Q_BMSK)
+		{
+			dprintf(CRITICAL,"V Lock changed\n");
+		}
+
+		//map to SDP_MAP_1
+		reg.reg_addr = ADV7481_SDP_MAP_SEL_ADDR;
+		reg.reg_data = ADV7481_SDP_MAP_SEL_SDP_MAP_1;
+		rc = msm_cci_i2c_write(&reg,
+								1,
+								ADV7481_SDP_MAP_SLAVE_ADDR,
+								queue_id,
+								0,
+								1,
+								1,
+								0,cci_master);
+
+		if (rc != 0)
+		{
+			goto EXIT_FLAG;
+		}
+
+		//clear interrupt
+		reg.reg_addr = ADV7481_SDP_MAP_1_USER_SUB_MAP_1_RW_REG_4B_ADDR;
+		reg.reg_data = ADV7481_SDP_MAP_1_USER_SUB_MAP_1_RW_REG_4B_SD_H_LOCK_CHNG_CLR_BMSK
+						| ADV7481_SDP_MAP_1_USER_SUB_MAP_1_RW_REG_4B_SD_V_LOCK_CHNG_CLR_BMSK;
+
+		rc = msm_cci_i2c_write(&reg,
+								1,
+								ADV7481_SDP_MAP_SLAVE_ADDR,
+								queue_id,
+								0,
+								1,
+								1,
+								0,cci_master);
+	}
+
+
+// restore SDP register map
+
+  reg.reg_addr = ADV7481_SDP_MAP_SEL_ADDR;
+  reg.reg_data = ADV7481_SDP_MAP_SEL_SDP_MAIN_MAP;
+
+  rc = msm_cci_i2c_write(&reg,
+						  1,
+						  ADV7481_SDP_MAP_SLAVE_ADDR,
+						  queue_id,
+						  0,
+						  1,
+						  1,
+						  0,cci_master);
+
+EXIT_FLAG:
+	return rc;
+
+}
+
+void adv7481_isr(void)
+{
+	int rc;
+	int cci_master = 0, queue_id = 1;
+	struct camera_i2c_reg_array int_clear[1];
+	uint32_t read_val = 0;
+
+	//check intrq1 status
+	rc = msm_cci_i2c_read(ADV7481_IO_MAP_INT_RAW_STATUS_ADDR,
+							1,
+							&read_val,
+							ADV7481_IO_MAP_SLAVE_ADDR,
+							cci_master,
+							queue_id,
+							1,
+							1);
+
+	if (read_val & ADV7481_IO_MAP_INT_RAW_STATUS_INTRQ_RAW_BMSK)
+	{
+		//check datapath sd interrupt
+		rc = msm_cci_i2c_read(ADV7481_IO_MAP_DATAPATH_RAW_STATUS_ADDR,
+								1,
+								&read_val,
+								ADV7481_IO_MAP_SLAVE_ADDR,
+								cci_master,
+								queue_id,
+								1,
+								1);
+
+		if (read_val & ADV7481_IO_MAP_DATAPATH_RAW_STATUS_INT_SD_RAW_BMSK)
+		{
+			adv7481_sdp_isr();
+		}
+
+		//check datapath interrupt
+		rc = msm_cci_i2c_read(ADV7481_IO_MAP_DATAPATH_INT_STATUS_ADDR,
+								1,
+								&read_val,
+								ADV7481_IO_MAP_SLAVE_ADDR,
+								cci_master,
+								queue_id,
+								1,
+								1);
+
+		//clear datapath interrupt
+		int_clear[0].reg_addr = ADV7481_IO_MAP_DATAPATH_INT_CLR_ADDR;
+		int_clear[0].reg_data = ADV7481_IO_MAP_DATAPATH_INT_CLR_INT_SD_CLR_BMSK | 0x40;
+		int_clear[0].delay = 0;
+
+		rc = msm_cci_i2c_write(&int_clear[0],
+							1,
+							ADV7481_IO_MAP_SLAVE_ADDR,
+							queue_id,
+							0,
+							1,
+							1,
+							0,cci_master);
+	}
+	if(rc != 0)
+		dprintf(CRITICAL,"Error rc = %x", rc);
+}
+#endif
+
+
+static int get_cam_data_digital(struct i2c_config_data **cam_data)
+{
 	int number_config_elements = 0;
 
 	*cam_data = &config_data[0];
@@ -590,4 +1191,127 @@ int get_cam_data(struct i2c_config_data **cam_data) {
 	return number_config_elements;
 }
 
+static int get_cam_data_analog(struct i2c_config_data **cam_data)
+{
+    int number_config_elements = 0;
 
+    *cam_data = &config_data[0];
+    // Bridge chip init sequence
+    config_data[0].size =
+        sizeof(adv7481_init_regs) / sizeof(adv7481_init_regs[0]);
+    config_data[0].i2c_slave_address = ADV_BRIDGE_SLAVEADDR;
+    config_data[0].i2c_regs = &adv7481_init_regs[0];
+    config_data[0].i2c_num_bytes_address = 1;
+    config_data[0].i2c_num_bytes_data = 1;
+
+    // Support for revision 2 and 3
+    config_data[0].i2c_revision_id_val[0] = 0x21;
+    config_data[0].i2c_revision_id_val[1] = 0x21;
+    config_data[0].i2c_revision_id_num = 2;
+
+    config_data[0].i2c_revision_id_reg = 0xDF;// ADV7481_IO_MAP_CHIP_REV_ID_1_ADDR
+    number_config_elements++;
+
+    config_data[1].size = sizeof(adv7481_config_regs) / sizeof(adv7481_config_regs[0]);
+    config_data[1].i2c_slave_address = ADV_BRIDGE_SLAVEADDR;
+    config_data[1].i2c_regs = &adv7481_config_regs[0];
+    config_data[1].i2c_num_bytes_address = 1;
+    config_data[1].i2c_num_bytes_data = 1;
+	number_config_elements++;
+
+    config_data[2].size = sizeof(adv7481_config_sdp_regs) / sizeof(adv7481_config_sdp_regs[0]);
+    config_data[2].i2c_slave_address = 0xF2;
+    config_data[2].i2c_regs = &adv7481_config_sdp_regs[0];
+    config_data[2].i2c_num_bytes_address = 1;
+    config_data[2].i2c_num_bytes_data = 1;
+	number_config_elements++;
+
+    // Start ADV Bridge chip for cvbs camera
+    config_data[3].size = sizeof(adv7481_start_2_regs) / sizeof(adv7481_start_2_regs[0]);
+    config_data[3].i2c_slave_address = ADV_BRIDGE_SLAVEADDR;
+    config_data[3].i2c_regs = &adv7481_start_2_regs[0];
+    config_data[3].i2c_num_bytes_address = 1;
+    config_data[3].i2c_num_bytes_data = 1;
+	number_config_elements++;
+
+	// poll  for lock
+    config_data[4].size =
+        sizeof(adv7481_lock_sdp_RO_MAP_1_regs) / sizeof(adv7481_lock_sdp_RO_MAP_1_regs[0]);
+    config_data[4].i2c_slave_address = 0xF2;
+    config_data[4].i2c_regs = &adv7481_lock_sdp_RO_MAP_1_regs[0];
+    config_data[4].i2c_num_bytes_address = 1;
+    config_data[4].i2c_num_bytes_data = 1;
+	number_config_elements++;
+
+	config_data[5].size =
+		sizeof(adv7481_lock_read_sdp_RO_MAP_1_regs) / sizeof(adv7481_lock_read_sdp_RO_MAP_1_regs[0]);
+	config_data[5].i2c_slave_address = 0xF2;
+	config_data[5].i2c_regs = &adv7481_lock_read_sdp_RO_MAP_1_regs[0];
+	config_data[5].i2c_num_bytes_address = 1;
+	config_data[5].i2c_num_bytes_data = 1;
+
+	// locked value expected.
+	config_data[5].i2c_revision_id_val[0] = 0x6;
+	config_data[5].i2c_revision_id_val[1] = 0;
+	config_data[5].i2c_revision_id_num = 1;
+	config_data[5].i2c_revision_id_reg = adv7481_lock_read_sdp_RO_MAP_1_regs[0].reg_addr;
+	number_config_elements++;
+
+	config_data[6].size =
+        sizeof(adv7481_lock_sdp_RO_MAP_regs) / sizeof(adv7481_lock_sdp_RO_MAP_regs[0]);
+    config_data[6].i2c_slave_address = 0xF2;
+    config_data[6].i2c_regs = &adv7481_lock_sdp_RO_MAP_regs[0];
+    config_data[6].i2c_num_bytes_address = 1;
+    config_data[6].i2c_num_bytes_data = 1;
+	number_config_elements++;
+
+	config_data[7].size =
+		sizeof(adv7481_lock_read_sdp_RO_MAP_regs) / sizeof(adv7481_lock_read_sdp_RO_MAP_regs[0]);
+	config_data[7].i2c_slave_address = 0xF2;
+	config_data[7].i2c_regs = &adv7481_lock_read_sdp_RO_MAP_regs[0];
+	config_data[7].i2c_num_bytes_address = 1;
+	config_data[7].i2c_num_bytes_data = 1;
+
+	// locked value expected.
+	config_data[7].i2c_revision_id_val[0] = 0xd;
+	config_data[7].i2c_revision_id_val[1] = 0;
+	config_data[7].i2c_revision_id_num = 1;
+	config_data[7].i2c_revision_id_reg = adv7481_lock_read_sdp_RO_MAP_regs[0].reg_addr;
+
+	number_config_elements++;
+	config_data[8].size = sizeof(adv7481_sensor_pre_start_regs) / sizeof(adv7481_sensor_pre_start_regs[0]);
+	config_data[8].i2c_slave_address = 0xF2;
+	config_data[8].i2c_regs = &adv7481_sensor_pre_start_regs[0];
+	config_data[8].i2c_num_bytes_address = 1;
+	config_data[8].i2c_num_bytes_data = 1;
+	number_config_elements++;
+
+    // Start streaming on cvbs port
+    config_data[9].size = sizeof(adv7481_sensor_start_regs) / sizeof(adv7481_sensor_start_regs[0]);
+    config_data[9].i2c_slave_address = ANALOG_CAMERA_SLAVEADDR;
+    config_data[9].i2c_regs = &adv7481_sensor_start_regs[0];
+    config_data[9].i2c_num_bytes_address = 1;
+    config_data[9].i2c_num_bytes_data = 1;
+	number_config_elements++;
+
+	return number_config_elements;
+}
+
+int get_cam_data(int csi, struct i2c_config_data **cam_data) {
+
+	int number_config_elements = 0;
+
+	switch(csi)
+	{
+		case 1:
+			number_config_elements = get_cam_data_analog(cam_data);
+			break;
+		case 2:
+			number_config_elements = get_cam_data_digital(cam_data);
+			break;
+		default:
+			break;
+	}
+
+	return number_config_elements;
+}

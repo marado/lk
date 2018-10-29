@@ -989,6 +989,30 @@ static struct branch_clk camss_csiphy2_3p_clk = {
 	},
 };
 
+static struct rcg_clk csiphy1_3p_clk_src = {
+	.cmd_reg = (uint32_t *) MMSS_CSIPHY1_3P_CMD_RCGR,
+	.cfg_reg = (uint32_t *) MMSS_CSIPHY1_3P_CFG_RCGR,
+	.set_rate = clock_lib2_rcg_set_rate_hid,
+	.freq_tbl = ftbl_csiphy2_3p_clk_src,
+	.current_freq = &rcg_dummy_freq,
+
+	.c = {
+		.dbg_name = "csiphy1_3p_clk_src",
+		.ops = &clk_ops_rcg,
+	},
+};
+
+static struct branch_clk camss_csiphy1_3p_clk = {
+	.cbcr_reg = (uint32_t *) MMSS_CAMSS_CSIPHY1_3P_CBCR,
+	.parent = &csiphy1_3p_clk_src.c,
+	.has_sibling = 0,
+
+	.c = {
+		.dbg_name = "camss_csiphy1_3p_clk",
+		.ops = &clk_ops_branch,
+	},
+};
+
 static struct clk_freq_tbl ftbl_csi2_clk_src[] = {
 	F_MM( 200000000,     gpll0,    3,    0,     0),
 	F_END
@@ -1095,6 +1119,23 @@ static struct rcg_clk csi0_clk_src =
 	.c = {
 		.dbg_name = "csi0_clk_src",
 		.ops      = &clk_ops_rcg,
+	},
+};
+static struct clk_freq_tbl ftbl_csi1_clk_src[] = {
+	F_MM( 200000000,     gpll0,    3,    0,     0),
+	F_END
+};
+
+static struct rcg_clk csi1_clk_src = {
+	.cmd_reg = (uint32_t *) MMSS_CSI1_CMD_RCGR,
+	.cfg_reg = (uint32_t *) MMSS_CSI1_CFG_RCGR,
+	.set_rate = clock_lib2_rcg_set_rate_hid,
+	.freq_tbl = ftbl_csi1_clk_src,
+	.current_freq = &rcg_dummy_freq,
+
+	.c = {
+		.dbg_name = "csi1_clk_src",
+		.ops = &clk_ops_rcg,
 	},
 };
 
@@ -1249,6 +1290,16 @@ static struct branch_clk camss_csi0_ahb_clk = {
 	},
 };
 
+static struct branch_clk camss_csi1_ahb_clk = {
+	.cbcr_reg    = (uint32_t *) MMSS_CAMSS_CSI1_AHB_CBCR,
+	.has_sibling = 1,
+
+	.c           = {
+		.dbg_name = "camss_csi1_ahb_clk",
+		.ops      = &clk_ops_branch,
+	},
+};
+
 static struct branch_clk camss_csi0_clk = {
 	.cbcr_reg    = (uint32_t *) MMSS_CAMSS_CSI0_CBCR,
 	.parent      = &csi0_clk_src.c,
@@ -1256,6 +1307,17 @@ static struct branch_clk camss_csi0_clk = {
 
 	.c           = {
 		.dbg_name = "camss_csi0_clk",
+		.ops      = &clk_ops_branch,
+	},
+};
+
+static struct branch_clk camss_csi1_clk = {
+	.cbcr_reg    = (uint32_t *) MMSS_CAMSS_CSI1_CBCR,
+	.parent      = &csi1_clk_src.c,
+	.has_sibling = 0,
+
+	.c           = {
+		.dbg_name = "camss_csi1_clk",
 		.ops      = &clk_ops_branch,
 	},
 };
@@ -1293,8 +1355,41 @@ static struct branch_clk camss_csi0rdi_clk = {
 	},
 };
 
+static struct branch_clk camss_csi1phy_clk = {
+	.cbcr_reg    = (uint32_t *) MMSS_CAMSS_CSI1PHY_CBCR,
+	.parent      = &csi1_clk_src.c,
+	.has_sibling = 1,
+
+	.c           = {
+		.dbg_name = "camss_csi1phy_clk",
+		.ops      = &clk_ops_branch,
+	},
+};
+
+static struct branch_clk camss_csi1pix_clk = {
+	.cbcr_reg    = (uint32_t *) MMSS_CAMSS_CSI1PIX_CBCR,
+	.parent      = &csi1_clk_src.c,
+	.has_sibling = 1,
+
+	.c           = {
+		.dbg_name = "camss_csi1pix_clk",
+		.ops      = &clk_ops_branch,
+	},
+};
+
+static struct branch_clk camss_csi1rdi_clk = {
+	.cbcr_reg    = (uint32_t *) MMSS_CAMSS_CSI1RDI_CBCR,
+	.parent      = &csi1_clk_src.c,
+	.has_sibling = 1,
+
+	.c           = {
+		.dbg_name = "camss_csi1rdi_clk",
+		.ops      = &clk_ops_branch,
+	},
+};
+
 static struct clk_freq_tbl ftbl_csi0phytimer_clk_src[] = {
-		F_MM( 200000000,  mmpll0,    4,    0,     0),
+		F_MM( 200000000,  gpll0,    3,    0,     0),
 	F_END
 };
 
@@ -1309,6 +1404,31 @@ static struct rcg_clk csi0phytimer_clk_src =
 	.c = {
 		.dbg_name = "csi0phytimer_clk_src",
 		.ops      = &clk_ops_rcg,
+	},
+};
+
+static struct rcg_clk csi1phytimer_clk_src =
+{
+	.cmd_reg      = (uint32_t *) MMSS_CSI1PHYTIMER_CMD_RCGR,
+	.cfg_reg      = (uint32_t *) MMSS_CSI1PHYTIMER_CFG_RCGR,
+	.set_rate     = clock_lib2_rcg_set_rate_hid,
+	.freq_tbl     = ftbl_csi0phytimer_clk_src,
+	.current_freq = &rcg_dummy_freq,
+
+	.c = {
+		.dbg_name = "csi1phytimer_clk_src",
+		.ops      = &clk_ops_rcg,
+	},
+};
+
+static struct branch_clk camss_csi1phytimer_clk = {
+	.cbcr_reg = (uint32_t *) MMSS_CAMSS_CSI1PHYTIMER_CBCR,
+	.parent = &csi1phytimer_clk_src.c,
+	.has_sibling = 0,
+
+	.c = {
+		.dbg_name = "camss_csi1phytimer_clk",
+		.ops = &clk_ops_branch,
 	},
 };
 
@@ -1480,12 +1600,19 @@ static struct clk_lookup msm_msm8996_clocks[] =
 	CLK_LOOKUP("camss_vfe0_ahb_clk",   camss_vfe0_ahb_clk.c),
 	CLK_LOOKUP("camss_csi_vfe0_clk",   camss_csi_vfe0_clk.c),
 	CLK_LOOKUP("camss_csi0_ahb_clk",   camss_csi0_ahb_clk.c),
+	CLK_LOOKUP("camss_csi1_ahb_clk",   camss_csi1_ahb_clk.c),
 	CLK_LOOKUP("csi0_clk_src",         csi0_clk_src.c),
+	CLK_LOOKUP("csi1_clk_src",         csi1_clk_src.c),
 	CLK_LOOKUP("camss_csi0_clk",       camss_csi0_clk.c),
+	CLK_LOOKUP("camss_csi1_clk",       camss_csi1_clk.c),
 	CLK_LOOKUP("camss_csi0phy_clk",    camss_csi0phy_clk.c),
 	CLK_LOOKUP("camss_csi0pix_clk",    camss_csi0pix_clk.c),
 	CLK_LOOKUP("camss_csi0rdi_clk",    camss_csi0rdi_clk.c),
+	CLK_LOOKUP("camss_csi1phy_clk",    camss_csi1phy_clk.c),
+	CLK_LOOKUP("camss_csi1pix_clk",    camss_csi1pix_clk.c),
+	CLK_LOOKUP("camss_csi1rdi_clk",    camss_csi1rdi_clk.c),
 	CLK_LOOKUP("csi0phytimer_clk_src", csi0phytimer_clk_src.c),
+	CLK_LOOKUP("csi1phytimer_clk_src", csi1phytimer_clk_src.c),
 	CLK_LOOKUP("mmagic_camss_axi_clk", mmagic_camss_axi_clk.c),
 	CLK_LOOKUP("camss_vfe0_clk", camss_vfe0_clk.c),
 	CLK_LOOKUP("camss_vfe_ahb_clk", camss_vfe_ahb_clk.c),
@@ -1497,6 +1624,8 @@ static struct clk_lookup msm_msm8996_clocks[] =
 	CLK_LOOKUP("camss_csi2phy_clk", camss_csi2phy_clk.c),
 	CLK_LOOKUP("csiphy2_3p_clk_src", csiphy2_3p_clk_src.c),
 	CLK_LOOKUP("camss_csiphy2_3p_clk", camss_csiphy2_3p_clk.c),
+	CLK_LOOKUP("camss_csiphy1_3p_clk", camss_csiphy1_3p_clk.c),
+	CLK_LOOKUP("csiphy1_3p_clk_src", csiphy1_3p_clk_src.c),
 	CLK_LOOKUP("camss_csi2rdi_clk", camss_csi2rdi_clk.c),
 	CLK_LOOKUP("camss_csi2pix_clk", camss_csi2pix_clk.c),
 	CLK_LOOKUP("camss_cpp_vbif_ahb_clk", camss_cpp_vbif_ahb_clk.c),
@@ -1505,6 +1634,7 @@ static struct clk_lookup msm_msm8996_clocks[] =
 	CLK_LOOKUP("camss_jpeg_axi_clk", camss_jpeg_axi_clk.c),
 	CLK_LOOKUP("camss_csi2_ahb_clk", camss_csi2_ahb_clk.c),
 	CLK_LOOKUP("camss_csi2phytimer_clk", camss_csi2phytimer_clk.c),
+	CLK_LOOKUP("camss_csi1phytimer_clk", camss_csi1phytimer_clk.c),
 	CLK_LOOKUP("smmu_vfe_axi_clk", smmu_vfe_axi_clk.c),
 	CLK_LOOKUP("smmu_vfe_ahb_clk", smmu_vfe_ahb_clk.c),
 	CLK_LOOKUP("mmss_mmagic_cfg_ahb_clk", mmss_mmagic_cfg_ahb_clk.c),
