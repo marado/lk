@@ -467,7 +467,8 @@ enum {
 	SDM450 = 338,
 	MDM9206 = 322,
 	MSM8996SGAU = 315,
-	APQ8096SGAU = 316
+	APQ8096SGAU = 316,
+	APQ8096A = 387
 };
 
 enum platform {
