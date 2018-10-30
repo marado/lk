@@ -48,6 +48,10 @@
 #include <ufdt_overlay.h>
 #include <boot_stats.h>
 
+#if EARLYDOMAIN_SUPPORT
+#include <early_domain.h>
+#endif
+
 #define BOOT_DEV_MAX_LEN        64
 #define NODE_PROPERTY_MAX_LEN   64
 #define ADD_OF(a, b) (UINT_MAX - b > a) ? (a + b) : UINT_MAX
@@ -2069,6 +2073,10 @@ int update_device_tree(void *fdt, const char *cmdline,
 	}
 	dprintf(SPEW, "End of fstab node update:%zu ms\n", platform_get_sclk_count());
 #endif
+
+#if EARLYDOMAIN_SUPPORT
+	update_early_domain_param(fdt);
+#endif
 	fdt_pack(fdt);
 
 #if ENABLE_PARTIAL_GOODS_SUPPORT
@@ -2177,5 +2185,70 @@ static int update_fstab_node(void *fdt)
 	if (new_str)
 		free(new_str);
         return ret;
+}
+#endif
+
+#if EARLYDOMAIN_SUPPORT
+void update_early_domain_param(void *fdt)
+{
+	target_update_early_domain(fdt);
+}
+
+int add_dt_res_node(void *fdt, struct res_mem_node node)
+{
+	static int parent_offset;
+	int subnode_offset;
+	int ret;
+
+	char *path = "/reserved-memory";
+	if (!parent_offset)
+		parent_offset = fdt_path_offset(fdt, path);
+	if (parent_offset < 0) {
+		dprintf(CRITICAL,"Failed to get path offset:%s\n",path);
+		return parent_offset;
+	}
+	ret = fdt_add_subnode(fdt,parent_offset,(const char *)node.name);
+	if (ret < 0) {
+		dprintf(CRITICAL,"Failed to add subnode:%s\n",node.name);
+		return ret;
+	}
+	subnode_offset = fdt_subnode_offset(fdt, parent_offset,(const char *)node.name);
+	if (subnode_offset < 0) {
+		dprintf(CRITICAL,"Failed to get subnode offset: %s\n",node.name);
+		return subnode_offset;
+	}
+	ret = fdt_setprop(fdt,subnode_offset,"label",node.label,strlen(node.label));
+	if (ret < 0) {
+		dprintf(CRITICAL,"Failed to set property-label:%s\n",node.name);
+		return ret;
+	}
+	if (node.no_map && (ret = fdt_setprop(fdt,subnode_offset,"no-map",NULL,0))) {
+		dprintf(CRITICAL,"Failed to set-property no-map");
+		return ret;
+	}
+	ret = dev_tree_add_mem_info(fdt, subnode_offset,node.addr,node.size);
+	if (ret < 0) {
+		dprintf(CRITICAL,"Failed to add reg property: %s\n",node.name);
+		return ret;
+	}
+	return ret;
+}
+
+int update_dt_early_domain_core(void *fdt, char *path)
+{
+	int path_offset;
+	int ret;
+
+	ret = 0;
+	path_offset = fdt_path_offset(fdt, path);
+	char *status = "ok";
+	if (path_offset < 0){
+		dprintf(CRITICAL,"Failed to get path offset for %s\n",path);
+		return -1;
+	}
+	ret = fdt_setprop(fdt, path_offset, "status", (const void *)status, strlen(status)+1);
+	if (!ret)
+		dprintf(SPEW,"Early domain core driver enabled in DT\n");
+	return ret;
 }
 #endif

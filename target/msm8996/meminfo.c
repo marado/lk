@@ -35,6 +35,19 @@
 #include <platform/iomap.h>
 #include <dev_tree.h>
 
+#if EARLYDOMAIN_SUPPORT
+#include <early_domain.h>
+
+extern bool update_early_domain_dt;
+
+struct res_mem_node early_domain_mem_reserve[2] =
+{   /*Node name           Node label           phy_address               size         no-map     */
+ {   "lk_pool",           "lk_pool",           MEMBASE,                  MEMSIZE,     false  },
+ {   "early_domain_shm",  "early_domain_shm",  EARLY_DOMAIN_SHARED_MEM,  PAGE_SIZE,   true   },
+};
+
+#endif
+
 uint32_t target_dev_tree_mem(void *fdt, uint32_t memory_node_offset)
 {
 	ram_partition ptn_entry;
@@ -92,3 +105,19 @@ unsigned target_get_max_flash_size(void)
 {
 	return (512 * 1024 * 1024);
 }
+
+#if EARLYDOMAIN_SUPPORT
+void target_update_early_domain(void *fdt)
+{
+	/* We add the reserved memory region in DT for lk_pool and early_domain_shm
+	 * The required memory nodes can be added by populating the res_mem_node structure.
+	 * Also enable the early_domain_core driver in DT.
+	 */
+
+	if (update_early_domain_dt) {
+		add_dt_res_node(fdt, early_domain_mem_reserve[EARLY_DOMAIN_CORE]);
+		add_dt_res_node(fdt, early_domain_mem_reserve[EARLY_DOMAIN_CORE + 1]);
+		update_dt_early_domain_core(fdt,EARLY_DOMAIN_CORE_DRIVER_DT_NODE);
+	}
+}
+#endif

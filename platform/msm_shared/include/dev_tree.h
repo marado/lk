@@ -239,9 +239,25 @@ struct dtbo_table_entry {
 	uint32_t custom[DTBO_CUSTOM_MAX];    //optional, must zero if unused
 };
 
+struct res_mem_node {
+	char *name;
+	char *label;
+	uint64_t addr;
+	uint64_t size;
+	bool no_map;
+};
+
 int dev_tree_validate(struct dt_table *table, unsigned int page_size, uint32_t *dt_hdr_size);
 int dev_tree_get_entry_info(struct dt_table *table, struct dt_entry *dt_entry_info);
 int update_device_tree(void *fdt, const char *, void *, unsigned);
 int dev_tree_add_mem_info(void *fdt, uint32_t offset, uint64_t size, uint64_t addr);
 void *dev_tree_appended(void *kernel, uint32_t kernel_size, uint32_t dtb_offset, void *tags);
+
+#if EARLYDOMAIN_SUPPORT
+int add_dt_res_node(void *fdt, struct res_mem_node node);
+void target_update_early_domain(void *fdt);
+int update_dt_early_domain_core(void *fdt, char *path);
+void update_early_domain_param(void *fdt);
+#endif
+
 #endif
