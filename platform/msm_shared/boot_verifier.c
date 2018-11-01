@@ -592,7 +592,6 @@ bool send_rot_command(uint32_t is_unlocked)
 			}
 		} else {
 			dprintf(CRITICAL, "send_rot_command: TZ didn't support this feature! Version: major = %d, minor = %d, patch = %d\n", (version >> 22) & 0x3FF, (version >> 12) & 0x3FF, version & 0x3FF);
-		ret = false;
 		goto err;
 		}
 	}
