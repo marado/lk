@@ -1378,7 +1378,8 @@ int animated_splash() {
 		}
 		k++;
 #if EARLYCAMERA_NO_GPIO
-		if (EARLYCAM_NO_GPIO_FRAME_LIMIT < frame_count) {
+		if ((get_early_service_shutdown_request(EARLY_CAMERA)) ||
+		    (EARLYCAM_NO_GPIO_FRAME_LIMIT < frame_count)) {
 			early_camera_enabled = 0;
 			if(camera_frame_on) {
 				early_camera_stop();
@@ -1392,6 +1393,19 @@ int animated_splash() {
 			frame_count++;
 		}
 #endif
+		if ((early_camera_enabled == 1) && (FALSE == camera_on) &&
+		    (get_early_service_shutdown_request(EARLY_CAMERA)))
+		{
+			early_camera_enabled = 0;
+			early_camera_stop();
+			if(camera_frame_on) {
+				layer_ptr = target_display_acquire_layer(
+				update[RVC_DISPLAY_ID].disp, "as", kFormatRGB888);
+				layer_list[RVC_DISPLAY_ID].layer = layer_ptr;
+				layer_list[RVC_DISPLAY_ID].z_order = 2;
+				camera_frame_on = false;
+			}
+		}
 	}
 	if (early_camera_enabled == 1)
 		early_camera_stop();

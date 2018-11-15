@@ -43,10 +43,7 @@
 #include <target/target_camera.h>
 #include <dev/keys.h>
 #include <pm8x41_hw.h>
-
-
-#define EARLY_CAMERA_SIGNAL_DONE 0xa5a5a5a5
-#define EARLY_CAMERA_SIGNAL_ENABLED 0x5a5a5a5a
+#include <early_domain.h>
 
 #define VFE_PING_ADDR 0xB3FFF000
 #define VFE_PONG_ADDR 0xB43FF000
@@ -54,7 +51,6 @@
 
 #define EARLY_CAM_NUM_FRAMES 60*20
 #define CAM_RESET_GPIO 23
-#define MMSS_A_VFE_0_SPARE 0x00A10C84
 
 struct i2c_config_data *cam_data;
 void *disp_ptr, *layer_cam_ptr;
@@ -2388,8 +2384,8 @@ static int early_camera_start(void *arg) {
 					1);
 #endif
 
-// Signal Kernel early camera is active.
-	msm_camera_io_w_mb(EARLY_CAMERA_SIGNAL_ENABLED, MMSS_A_VFE_0_SPARE);
+	// Signal Kernel early camera is active.
+	set_early_service_active_bit(EARLY_CAMERA);
 
 	return 0;
 	exit:
@@ -2436,8 +2432,7 @@ void early_camera_stop(void) {
 	firstframe = true;  // reset firstframe for next cycle
 
 	// Signal Kernel were done to allow camera daemon to start.
-	msm_camera_io_w_mb(EARLY_CAMERA_SIGNAL_DONE,
-						MMSS_A_VFE_0_SPARE);
+	clear_early_service_active_bit(EARLY_CAMERA);
 }
 int early_camera_on(void)
 {
