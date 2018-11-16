@@ -255,6 +255,10 @@ uint32_t target_is_pwrkey_pon_reason()
 		usb_present_sts = !(USBIN_UV_RT_STS_PMI632 &
 				pm8x41_reg_read(SMBCHG_USB_RT_STS));
 	}
+	else if (pmic == PMIC_IS_PM8916) {
+		pon_reason = pm8x41_get_pon_reason();
+		usb_present_sts = (pon_reason & USB_CHG);
+	}
 	else
 	{
 		pon_reason = pm8950_get_pon_reason();
@@ -323,7 +327,7 @@ void target_init(void)
 
 #if PON_VIB_SUPPORT
 	/* turn on vibrator to indicate that phone is booting up to end user */
-	if(target_is_pmi_enabled())
+	if(target_is_pmi_enabled() || platform_is_qm215())
 		vib_timed_turn_on(VIBRATE_TIME);
 #endif
 
@@ -461,6 +465,11 @@ unsigned target_pause_for_battery_charge(void)
 		else
 			usb_present_sts = (!(USBIN_UV_RT_STS &
 				pm8x41_reg_read(SMBCHG_USB_RT_STS)));
+	}
+	else {
+		if (pmic == PMIC_IS_PM8916) {
+			usb_present_sts = (pon_reason & USB_CHG);
+		}
 	}
 
 	dprintf(INFO, "%s : pon_reason is:0x%x cold_boot:%d usb_sts:%d\n", __func__,
