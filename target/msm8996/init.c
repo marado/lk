@@ -1217,13 +1217,13 @@ int animated_splash() {
 	struct fbcon_config *fb;
 	uint32_t sleep_time = 0;
 	uint32_t disp_cnt = target_display_init_count();
-	uint32_t reg_value;
 	bool camera_on = FALSE;
 	bool camera_frame_on = false;
 	bool stop_display_splash = false;
 	bool firstframe[disp_cnt];
 	int camera_error_count = 0;
 	int camera_status = 0;
+	bool request_shutdown = false;
 #if EARLYCAMERA_NO_GPIO
 	uint32_t frame_count = 0;
 #endif
@@ -1290,15 +1290,13 @@ int animated_splash() {
 
 		camera_on = is_reverse_camera_on();
 
-		reg_value = readl_relaxed((void *)MDSS_SCRATCH_REG_1);
-		if (0xFEFEFEFE == reg_value) {
-			//This value indicates kernel request LK to shutdown immediately
-			break;
-		}
-		else if (0xDEADDEAD == reg_value) {
-			// This reg value means kernel is started
-			// LK should notify kernel by writing 0xDEADBEEF to
-			// MDSS_SCRATCH_REG_1 when it is ready to exit
+		request_shutdown = get_early_service_shutdown_request(EARLY_DISPLAY);
+
+		if (request_shutdown) {
+			// This means that kernel is up and has requested LK
+			// to shutdown. LK can update kernel when it is
+			// ready to shutdown by calling clear_early_service_active_bit
+			// for EARLY_DISPLAY service id.
 
 			if (0 == early_camera_enabled)
 				break;
@@ -1331,8 +1329,8 @@ int animated_splash() {
 				}
 			}
 
-			/* if stop_display_splash is true, that means kernel has set 0xDEADDEAD to
-			 * scratch register to stop early display, so release display layer.
+			/* if stop_display_splash is true, that means kernel has set the request shutdown bit
+			 * for early display, so release display layer.
 			 */
 			if (stop_display_splash) {
 				if(layer_list[j].layer)
@@ -1428,7 +1426,7 @@ void earlydomain_services()
 	if (panel_is_selected) {
 		dprintf(CRITICAL, "earlydomain_services: Display init done\n");
 		// Notify Kernel that LK is running
-		writel(0xC001CAFE, MDSS_SCRATCH_REG_1);
+		set_early_service_active_bit(EARLY_DISPLAY);
 	} else {
 		dprintf(CRITICAL, "earlydomain_services: panel is not selected\n");
 	}
@@ -1478,7 +1476,7 @@ void earlydomain_services()
 
 	// Notify Kernel that LK is shutdown
 	if (panel_is_selected)
-		writel(0xDEADBEEF, MDSS_SCRATCH_REG_1);
+		clear_early_service_active_bit(EARLY_DISPLAY);
 }
 
 #else
@@ -1491,11 +1489,6 @@ void earlydomain_services() {}
 void earlydomain_exit() {}
 
 #endif /* EARLYDOMAIN_SUPPORT */
-
-void target_display_update_scratch_register()
-{
-	writel(0xDEADBEEF, MDSS_SCRATCH_REG_1);
-}
 
 int target_update_cmdline(char *cmdline)
 {
