@@ -132,6 +132,10 @@ struct fastboot_cmd_desc {
 #define TARGET(NAME) EXPAND(NAME)
 
 #define DISPLAY_PANEL_HDMI "hdmi"
+#define GOLDEN_IMAGE "golden_image"
+#define ENABLE "enable"
+#define DISABLE "disable"
+#define CHECK_STATE "check_state"
 
 #ifdef MEMBASE
 #define EMMC_BOOT_IMG_HEADER_ADDR (0xFF000+(MEMBASE))
@@ -202,8 +206,10 @@ static const char *skip_ramfs = " skip_initramfs";
 
 #if HIBERNATION_SUPPORT
 static const char *resume = " resume=/dev/mmcblk0p";
+#if HIBERNATION_GOLDEN_IMAGE_SUPPORT
+static const char *golden_image = " golden_image";
 #endif
-
+#endif
 #ifdef INIT_BIN_LE
 static const char *sys_path_cmdline = " rootwait ro init="INIT_BIN_LE;
 #endif
@@ -264,7 +270,7 @@ static unsigned long long int blank_img_header_mmc;
 
 /* Assuming unauthorized kernel image by default */
 static int auth_kernel_img = 0;
-static device_info device = {DEVICE_MAGIC,0,0,0,0,0,{0},{0},{0},1,0,0,{0},0,{0}};
+static device_info device = {DEVICE_MAGIC,0,0,0,0,0,{0},{0},{0},1,0,0,{0},0,{0},0,0};
 static char *vbcmdline;
 static bootinfo info = {0};
 
@@ -627,7 +633,7 @@ unsigned char *update_cmdline(const char * cmdline)
 	}
 
 #if HIBERNATION_SUPPORT
-	if (platform_boot_dev_isemmc())
+	if ((device.hibernation != 0) && platform_boot_dev_isemmc())
 	{
 		swap_ptn_index = partition_get_index("swap");
 		if (swap_ptn_index != INVALID_PTN)
@@ -636,6 +642,10 @@ unsigned char *update_cmdline(const char * cmdline)
 				" %s%d", resume,
 				(swap_ptn_index + 1));
 			cmdline_len += strlen(resume_buf);
+#if HIBERNATION_GOLDEN_IMAGE_SUPPORT
+			if(device.hibernation_golden_image != 0)
+				cmdline_len += strlen(golden_image);
+#endif
 		}
 		else
 		{
@@ -643,7 +653,6 @@ unsigned char *update_cmdline(const char * cmdline)
 		}
 	}
 #endif
-
 #if TARGET_CMDLINE_SUPPORT
 	char *target_cmdline_buf = malloc(TARGET_MAX_CMDLNBUF);
 	int target_cmd_line_len;
@@ -902,11 +911,18 @@ unsigned char *update_cmdline(const char * cmdline)
 		}
 
 #if HIBERNATION_SUPPORT
-		if (swap_ptn_index != INVALID_PTN)
+		if ((device.hibernation != 0) && (swap_ptn_index != INVALID_PTN))
 		{
 			src = resume_buf;
 			--dst;
 			while ((*dst++ = *src++));
+#if HIBERNATION_GOLDEN_IMAGE_SUPPORT
+			if(device.hibernation_golden_image != 0){
+				src = golden_image;
+				--dst;
+				while ((*dst++ = *src++));
+			}
+#endif
 		}
 #endif
 
@@ -4202,7 +4218,69 @@ void cmd_set_active(const char *arg, void *data, unsigned sz)
 	fastboot_fail("Invalid slot suffix.");
 	return;
 }
-
+#if HIBERNATION_SUPPORT
+void cmd_oem_hibernation(const char *arg, void *data, unsigned sz)
+{
+	char *p= NULL;
+	const char *delim = " \t\n\r";
+	char *sp = (char *)arg;
+	bool golden_image = 0;
+	bool status=1;
+	if(sp) {
+		do {
+			p= strtok_r(sp, delim, &sp);
+			if(p) {
+				if(!strncmp(p,GOLDEN_IMAGE,strlen(GOLDEN_IMAGE))) {
+#if HIBERNATION_GOLDEN_IMAGE_SUPPORT
+					golden_image = 1;
+#else
+					golden_image = 0;
+					status = 0;
+					dprintf(INFO, "Golden image support is disabled\n");
+					dprintf(INFO, "Commands available:\n");
+					dprintf(INFO, "Enable hibernation : fastboot oem hibernation enable\n");
+					dprintf(INFO, "disble hibernation : fastboot oem hibernation disable\n");
+					dprintf(INFO, "check hibernation state : fastboot oem hibernation check_state\n");
+					break;
+#endif
+				} else if(!strncmp(p,ENABLE,strlen(ENABLE))) {
+					if(golden_image)
+						device.hibernation_golden_image = 1;
+					else
+						device.hibernation = 1;
+					write_device_info(&device);
+				} else if(!strncmp(p,DISABLE,strlen(DISABLE))) {
+					if(golden_image)
+						device.hibernation_golden_image = 0;
+					else
+						device.hibernation = 0;
+					write_device_info(&device);
+				}else if(!strncmp(p,CHECK_STATE,strlen(CHECK_STATE))) {
+					if(device.hibernation && device.hibernation_golden_image)
+						dprintf(INFO,"Hibernation Enabled with Golden image restoration\n");
+					else if(device.hibernation)
+						dprintf(INFO, "Hibernation Enabled\n");
+					else
+						dprintf(INFO, "Hibernation Disabled\n");
+				}else {
+					dprintf(INFO, "Command formats:\n");
+					dprintf(INFO, "Enable hibernation : fastboot oem hibernation enable\n");
+					dprintf(INFO, "disble hibernation : fastboot oem hibernation disable\n");
+					dprintf(INFO, "check hibernation state : fastboot oem hibernation check_state\n");
+#if HIBERNATION_GOLDEN_IMAGE_SUPPORT
+					dprintf(INFO, "Enable golden image in hibernation : fastboot oem hibernation golden_image enable\n");
+					dprintf(INFO, "disble golden image in hibernation : fastboot oem hibernation golden_image disable\n");
+#endif
+				}
+			}
+		}while(sp);
+		if(status)
+			fastboot_okay("");
+		else
+			fastboot_fail("");
+	}
+}
+#endif
 void cmd_reboot_bootloader(const char *arg, void *data, unsigned sz)
 {
 	dprintf(INFO, "rebooting the device\n");
@@ -4850,6 +4928,9 @@ void aboot_fastboot_register_commands(void)
 						{"oem off-mode-charge", cmd_oem_off_mode_charger},
 						{"oem select-display-panel", cmd_oem_select_display_panel},
 						{"set_active",cmd_set_active},
+#if HIBERNATION_SUPPORT
+						{"oem hibernation", cmd_oem_hibernation},
+#endif
 #if UNITTEST_FW_SUPPORT
 						{"oem run-tests", cmd_oem_runtests},
 #endif

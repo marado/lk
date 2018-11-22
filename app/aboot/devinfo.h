@@ -1,5 +1,5 @@
 /*
- * * Copyright (c) 2011,2014-2016, The Linux Foundation. All rights reserved.
+ * * Copyright (c) 2011,2014-2018, The Linux Foundation. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -62,5 +62,7 @@ struct device_info
 	uint64_t rollback_index[MAX_VB_PARTITIONS];
 	uint32_t user_public_key_length;
 	uint8_t user_public_key[MAX_USER_KEY_SIZE];
+	bool hibernation_golden_image;
+	bool hibernation;
 };
 #endif
