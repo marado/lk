@@ -602,7 +602,7 @@ static struct qup_spi_dev *qup_blsp_common_init(uint8_t blsp_id, uint8_t qup_id)
 
 	/* Initialize the GPIO for BLSP spi */
 	gpio_config_blsp_spi(blsp_id, qup_id);
-	clock_config_blsp_spi(blsp_id, qup_id);
+	//clock_config_blsp_spi(blsp_id, qup_id);
 
 	return dev;
 }
