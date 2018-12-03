@@ -740,37 +740,6 @@ void clock_config_blsp_i2c(uint8_t blsp_id, uint8_t qup_id)
 	}
 }
 
-/* Configure spi clock */
-void clock_config_blsp_spi(uint8_t blsp_id, uint8_t qup_id)
-{
-	uint8_t ret = 0;
-	char clk_name[64];
-
-	if(blsp_id > BLSP_ID_2) {
-		dprintf(CRITICAL, "Incorrect BLSP-%d configuration\n", blsp_id);
-		ASSERT(0);
-	}
-
-	snprintf(clk_name, sizeof(clk_name), "gcc_blsp%u_ahb_clk", blsp_id);
-
-	ret = clk_get_set_enable(clk_name, 0 , 1);
-
-	if (ret) {
-		dprintf(CRITICAL, "%s: Failed to enable %s clock\n", __func__, clk_name);
-		return;
-	}
-
-	snprintf(clk_name, sizeof(clk_name), "gcc_blsp%u_qup%u_spi_apps_clk", blsp_id, qup_id);
-
-	/* Set the highest clk frequency by default for good performance. */
-	ret = clk_get_set_enable(clk_name, 50000000, 1);
-
-	if (ret) {
-		dprintf(CRITICAL, "%s: Failed to enable %s\n", __func__, clk_name);
-		return;
-	}
-}
-
 void hdmi_ahb_core_clk_enable(void)
 {
 	int ret;

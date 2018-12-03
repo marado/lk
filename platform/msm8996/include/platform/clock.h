@@ -206,7 +206,6 @@ void video_gdsc_disable();
 void camera_clocks_enable(int csi, int enable);
 void camera_gdsc_enable(int enable);
 void clock_config_blsp_i2c(uint8_t blsp_id, uint8_t qup_id);
-void clock_config_blsp_spi(uint8_t blsp_id, uint8_t qup_id);
 
 void hdmi_ahb_core_clk_enable(void);
 void hdmi_pixel_clk_enable(uint32_t rate);
