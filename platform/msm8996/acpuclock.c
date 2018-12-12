@@ -708,7 +708,7 @@ void clock_config_blsp_i2c(uint8_t blsp_id, uint8_t qup_id)
 	}
 
 	if (qup_id == QUP_ID_1) {
-		snprintf(clk_name, sizeof(clk_name), "blsp2_qup2_ahb_iface_clk");
+		snprintf(clk_name, sizeof(clk_name), "gcc_blsp2_ahb_clk");
 	}
 	else if (qup_id == QUP_ID_3) {
 		snprintf(clk_name, sizeof(clk_name), "blsp1_qup4_ahb_iface_clk");
