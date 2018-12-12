@@ -340,6 +340,13 @@ unsigned int usb_phy_bcr();
 #define RPMB_SND_RCV_BUF            0x92100000
 #define RPMB_SND_RCV_BUF_SZ         0x2
 
+/* Early domain services in LK communicate with
+ * kernel through a shared memory block, define
+ * the start address of the block and size in MB
+ */
+#define EARLY_DOMAIN_SHARED_MEM     0xbdc00000
+#define EARLY_DOMAIN_SHARED_MEM_SZ  0x1
+
 #define TCSR_BOOT_MISC_DETECT       0x007B3000
 
 #define MSM_MMSS_CLK_CTL_BASE       0x8C0000

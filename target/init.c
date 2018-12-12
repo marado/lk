@@ -280,6 +280,12 @@ __WEAK uint32_t target_ddr_cfg_val()
 	return DDR_CONFIG_VAL;
 }
 
+/*stub for getting shared page start for early_domain */
+__WEAK void *get_target_early_domain_shm_start()
+{
+return NULL;
+}
+
 /* stub for early domain */
 __WEAK void earlydomain()
 {

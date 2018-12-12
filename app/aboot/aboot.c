@@ -62,6 +62,8 @@
 #include <decompress.h>
 #include <platform/timer.h>
 #include <sys/types.h>
+#include <early_domain.h>
+
 #if USE_RPMB_FOR_DEVINFO
 #include <rpmb.h>
 #endif
@@ -344,6 +346,10 @@ char is_early_camera_enabled[MAX_RSP_SIZE];
 char is_early_audio_enabled[MAX_RSP_SIZE];
 char soc_version_str[MAX_RSP_SIZE];
 char block_size_string[MAX_RSP_SIZE];
+
+#if EARLYDOMAIN_SUPPORT
+bool update_early_domain_dt;
+#endif
 
 #if PRODUCT_IOT
 /* For IOT we are using custom version */
@@ -4964,8 +4970,11 @@ void aboot_init(const struct app_descriptor *app)
 	read_allow_oem_unlock(&device);
 
 	/* enable secondary core for early domain services */
+
+#if EARLYDOMAIN_SUPPORT
 	if (device.early_domain_enabled) {
 		bs_set_timestamp(BS_EARLY_DOMAIN_START);
+		update_early_domain_dt = true;
 		if (device.early_camera_enabled) {
 			set_early_camera_enabled(TRUE);
 			target_early_camera_init();
@@ -4975,6 +4984,8 @@ void aboot_init(const struct app_descriptor *app)
 		}
 		enable_secondary_core();
 	}
+#endif /*EARLYDOMAIN_SUPPORT*/
+
 	/* Detect multi-slot support */
 	if (partition_multislot_is_supported())
 	{
