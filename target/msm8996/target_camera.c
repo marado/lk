@@ -44,6 +44,7 @@
 #include <dev/keys.h>
 #include <pm8x41_hw.h>
 #include <early_domain.h>
+#include <boot_stats.h>
 
 #define VFE_PING_ADDR 0xB3FFF000
 #define VFE_PONG_ADDR 0xB43FF000
@@ -2547,9 +2548,8 @@ int early_camera_flip(void)
 	}
 
 	if (firstframe == true) {
-		dprintf(CRITICAL,
-			"Early Camera - First Camera image frame KPI\n");
 		cam_place_kpi_marker("Camera Image in memory");
+		bs_set_timestamp(BS_EARLY_CAMERA_START);
 	}
 
 	frame_counter++;
