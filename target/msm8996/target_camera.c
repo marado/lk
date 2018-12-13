@@ -43,6 +43,7 @@
 #include <target/target_camera.h>
 #include <dev/keys.h>
 #include <pm8x41_hw.h>
+#include <boot_stats.h>
 
 
 #define EARLY_CAMERA_SIGNAL_DONE 0xa5a5a5a5
@@ -2552,9 +2553,8 @@ int early_camera_flip(void)
 	}
 
 	if (firstframe == true) {
-		dprintf(CRITICAL,
-			"Early Camera - First Camera image frame KPI\n");
 		cam_place_kpi_marker("Camera Image in memory");
+		bs_set_timestamp(BS_EARLY_CAMERA_START);
 	}
 
 	frame_counter++;
