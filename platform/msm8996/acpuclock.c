@@ -813,8 +813,9 @@ void hdmi_core_ahb_clk_disable(void)
 }
 
 #ifdef EARLYDOMAIN_SUPPORT
+
 /* Configure camera clocks */
-void camera_clocks_enable(int enable)
+void camera_clocks_enable(int csi, int enable)
 {
 	int ret = 0;
 
@@ -909,62 +910,6 @@ void camera_clocks_enable(int enable)
 		ASSERT(0);
 	}
 
-	ret = clk_get_set_enable("camss_csi0_ahb_clk",0, enable);
-	if(ret)
-	{
-		dprintf(CRITICAL, "failed to set camss_csi0_ahb_clk ret = %d\n", ret);
-		ASSERT(0);
-	}
-
-	ret = clk_get_set_enable("camss_csi2_ahb_clk",0, enable);
-	if(ret)
-	{
-		dprintf(CRITICAL, "failed to set camss_csi2_ahb_clk ret = %d\n", ret);
-		ASSERT(0);
-	}
-
-	ret = clk_get_set_enable("csi0_clk_src",200000000, enable);
-	if(ret)
-	{
-		dprintf(CRITICAL, "failed to set csi0_clk_src ret = %d\n", ret);
-		ASSERT(0);
-	}
-
-	ret = clk_get_set_enable("camss_csi0_clk",0, enable);
-	if(ret)
-	{
-		dprintf(CRITICAL, "failed to set camss_csi0_clk ret = %d\n", ret);
-		ASSERT(0);
-	}
-
-	ret = clk_get_set_enable("camss_csi0phy_clk",0, enable);
-	if(ret)
-	{
-		dprintf(CRITICAL, "failed to set camss_csi0phy_clk ret = %d\n", ret);
-		ASSERT(0);
-	}
-
-	ret = clk_get_set_enable("camss_csi0pix_clk",0, enable);
-	if(ret)
-	{
-		dprintf(CRITICAL, "failed to set camss_csi0pix_clk ret = %d\n", ret);
-		ASSERT(0);
-	}
-
-	ret = clk_get_set_enable("camss_csi0rdi_clk",0, enable);
-	if(ret)
-	{
-		dprintf(CRITICAL, "failed to set camss_csi0rdi_clk ret = %d\n", ret);
-		ASSERT(0);
-	}
-
-	ret = clk_get_set_enable("csi0phytimer_clk_src",200000000, enable);
-	if(ret)
-	{
-		dprintf(CRITICAL, "failed to set csi0phytimer_clk_src ret = %d\n", ret);
-		ASSERT(0);
-	}
-
 	ret = clk_get_set_enable("camss_vfe_ahb_clk",0, enable);
 	if(ret)
 	{
@@ -986,61 +931,6 @@ void camera_clocks_enable(int enable)
 		ASSERT(0);
 	}
 
-	ret = clk_get_set_enable("camss_csi2_clk",200000000, enable);
-	if(ret)
-	{
-		dprintf(CRITICAL, "failed to set camss_csi2_clk ret = %d\n", ret);
-		ASSERT(0);
-	}
-
-	ret = clk_get_set_enable("camss_csi2phy_clk",200000000, enable);
-	if(ret)
-	{
-		dprintf(CRITICAL, "failed to set camss_csi2phy_clk ret = %d\n", ret);
-		ASSERT(0);
-	}
-
-	ret = clk_get_set_enable("csi2phytimer_clk_src",200000000, enable);
-	if(ret)
-	{
-		dprintf(CRITICAL, "failed to set csi2phytimer_clk_src ret = %d\n", ret);
-		ASSERT(0);
-	}
-
-	ret = clk_get_set_enable("camss_csi2phytimer_clk",0, enable);
-	if(ret)
-	{
-		dprintf(CRITICAL, "failed to set camss_csi2phytimer_clk ret = %d\n", ret);
-		ASSERT(0);
-	}
-
-	ret = clk_get_set_enable("csiphy2_3p_clk_src",100000000, enable);
-	if(ret)
-	{
-		dprintf(CRITICAL, "failed to set csiphy2_3p_clk_src ret = %d\n", ret);
-		ASSERT(0);
-	}
-
-	ret = clk_get_set_enable("camss_csiphy2_3p_clk",0, enable);
-	if(ret)
-	{
-		dprintf(CRITICAL, "failed to set camss_csiphy2_3p_clk ret = %d\n", ret);
-		ASSERT(0);
-	}
-
-	ret = clk_get_set_enable("camss_csi2rdi_clk",200000000, enable);
-	if(ret)
-	{
-		dprintf(CRITICAL, "failed to set camss_csi2rdi_clk ret = %d\n", ret);
-		ASSERT(0);
-	}
-
-	ret = clk_get_set_enable("camss_csi2pix_clk",200000000, enable);
-	if(ret)
-	{
-		dprintf(CRITICAL, "failed to set camss_csi2pix_clk ret = %d\n", ret);
-		ASSERT(0);
-	}
 
 	ret = clk_get_set_enable("camss_cpp_vbif_ahb_clk",0, enable);
 	if(ret)
@@ -1083,8 +973,144 @@ void camera_clocks_enable(int enable)
 		dprintf(CRITICAL, "failed to set mmss_mmagic_cfg_ahb_clk ret = %d\n", ret);
 		ASSERT(0);
 	}
+
+	if (csi == 1)
+	{
+		ret = clk_get_set_enable("camss_csi1_ahb_clk",0, enable);
+		if(ret)
+		{
+			dprintf(CRITICAL, "failed to set camss_csi1_ahb_clk ret = %d\n", ret);
+			ASSERT(0);
+		}
+
+		ret = clk_get_set_enable("csi1_clk_src",200000000, enable);
+		if(ret)
+		{
+			dprintf(CRITICAL, "failed to set csi1_clk_src ret = %d\n", ret);
+			ASSERT(0);
+		}
+
+		ret = clk_get_set_enable("camss_csi1_clk",0, enable);
+		if(ret)
+		{
+			dprintf(CRITICAL, "failed to set camss_csi1_clk ret = %d\n", ret);
+			ASSERT(0);
+		}
+
+		ret = clk_get_set_enable("camss_csi1phy_clk",0, enable);
+		if(ret)
+		{
+			dprintf(CRITICAL, "failed to set camss_csi1phy_clk ret = %d\n", ret);
+			ASSERT(0);
+		}
+
+		ret = clk_get_set_enable("camss_csi1pix_clk",0, enable);
+		if(ret)
+		{
+			dprintf(CRITICAL, "failed to set camss_csi1pix_clk ret = %d\n", ret);
+			ASSERT(0);
+		}
+
+		ret = clk_get_set_enable("camss_csi1rdi_clk",0, enable);
+		if(ret)
+		{
+			dprintf(CRITICAL, "failed to set camss_csi1rdi_clk ret = %d\n", ret);
+			ASSERT(0);
+		}
+
+		ret = clk_get_set_enable("csi1phytimer_clk_src",200000000, enable);
+		if(ret)
+		{
+			dprintf(CRITICAL, "failed to set csi1phytimer_clk_src ret = %d\n", ret);
+			ASSERT(0);
+		}
+
+		ret = clk_get_set_enable("camss_csi1phytimer_clk",0, enable);
+		if(ret)
+		{
+			dprintf(CRITICAL, "failed to set camss_csi1phytimer_clk ret = %d\n", ret);
+			ASSERT(0);
+		}
+
+		ret = clk_get_set_enable("csiphy1_3p_clk_src",100000000, enable);
+		if(ret)
+		{
+			dprintf(CRITICAL, "failed to set csiphy1_3p_clk_src ret = %d\n", ret);
+			ASSERT(0);
+		}
+
+		ret = clk_get_set_enable("camss_csiphy1_3p_clk",0, enable);
+		if(ret)
+		{
+			dprintf(CRITICAL, "failed to set camss_csiphy1_3p_clk ret = %d\n", ret);
+			ASSERT(0);
+		}
+	} else if (csi == 2) {
+		ret = clk_get_set_enable("camss_csi2_ahb_clk",0, enable);
+		if(ret)
+		{
+			dprintf(CRITICAL, "failed to set camss_csi2_ahb_clk ret = %d\n", ret);
+			ASSERT(0);
+		}
+
+		ret = clk_get_set_enable("camss_csi2_clk",200000000, enable);
+		if(ret)
+		{
+			dprintf(CRITICAL, "failed to set camss_csi2_clk ret = %d\n", ret);
+			ASSERT(0);
+		}
+
+		ret = clk_get_set_enable("camss_csi2phy_clk",200000000, enable);
+		if(ret)
+		{
+			dprintf(CRITICAL, "failed to set camss_csi2phy_clk ret = %d\n", ret);
+			ASSERT(0);
+		}
+
+		ret = clk_get_set_enable("csi2phytimer_clk_src",200000000, enable);
+		if(ret)
+		{
+			dprintf(CRITICAL, "failed to set csi2phytimer_clk_src ret = %d\n", ret);
+			ASSERT(0);
+		}
+
+		ret = clk_get_set_enable("camss_csi2phytimer_clk",0, enable);
+		if(ret)
+		{
+			dprintf(CRITICAL, "failed to set camss_csi2phytimer_clk ret = %d\n", ret);
+			ASSERT(0);
+		}
+
+		ret = clk_get_set_enable("csiphy2_3p_clk_src",100000000, enable);
+		if(ret)
+		{
+			dprintf(CRITICAL, "failed to set csiphy2_3p_clk_src ret = %d\n", ret);
+			ASSERT(0);
+		}
+
+		ret = clk_get_set_enable("camss_csiphy2_3p_clk",0, enable);
+		if(ret)
+		{
+			dprintf(CRITICAL, "failed to set camss_csiphy2_3p_clk ret = %d\n", ret);
+			ASSERT(0);
+		}
+
+		ret = clk_get_set_enable("camss_csi2rdi_clk",200000000, enable);
+		if(ret)
+		{
+			dprintf(CRITICAL, "failed to set camss_csi2rdi_clk ret = %d\n", ret);
+			ASSERT(0);
+		}
+
+		ret = clk_get_set_enable("camss_csi2pix_clk",200000000, enable);
+		if(ret)
+		{
+			dprintf(CRITICAL, "failed to set camss_csi2pix_clk ret = %d\n", ret);
+			ASSERT(0);
+		}
+	}
 }
 #else
-void camera_clocks_enable(int enable) {
+void camera_clocks_enable(int csi, int enable) {
 }
 #endif

@@ -38,6 +38,8 @@
 
 #define MMSS_CAMSS_CSI0_CBCR            REG_MM(0x30B4)
 #define MMSS_CAMSS_CSI0_AHB_CBCR        REG_MM(0x30BC)
+#define MMSS_CAMSS_CSI1_CBCR            REG_MM(0x3124)
+#define MMSS_CAMSS_CSI1_AHB_CBCR        REG_MM(0x3128)
 #define MMSS_CCI_CMD_RCGR               REG_MM(0x3300)
 #define MMSS_CCI_CFG_RCGR               REG_MM(0x3304)
 #define MMSS_CCI_M                      REG_MM(0x3308)
@@ -63,21 +65,34 @@
 #define MMSS_CAMSS_ISPIF_AHB_CBCR       REG_MM(0x3224)
 #define MMSS_CAMSS_CSI2_AHB_CBCR        REG_MM(0x3188)
 #define MMSS_CAMSS_CSI2PHYTIMER_CBCR    REG_MM(0x3084)
+#define MMSS_CAMSS_CSI1PHYTIMER_CBCR    REG_MM(0x3054)
+
 #define MMSS_SMMU_VFE_AXI_CBCR          REG_MM(0x3C08)
 #define MMSS_SMMU_VFE_AHB_CBCR          REG_MM(0x3C04)
 #define MMSS_CSI0_CMD_RCGR              REG_MM(0x3090)
 #define MMSS_CSI0_CFG_RCGR              REG_MM(0x3094)
+#define MMSS_CSI1_CMD_RCGR              REG_MM(0x3100)
+#define MMSS_CSI1_CFG_RCGR              REG_MM(0x3104)
 #define MMSS_CAMSS_CSI0PHY_CBCR         REG_MM(0x30C4)
 #define MMSS_CAMSS_CSI0PIX_CBCR         REG_MM(0x30E4)
 #define MMSS_CAMSS_CSI0RDI_CBCR         REG_MM(0x30D4)
+#define MMSS_CAMSS_CSI1PHY_CBCR         REG_MM(0x3134)
+#define MMSS_CAMSS_CSI1PIX_CBCR         REG_MM(0x3154)
+#define MMSS_CAMSS_CSI1RDI_CBCR         REG_MM(0x3144)
+
 #define MMSS_CSI0PHYTIMER_CMD_RCGR      REG_MM(0x3000)
 #define MMSS_CSI0PHYTIMER_CFG_RCGR      REG_MM(0x3004)
+#define MMSS_CSI1PHYTIMER_CMD_RCGR      REG_MM(0x3030)
+#define MMSS_CSI1PHYTIMER_CFG_RCGR      REG_MM(0x3034)
 #define MMSS_CSI2PHYTIMER_CMD_RCGR      REG_MM(0x3060)
 #define MMSS_CSI2PHYTIMER_CFG_RCGR      REG_MM(0x3064)
 #define MMSS_CAMSS_CSI2PHY_CBCR         REG_MM(0x3194)
 #define MMSS_CSI2_CMD_RCGR              REG_MM(0x3160)
 #define MMSS_CSI2_CFG_RCGR              REG_MM(0x3164)
 #define MMSS_CAMSS_CSI2_CBCR            REG_MM(0x3184)
+#define MMSS_CSIPHY1_3P_CMD_RCGR        REG_MM(0x3260)
+#define MMSS_CSIPHY1_3P_CFG_RCGR        REG_MM(0x3264)
+#define MMSS_CAMSS_CSIPHY1_3P_CBCR      REG_MM(0x3254)
 #define MMSS_CSIPHY2_3P_CMD_RCGR        REG_MM(0x3280)
 #define MMSS_CSIPHY2_3P_CFG_RCGR        REG_MM(0x3284)
 #define MMSS_CAMSS_CSIPHY2_3P_CBCR      REG_MM(0x3274)
@@ -188,7 +203,7 @@ void mmss_gdsc_enable();
 void mmss_gdsc_disable();
 void video_gdsc_enable();
 void video_gdsc_disable();
-void camera_clocks_enable(int enable);
+void camera_clocks_enable(int csi, int enable);
 void camera_gdsc_enable(int enable);
 void clock_config_blsp_i2c(uint8_t blsp_id, uint8_t qup_id);
 void clock_config_blsp_spi(uint8_t blsp_id, uint8_t qup_id);
