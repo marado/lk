@@ -35,6 +35,7 @@
 #include <clock.h>
 #include <platform/clock.h>
 #include <platform.h>
+#include <blsp_qup.h>
 
 #define MAX_LOOPS	500
 
@@ -566,4 +567,40 @@ void mmss_dsi_clock_disable(uint32_t flags)
 		writel(0x0, DSI_BYTE1_CBCR);
 		writel(0x0, DSI_PIXEL1_CBCR);
 	}
+}
+
+
+void clock_config_blsp_i2c(uint8_t blsp_id, uint8_t qup_id)
+{
+    uint8_t ret = 0;
+    char clk_name[64] = {'\0'};
+
+    struct clk *qup_clk;
+
+    /* FIXME: hardcoded logic for only one combination */
+    if((blsp_id != BLSP_ID_2) || (qup_id != QUP_ID_0)) {
+        dprintf(CRITICAL, "Unsupported BLSP QUP Configuration %d:%d \n",
+                blsp_id, qup_id);
+        return;
+    }
+
+    snprintf(clk_name, sizeof(clk_name), "gcc_blsp2_ahb_clk");
+    ret = clk_get_set_enable(clk_name, 0 , 1);
+    if (ret) {
+        dprintf(CRITICAL, "Failed to enable %s clock\n", clk_name);
+        return;
+    }
+
+    snprintf(clk_name, sizeof(clk_name), "gcc_blsp2_qup1_i2c_apps_clk");
+    qup_clk = clk_get(clk_name);
+    if (!qup_clk) {
+        dprintf(CRITICAL, "Failed to get %s\n", clk_name);
+        return;
+    }
+
+    ret = clk_enable(qup_clk);
+    if (ret) {
+        dprintf(CRITICAL, "Failed to enable %s\n", clk_name);
+        return;
+    }
 }

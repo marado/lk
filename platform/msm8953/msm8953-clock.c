@@ -684,13 +684,57 @@ static struct vote_clk gcc_ce1_axi_clk = {
 	},
 };
 
+/*FIXME: I2C 5 for reading display Id */
+static struct vote_clk gcc_blsp2_ahb_clk = {
+    .cbcr_reg = (uint32_t *) BLSP2_AHB_CBCR,
+    .vote_reg = (uint32_t *) APCS_CLOCK_BRANCH_ENA_VOTE,
+    .en_mask = BIT(20),
+
+    .c = {
+        .dbg_name = "gcc_blsp2_ahb_clk",
+        .ops = &clk_ops_vote,
+    },
+};
+
+static struct clk_freq_tbl ftbl_blsp_i2c_apps_clk_src[] = {
+    F(  19200000,                 cxo,    1,    0,     0),
+    F(  25000000, gpll0_out_main_div2,   16,    0,     0),
+    F(  50000000,               gpll0,   16,    0,     0),
+    F_END
+};
+
+static struct rcg_clk gcc_blsp2_qup1_i2c_apps_clk_src = {
+    .cmd_reg      = (uint32_t *) BLSP2_QUP1_I2C_APPS_CMD_RCGR,
+    .cfg_reg      = (uint32_t *) BLSP2_QUP1_I2C_APPS_CFG_RCGR,
+    .set_rate     = clock_lib2_rcg_set_rate_hid,
+    .freq_tbl     = ftbl_blsp_i2c_apps_clk_src,
+    .current_freq = &rcg_dummy_freq,
+
+    .c = {
+        .dbg_name = "gcc_blsp2_qup1_i2c_apps_clk_src",
+        .ops      = &clk_ops_rcg,
+    },
+};
+
+static struct branch_clk gcc_blsp2_qup1_i2c_apps_clk = {
+    .cbcr_reg = (uint32_t *) BLSP2_QUP1_I2C_APPS_CBCR,
+    .parent   = &gcc_blsp2_qup1_i2c_apps_clk_src.c,
+    .has_sibling = 0,
+
+    .c = {
+        .dbg_name = "gcc_blsp2_qup1_i2c_apps_clk",
+        .ops      = &clk_ops_branch,
+    },
+};
+
+
 /* Clock lookup table */
 static struct clk_lookup msm_clocks_8953[] =
 {
 	CLK_LOOKUP("sdc1_iface_clk", gcc_sdcc1_ahb_clk.c),
 	CLK_LOOKUP("sdc1_core_clk",  gcc_sdcc1_apps_clk.c),
 
-	CLK_LOOKUP("sdc2_iface_clk", gcc_sdcc2_ahb_clk.c),
+    CLK_LOOKUP("sdc2_iface_clk", gcc_sdcc2_ahb_clk.c),
 	CLK_LOOKUP("sdc2_core_clk",  gcc_sdcc2_apps_clk.c),
 
 	CLK_LOOKUP("uart1_iface_clk", gcc_blsp1_ahb_clk.c),
@@ -720,6 +764,13 @@ static struct clk_lookup msm_clocks_8953[] =
 	CLK_LOOKUP("ce1_axi_clk",  gcc_ce1_axi_clk.c),
 	CLK_LOOKUP("ce1_core_clk", gcc_ce1_clk.c),
 	CLK_LOOKUP("ce1_src_clk",  ce1_clk_src.c),
+
+    /* BLSP CLOCKS */
+    CLK_LOOKUP("gcc_blsp2_ahb_clk", gcc_blsp2_ahb_clk.c),
+    CLK_LOOKUP("gcc_blsp2_qup1_i2c_apps_clk_src",
+               gcc_blsp2_qup1_i2c_apps_clk_src.c),
+    CLK_LOOKUP("gcc_blsp2_qup1_i2c_apps_clk",
+        gcc_blsp2_qup1_i2c_apps_clk.c),
 };
 
 void platform_clock_init(void)

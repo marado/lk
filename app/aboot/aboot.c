@@ -61,6 +61,9 @@
 #include <decompress.h>
 #include <platform/timer.h>
 #include <sys/types.h>
+#include <platform/gpio.h>
+#include <panel_detect.h>
+
 #if USE_RPMB_FOR_DEVINFO
 #include <rpmb.h>
 #endif
@@ -112,6 +115,8 @@ bool pwr_key_is_pressed = false;
 static bool is_systemd_present=false;
 static void publish_getvar_multislot_vars();
 static bool critical_flash_allowed(const char * entry);
+static void gp_config_prod_id_pins(void);
+static void gp_config_board_id_pins(void);
 /* fastboot command function pointer */
 typedef void (*fastboot_cmd_fn) (const char *, void *, unsigned);
 
@@ -162,6 +167,14 @@ struct fastboot_cmd_desc {
 #define CMD_ERASE 2
 #define CMD_BOOT  3
 #define CMD_META  4
+
+#define TLMM_GOPRO_PROD_ID_MSB 50
+#define TLMM_GOPRO_PROD_ID_LSB 51
+
+#define TLMM_GOPRO_BOARD_ID_0  52
+#define TLMM_GOPRO_BOARD_ID_1  53
+#define TLMM_GOPRO_BOARD_ID_2  54
+#define TLMM_GOPRO_BOARD_ID_3  55
 
 #if USE_BOOTDEV_CMDLINE
 static const char *emmc_cmdline = " androidboot.bootdevice=";
@@ -425,7 +438,13 @@ unsigned char *update_cmdline(const char * cmdline)
 	unsigned char *cmdline_final = NULL;
 	int pause_at_bootup = 0;
 	bool warm_boot = false;
-	bool gpt_exists = partition_gpt_exists();
+    //bool gpt_exists = partition_gpt_exists();
+    /* QMZ 661 is filled to track this change
+     * Need to understand why gpt table is being read
+     * We are not updating the gpt table so this should
+     * be set to zero
+     */
+    bool gpt_exists = 0;
 	int have_target_boot_params = 0;
 	char *boot_dev_buf = NULL;
     	bool is_mdtp_activated = 0;
@@ -513,6 +532,18 @@ unsigned char *update_cmdline(const char * cmdline)
 		pause_at_bootup = 1;
 		cmdline_len += strlen(battchg_pause);
 	}
+	else if (target_pause_for_battery_charge()) {
+		pause_at_bootup = 1;
+		cmdline_len += strlen(battchg_pause);
+	}
+	else if (target_pause_for_battery_charge()) {
+		pause_at_bootup = 1;
+		cmdline_len += strlen(battchg_pause);
+	}
+	else if (target_pause_for_battery_charge()) {
+		pause_at_bootup = 1;
+		cmdline_len += strlen(battchg_pause);
+	}
 
 	if(target_use_signed_kernel() && auth_kernel_img) {
 		cmdline_len += strlen(auth_kernel);
@@ -578,9 +609,9 @@ unsigned char *update_cmdline(const char * cmdline)
 			target_display_panel_node(display_panel_buf,
 			MAX_PANEL_BUF_SIZE) &&
 			strlen(display_panel_buf)) {
-			cmdline_len += strlen(display_panel_buf);
-		}
-	}
+            cmdline_len += strlen(display_panel_buf);
+        }
+    }
 #endif
 
 	if (target_warm_boot()) {
@@ -3947,6 +3978,7 @@ int splash_screen_flash()
 	return 0;
 }
 
+extern unsigned reboot_mode;
 int splash_screen_mmc()
 {
 	int index = INVALID_PTN;
@@ -3956,7 +3988,11 @@ int splash_screen_mmc()
 	uint32_t blocksize, realsize, readsize;
 	uint8_t *base;
 
+    if(RECOVERY_MODE == reboot_mode) {
+        index = partition_get_index("recsplash");
+    } else {
 	index = partition_get_index("splash");
+    }
 	if (index == 0) {
 		dprintf(CRITICAL, "ERROR: splash Partition table not found\n");
 		return -1;
@@ -4353,9 +4389,10 @@ void aboot_fastboot_register_commands(void)
 #endif
 }
 
+unsigned reboot_mode = 0;
+unsigned silent_boot = 0;
 void aboot_init(const struct app_descriptor *app)
 {
-	unsigned reboot_mode = 0;
 	int boot_err_type = 0;
 	int boot_slot = INVALID;
 
@@ -4382,7 +4419,16 @@ void aboot_init(const struct app_descriptor *app)
 	read_device_info(&device);
 	read_allow_oem_unlock(&device);
 
-	/* Detect multi-slot support */
+    /* set the GPIO Pins for reading Prod ID */
+    gp_config_prod_id_pins();
+    gp_config_board_id_pins();
+
+    if (panel_detect_init() || panel_update_info(&device))
+    {
+        dprintf(CRITICAL, "auto panel_detect() failed...\n");
+    }
+
+    /* Detect multi-slot support */
 	if (partition_multislot_is_supported())
 	{
 		boot_slot = partition_find_active_slot();
@@ -4398,12 +4444,18 @@ void aboot_init(const struct app_descriptor *app)
 			dprintf(INFO, "Active Slot: (%s)\n", SUFFIX_SLOT(boot_slot));
 		}
 	}
+#if USE_PON_REBOOT_REG
+    reboot_mode = check_hard_reboot_mode();
+#else
+    reboot_mode = check_reboot_mode();
+#endif
 
 	/* Display splash screen if enabled */
 #if DISPLAY_SPLASH_SCREEN
 #if NO_ALARM_DISPLAY
 	if (!check_alarm_boot()) {
 #endif
+	if(!target_is_usb_pon_reason()) {
 		dprintf(SPEW, "Display Init: Start\n");
 #if DISPLAY_HDMI_PRIMARY
 	if (!strlen(device.display_panel))
@@ -4421,6 +4473,11 @@ void aboot_init(const struct app_descriptor *app)
 		target_display_init(device.display_panel);
 #endif
 		dprintf(SPEW, "Display Init: Done\n");
+	}
+	else
+	{
+      	silent_boot = 1;
+	}
 #if NO_ALARM_DISPLAY
 	}
 #endif
@@ -4460,11 +4517,6 @@ void aboot_init(const struct app_descriptor *app)
 		boot_into_fastboot = true;
 	#endif
 
-#if USE_PON_REBOOT_REG
-	reboot_mode = check_hard_reboot_mode();
-#else
-	reboot_mode = check_reboot_mode();
-#endif
 	if (reboot_mode == RECOVERY_MODE)
 	{
 		boot_into_recovery = 1;
@@ -4615,6 +4667,31 @@ static int aboot_save_boot_hash_mmc(uint32_t image_addr, uint32_t image_size)
 	return 0;
 }
 
+/*
+ * Sets up the GoPro Prod ID GPIO pins.
+ * The application is responcible to reading the status
+ *
+ * @return void.
+ */
+static void gp_config_prod_id_pins(void)
+{
+    gpio_tlmm_config(TLMM_GOPRO_PROD_ID_MSB, 0, GPIO_INPUT, GPIO_PULL_UP, GPIO_2MA, GPIO_ENABLE);
+    gpio_tlmm_config(TLMM_GOPRO_PROD_ID_LSB, 0, GPIO_INPUT, GPIO_PULL_UP, GPIO_2MA, GPIO_ENABLE);
+}
+
+/*
+ * Sets up the GoPro Board ID GPIO pins.
+ * Set the GPIO to Hi-Z so that reduces the leakage current
+ *
+ * @return void.
+ */
+static void gp_config_board_id_pins(void)
+{
+    gpio_tlmm_config(TLMM_GOPRO_BOARD_ID_0, 0, GPIO_INPUT, GPIO_NO_PULL, GPIO_2MA, GPIO_ENABLE);
+    gpio_tlmm_config(TLMM_GOPRO_BOARD_ID_1, 0, GPIO_INPUT, GPIO_NO_PULL, GPIO_2MA, GPIO_ENABLE);
+    gpio_tlmm_config(TLMM_GOPRO_BOARD_ID_2, 0, GPIO_INPUT, GPIO_NO_PULL, GPIO_2MA, GPIO_ENABLE);
+    gpio_tlmm_config(TLMM_GOPRO_BOARD_ID_3, 0, GPIO_INPUT, GPIO_NO_PULL, GPIO_2MA, GPIO_ENABLE);
+}
 
 APP_START(aboot)
 	.init = aboot_init,

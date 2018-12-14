@@ -11,7 +11,7 @@
  *    notice, this list of conditions and the following disclaimer.
  *  * Redistributions in binary form must reproduce the above copyright
  *    notice, this list of conditions and the following disclaimer in
- *    the documentation and/or other materials provided with the 
+ *    the documentation and/or other materials provided with the
  *    distribution.
  *
  * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
@@ -21,7 +21,7 @@
  * COPYRIGHT OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT,
  * INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING,
  * BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS
- * OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED 
+ * OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED
  * AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
  * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT
  * OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
@@ -32,7 +32,9 @@
 #include <err.h>
 #include <stdlib.h>
 #include <dev/fbcon.h>
+#ifndef DISPLAY_TYPE_MIPI
 #include <splash.h>
+#endif
 #include <platform.h>
 #include <string.h>
 #include <arch/ops.h>
@@ -41,15 +43,28 @@
 #endif
 
 #include "font5x12.h"
+#include <platform/gpio.h>
+#include "gp_recovery_splash.h"
+#include "gp_logo_splash.h"
+#define GP_GPIO_PRODUCT_ID_LSB    51
+#define GP_GPIO_PRODUCT_ID_MSB    50
+
 
 struct pos {
-	int x;
-	int y;
+    int x;
+    int y;
 };
 
 struct fb_color {
-	uint32_t fg;
-	uint32_t bg;
+    uint32_t fg;
+    uint32_t bg;
+};
+
+enum gp_product_id
+{
+   PRODUCT_BADGER = 0,
+   PRODUCT_BOOMER,
+   PRODUCT_RESERVED
 };
 
 static struct fbcon_config *config = NULL;
@@ -87,469 +102,502 @@ static struct pos		cur_pos;
 static struct pos		max_pos;
 static struct fb_color		*fb_color_formats;
 static struct fb_color		fb_color_formats_555[] = {
-					[FBCON_COMMON_MSG] = {RGB565_WHITE, RGB565_BLACK},
-					[FBCON_UNLOCK_TITLE_MSG] = {RGB565_CYAN, RGB565_BLACK},
-					[FBCON_TITLE_MSG] = {RGB565_WHITE, RGB565_BLACK},
-					[FBCON_SUBTITLE_MSG] = {RGB565_SILVER, RGB565_BLACK},
-					[FBCON_YELLOW_MSG] = {RGB565_YELLOW, RGB565_BLACK},
-					[FBCON_ORANGE_MSG] = {RGB565_ORANGE, RGB565_BLACK},
-					[FBCON_RED_MSG] = {RGB565_RED, RGB565_BLACK},
-					[FBCON_GREEN_MSG] = {RGB565_GREEN, RGB565_BLACK},
-					[FBCON_SELECT_MSG_BG_COLOR] = {RGB565_WHITE, RGB565_BLUE}};
+                    [FBCON_COMMON_MSG] = {RGB565_WHITE, RGB565_BLACK},
+                    [FBCON_UNLOCK_TITLE_MSG] = {RGB565_CYAN, RGB565_BLACK},
+                    [FBCON_TITLE_MSG] = {RGB565_WHITE, RGB565_BLACK},
+                    [FBCON_SUBTITLE_MSG] = {RGB565_SILVER, RGB565_BLACK},
+                    [FBCON_YELLOW_MSG] = {RGB565_YELLOW, RGB565_BLACK},
+                    [FBCON_ORANGE_MSG] = {RGB565_ORANGE, RGB565_BLACK},
+                    [FBCON_RED_MSG] = {RGB565_RED, RGB565_BLACK},
+                    [FBCON_GREEN_MSG] = {RGB565_GREEN, RGB565_BLACK},
+                    [FBCON_SELECT_MSG_BG_COLOR] = {RGB565_WHITE, RGB565_BLUE}};
 
 static struct fb_color		fb_color_formats_888[] = {
-					[FBCON_COMMON_MSG] = {RGB888_WHITE, RGB888_BLACK},
-					[FBCON_UNLOCK_TITLE_MSG] = {RGB888_CYAN, RGB888_BLACK},
-					[FBCON_TITLE_MSG] = {RGB888_WHITE, RGB888_BLACK},
-					[FBCON_SUBTITLE_MSG] = {RGB888_SILVER, RGB888_BLACK},
-					[FBCON_YELLOW_MSG] = {RGB888_YELLOW, RGB888_BLACK},
-					[FBCON_ORANGE_MSG] = {RGB888_ORANGE, RGB888_BLACK},
-					[FBCON_RED_MSG] = {RGB888_RED, RGB888_BLACK},
-					[FBCON_GREEN_MSG] = {RGB888_GREEN, RGB888_BLACK},
-					[FBCON_SELECT_MSG_BG_COLOR] = {RGB888_WHITE, RGB888_BLUE}};
+                    [FBCON_COMMON_MSG] = {RGB888_WHITE, RGB888_BLACK},
+                    [FBCON_UNLOCK_TITLE_MSG] = {RGB888_CYAN, RGB888_BLACK},
+                    [FBCON_TITLE_MSG] = {RGB888_WHITE, RGB888_BLACK},
+                    [FBCON_SUBTITLE_MSG] = {RGB888_SILVER, RGB888_BLACK},
+                    [FBCON_YELLOW_MSG] = {RGB888_YELLOW, RGB888_BLACK},
+                    [FBCON_ORANGE_MSG] = {RGB888_ORANGE, RGB888_BLACK},
+                    [FBCON_RED_MSG] = {RGB888_RED, RGB888_BLACK},
+                    [FBCON_GREEN_MSG] = {RGB888_GREEN, RGB888_BLACK},
+                    [FBCON_SELECT_MSG_BG_COLOR] = {RGB888_WHITE, RGB888_BLUE}};
 
 
 static void fbcon_flush(void);
 
 static void fbcon_drawglyph(char *pixels, uint32_t paint, unsigned stride,
-			    unsigned bpp, unsigned *glyph, unsigned scale_factor)
+                unsigned bpp, unsigned *glyph, unsigned scale_factor)
 {
-	unsigned x, y, i, j, k;
-	unsigned data, temp;
-	uint32_t fg_color = paint;
-	stride -= FONT_WIDTH * scale_factor;
+    unsigned x, y, i, j, k;
+    unsigned data, temp;
+    uint32_t fg_color = paint;
+    stride -= FONT_WIDTH * scale_factor;
 
-	data = glyph[0];
-	for (y = 0; y < FONT_HEIGHT / 2; ++y) {
-		temp = data;
-		for (i = 0; i < scale_factor; i++) {
-			data = temp;
-			for (x = 0; x < FONT_WIDTH; ++x) {
-				if (data & 1) {
-					for (j = 0; j < scale_factor; j++) {
-						fg_color = paint;
-						for (k = 0; k < bpp; k++) {
-							*pixels = (unsigned char) fg_color;
-							fg_color = fg_color >> 8;
-							pixels++;
-						}
-					}
-				}
-				else
-				{
-					for (j = 0; j < scale_factor; j++) {
-						pixels = pixels + bpp;
-					}
-				}
-				data >>= 1;
-			}
-			pixels += (stride * bpp);
-		}
-	}
+    data = glyph[0];
+    for (y = 0; y < FONT_HEIGHT / 2; ++y) {
+        temp = data;
+        for (i = 0; i < scale_factor; i++) {
+            data = temp;
+            for (x = 0; x < FONT_WIDTH; ++x) {
+                if (data & 1) {
+                    for (j = 0; j < scale_factor; j++) {
+                        fg_color = paint;
+                        for (k = 0; k < bpp; k++) {
+                            *pixels = (unsigned char) fg_color;
+                            fg_color = fg_color >> 8;
+                            pixels++;
+                        }
+                    }
+                }
+                else
+                {
+                    for (j = 0; j < scale_factor; j++) {
+                        pixels = pixels + bpp;
+                    }
+                }
+                data >>= 1;
+            }
+            pixels += (stride * bpp);
+        }
+    }
 
-	data = glyph[1];
-	for (y = 0; y < FONT_HEIGHT / 2; ++y) {
-		temp = data;
-		for (i = 0; i < scale_factor; i++) {
-			data = temp;
-			for (x = 0; x < FONT_WIDTH; ++x) {
-				if (data & 1) {
-					for (j = 0; j < scale_factor; j++) {
-						fg_color = paint;
-						for (k = 0; k < bpp; k++) {
-							*pixels = (unsigned char) fg_color;
-							fg_color = fg_color >> 8;
-							pixels++;
-						}
-					}
-				}
-				else
-				{
-					for (j = 0; j < scale_factor; j++) {
-						pixels = pixels + bpp;
-					}
-				}
-				data >>= 1;
-			}
-			pixels += (stride * bpp);
-		}
-	}
+    data = glyph[1];
+    for (y = 0; y < FONT_HEIGHT / 2; ++y) {
+        temp = data;
+        for (i = 0; i < scale_factor; i++) {
+            data = temp;
+            for (x = 0; x < FONT_WIDTH; ++x) {
+                if (data & 1) {
+                    for (j = 0; j < scale_factor; j++) {
+                        fg_color = paint;
+                        for (k = 0; k < bpp; k++) {
+                            *pixels = (unsigned char) fg_color;
+                            fg_color = fg_color >> 8;
+                            pixels++;
+                        }
+                    }
+                }
+                else
+                {
+                    for (j = 0; j < scale_factor; j++) {
+                        pixels = pixels + bpp;
+                    }
+                }
+                data >>= 1;
+            }
+            pixels += (stride * bpp);
+        }
+    }
 
 }
 
 void fbcon_draw_msg_background(unsigned y_start, unsigned y_end,
-	uint32_t old_paint, int update)
+    uint32_t old_paint, int update)
 {
-	unsigned i, j;
-	uint32_t bg_color, check_color, tmp_color, tmp1_color;
-	char *pixels;
-	unsigned count = config->width * (FONT_HEIGHT * (y_end - y_start) - 1);
+    unsigned i, j;
+    uint32_t bg_color, check_color, tmp_color, tmp1_color;
+    char *pixels;
+    unsigned count = config->width * (FONT_HEIGHT * (y_end - y_start) - 1);
 
-	pixels = config->base;
-	pixels += y_start * ((config->bpp / 8) * FONT_HEIGHT * config->width);
+    pixels = config->base;
+    pixels += y_start * ((config->bpp / 8) * FONT_HEIGHT * config->width);
 
-	if (update) {
-		bg_color = SELECT_BGCOLOR;
-		check_color = old_paint;
-	} else {
-		bg_color = old_paint;
-		check_color = SELECT_BGCOLOR;
-	}
+    if (update) {
+        bg_color = SELECT_BGCOLOR;
+        check_color = old_paint;
+    } else {
+        bg_color = old_paint;
+        check_color = SELECT_BGCOLOR;
+    }
 
-	for (i = 0; i < count; i++) {
-		tmp1_color = bg_color;
-		tmp_color = 0;
-		for (j = 0; j < (config->bpp / 8); j++) {
-			tmp_color |= *(pixels+j) << j*8;
-		}
+    for (i = 0; i < count; i++) {
+        tmp1_color = bg_color;
+        tmp_color = 0;
+        for (j = 0; j < (config->bpp / 8); j++) {
+            tmp_color |= *(pixels+j) << j*8;
+        }
 
-		if (tmp_color == check_color) {
-			for (j = 0; j < (config->bpp / 8); j++) {
-				*pixels = (unsigned char) tmp1_color;
-				tmp1_color = tmp1_color >> 8;
-				pixels++;
-			}
-		} else {
-			pixels += config->bpp / 8;
-		}
-	}
-	fbcon_flush();
+        if (tmp_color == check_color) {
+            for (j = 0; j < (config->bpp / 8); j++) {
+                *pixels = (unsigned char) tmp1_color;
+                tmp1_color = tmp1_color >> 8;
+                pixels++;
+            }
+        } else {
+            pixels += config->bpp / 8;
+        }
+    }
+    fbcon_flush();
 }
 
 static void fbcon_flush(void)
 {
-	unsigned total_x, total_y;
-	unsigned bytes_per_bpp;
+    unsigned total_x, total_y;
+    unsigned bytes_per_bpp;
 
-	if (config->update_start)
-		config->update_start();
-	if (config->update_done)
-		while (!config->update_done());
+    if (config->update_start)
+        config->update_start();
+    if (config->update_done)
+        while (!config->update_done());
 
-	total_x = config->width;
-	total_y = config->height;
-	bytes_per_bpp = ((config->bpp) / 8);
-	arch_clean_invalidate_cache_range((addr_t) config->base, (total_x * total_y * bytes_per_bpp));
+    total_x = config->width;
+    total_y = config->height;
+    bytes_per_bpp = ((config->bpp) / 8);
+    arch_clean_invalidate_cache_range((addr_t) config->base, (total_x * total_y * bytes_per_bpp));
 }
 
 /* TODO: Take stride into account */
 static void fbcon_scroll_up(void)
 {
-	unsigned short *dst = config->base;
-	unsigned short *src = dst + (config->width * FONT_HEIGHT);
-	unsigned count = config->width * (config->height - FONT_HEIGHT);
+    unsigned short *dst = config->base;
+    unsigned short *src = dst + (config->width * FONT_HEIGHT);
+    unsigned count = config->width * (config->height - FONT_HEIGHT);
 
-	while(count--) {
-		*dst++ = *src++;
-	}
+    while(count--) {
+        *dst++ = *src++;
+    }
 
-	count = config->width * FONT_HEIGHT;
-	while(count--) {
-		*dst++ = BGCOLOR;
-	}
+    count = config->width * FONT_HEIGHT;
+    while(count--) {
+        *dst++ = BGCOLOR;
+    }
 
-	fbcon_flush();
+    fbcon_flush();
 }
 
 void fbcon_draw_line(uint32_t type)
 {
-	char *pixels;
-	uint32_t line_color, tmp_color;
-	int i, j;
+    char *pixels;
+    uint32_t line_color, tmp_color;
+    int i, j;
 
-	/* set line's color via diffrent type */
-	line_color = fb_color_formats[type].fg;
+    /* set line's color via diffrent type */
+    line_color = fb_color_formats[type].fg;
 
-	pixels = config->base;
-	pixels += cur_pos.y * ((config->bpp / 8) * FONT_HEIGHT * config->width);
-	pixels += cur_pos.x * ((config->bpp / 8) * (FONT_WIDTH + 1));
+    pixels = config->base;
+    pixels += cur_pos.y * ((config->bpp / 8) * FONT_HEIGHT * config->width);
+    pixels += cur_pos.x * ((config->bpp / 8) * (FONT_WIDTH + 1));
 
-	for (i = 0; i < (int)config->width; i++) {
-		tmp_color = line_color;
-		for (j = 0; j < (int)(config->bpp / 8); j++) {
-			*pixels = (unsigned char) tmp_color;
-			tmp_color = tmp_color >> 8;
-			pixels++;
-		}
-	}
+    for (i = 0; i < (int)config->width; i++) {
+        tmp_color = line_color;
+        for (j = 0; j < (int)(config->bpp / 8); j++) {
+            *pixels = (unsigned char) tmp_color;
+            tmp_color = tmp_color >> 8;
+            pixels++;
+        }
+    }
 
-	cur_pos.y += 1;
-	cur_pos.x = 0;
-	if(cur_pos.y >= max_pos.y) {
-		cur_pos.y = max_pos.y - 1;
-		fbcon_scroll_up();
-	} else
-		fbcon_flush();
+    cur_pos.y += 1;
+    cur_pos.x = 0;
+    if(cur_pos.y >= max_pos.y) {
+        cur_pos.y = max_pos.y - 1;
+        fbcon_scroll_up();
+    } else
+        fbcon_flush();
 }
 
 static void fbcon_set_colors(int type)
 {
-	BGCOLOR = fb_color_formats[type].bg;
-	FGCOLOR = fb_color_formats[type].fg;
+    BGCOLOR = fb_color_formats[type].bg;
+    FGCOLOR = fb_color_formats[type].fg;
 }
 
 void fbcon_clear(void)
 {
-	unsigned long i = 0, j = 0;
-	unsigned char *pixels = config->base;
-	unsigned count = config->width * config->height;
-	uint32_t bg_color;
+    unsigned long i = 0, j = 0;
+    unsigned char *pixels = config->base;
+    unsigned count = config->width * config->height;
+    uint32_t bg_color;
 
-	fbcon_set_colors(FBCON_COMMON_MSG);
-	for (i = 0; i < count; i++) {
-		bg_color = BGCOLOR;
-		for (j = 0; j < (config->bpp / 8); j++) {
-			*pixels = (unsigned char) bg_color;
-			bg_color = bg_color >> 8;
-			pixels++;
-		}
-	}
-	cur_pos.x = 0;
-	cur_pos.y = 0;
+    fbcon_set_colors(FBCON_COMMON_MSG);
+    for (i = 0; i < count; i++) {
+        bg_color = BGCOLOR;
+        for (j = 0; j < (config->bpp / 8); j++) {
+            *pixels = (unsigned char) bg_color;
+            bg_color = bg_color >> 8;
+            pixels++;
+        }
+    }
+    cur_pos.x = 0;
+    cur_pos.y = 0;
 }
 
 void fbcon_putc_factor(char c, int type, unsigned scale_factor)
 {
-	char *pixels;
+    char *pixels;
 
-	/* ignore anything that happens before fbcon is initialized */
-	if (!config)
-		return;
+    /* ignore anything that happens before fbcon is initialized */
+    if (!config)
+        return;
 
-	if((unsigned char)c > 127)
-		return;
+    if((unsigned char)c > 127)
+        return;
 
-	if((unsigned char)c < 32) {
-		if(c == '\n')
-			goto newline;
-		else if (c == '\r') {
-			cur_pos.x = 0;
-			return;
-		}
-		else
-			return;
-	}
+    if((unsigned char)c < 32) {
+        if(c == '\n')
+            goto newline;
+        else if (c == '\r') {
+            cur_pos.x = 0;
+            return;
+        }
+        else
+            return;
+    }
 
-	if (cur_pos.x == 0 && (unsigned char)c == ' ' &&
-		type != FBCON_SUBTITLE_MSG &&
-		type != FBCON_TITLE_MSG)
-		return;
+    if (cur_pos.x == 0 && (unsigned char)c == ' ' &&
+        type != FBCON_SUBTITLE_MSG &&
+        type != FBCON_TITLE_MSG)
+        return;
 
-	fbcon_set_colors(type);
+    fbcon_set_colors(type);
 
-	pixels = config->base;
-	pixels += cur_pos.y * ((config->bpp / 8) * FONT_HEIGHT * config->width);
-	pixels += cur_pos.x * scale_factor * ((config->bpp / 8) * (FONT_WIDTH + 1));
+    pixels = config->base;
+    pixels += cur_pos.y * ((config->bpp / 8) * FONT_HEIGHT * config->width);
+    pixels += cur_pos.x * scale_factor * ((config->bpp / 8) * (FONT_WIDTH + 1));
 
-	fbcon_drawglyph(pixels, FGCOLOR, config->stride, (config->bpp / 8),
-			font5x12 + (c - 32) * 2, scale_factor);
+    fbcon_drawglyph(pixels, FGCOLOR, config->stride, (config->bpp / 8),
+            font5x12 + (c - 32) * 2, scale_factor);
 
-	cur_pos.x++;
-	if (cur_pos.x >= (int)(max_pos.x / scale_factor))
-		goto newline;
+    cur_pos.x++;
+    if (cur_pos.x >= (int)(max_pos.x / scale_factor))
+        goto newline;
 
-	return;
+    return;
 
 newline:
-	cur_pos.y += scale_factor;
-	cur_pos.x = 0;
-	if(cur_pos.y >= max_pos.y) {
-		cur_pos.y = max_pos.y - 1;
-		fbcon_scroll_up();
-	} else
-		fbcon_flush();
+    cur_pos.y += scale_factor;
+    cur_pos.x = 0;
+    if(cur_pos.y >= max_pos.y) {
+        cur_pos.y = max_pos.y - 1;
+        fbcon_scroll_up();
+    } else
+        fbcon_flush();
 }
 
 void fbcon_putc(char c)
 {
-	fbcon_putc_factor(c, FBCON_COMMON_MSG, SCALE_FACTOR);
+    fbcon_putc_factor(c, FBCON_COMMON_MSG, SCALE_FACTOR);
 }
 
 uint32_t fbcon_get_current_line(void)
 {
-	return cur_pos.y;
+    return cur_pos.y;
 }
 
 uint32_t fbcon_get_max_x(void)
 {
-	return max_pos.x;
+    return max_pos.x;
 }
 
 uint32_t fbcon_get_current_bg(void)
 {
-	return BGCOLOR;
+    return BGCOLOR;
 }
 
 void fbcon_setup(struct fbcon_config *_config)
 {
-	ASSERT(_config);
+    ASSERT(_config);
 
-	config = _config;
+    config = _config;
 
-	switch (config->format) {
-	case FB_FORMAT_RGB565:
-		fb_color_formats = fb_color_formats_555;
-		break;
+    switch (config->format) {
+    case FB_FORMAT_RGB565:
+        fb_color_formats = fb_color_formats_555;
+        break;
         case FB_FORMAT_RGB888:
-		fb_color_formats = fb_color_formats_888;
+        fb_color_formats = fb_color_formats_888;
                 break;
-	default:
-		dprintf(CRITICAL, "unknown framebuffer pixel format\n");
-		ASSERT(0);
-		break;
-	}
+    default:
+        dprintf(CRITICAL, "unknown framebuffer pixel format\n");
+        ASSERT(0);
+        break;
+    }
 
-	SELECT_BGCOLOR = fb_color_formats[FBCON_SELECT_MSG_BG_COLOR].bg;
-	fbcon_set_colors(FBCON_COMMON_MSG);
+    SELECT_BGCOLOR = fb_color_formats[FBCON_SELECT_MSG_BG_COLOR].bg;
+    fbcon_set_colors(FBCON_COMMON_MSG);
 
-	cur_pos.x = 0;
-	cur_pos.y = 0;
-	max_pos.x = config->width / (FONT_WIDTH+1);
-	max_pos.y = (config->height - 1) / FONT_HEIGHT;
+    cur_pos.x = 0;
+    cur_pos.y = 0;
+    max_pos.x = config->width / (FONT_WIDTH+1);
+    max_pos.y = (config->height - 1) / FONT_HEIGHT;
 
 #if !DISPLAY_SPLASH_SCREEN
-	fbcon_clear();
+    fbcon_clear();
 #endif
 
 }
 
 struct fbcon_config* fbcon_display(void)
 {
-	return config;
+    return config;
 }
 
 void fbcon_extract_to_screen(logo_img_header *header, void* address)
 {
-	const uint8_t *imagestart = (const uint8_t *)address;
-	uint pos = 0, offset;
-	uint count = 0;
-	uint x = 0, y = 0;
-	uint8_t *base, *p;
+    const uint8_t *imagestart = (const uint8_t *)address;
+    uint pos = 0, offset;
+    uint count = 0;
+    uint x = 0, y = 0;
+    uint8_t *base, *p;
 
-	if (!config || header->width > config->width
-				|| header->height > config->height) {
-		dprintf(INFO, "the logo img is too large\n");
-		return;
-	}
+    if (!config || header->width > config->width
+                || header->height > config->height) {
+        dprintf(INFO, "the logo img is too large\n");
+        return;
+    }
 
-	base = (uint8_t *) config->base;
+    base = (uint8_t *) config->base;
 
-	/* put the logo to be center */
-	offset = (config->height - header->height) / 2;
-	if (offset)
-		base += (offset * config->width) * 3;
-	offset = (config->width - header->width ) / 2;
+    /* put the logo to be center */
+    offset = (config->height - header->height) / 2;
+    if (offset)
+        base += (offset * config->width) * 3;
+    offset = (config->width - header->width ) / 2;
 
-	x = offset;
-	while (count < (uint)header->height * (uint)header->width) {
-		uint8_t run = *(imagestart + pos);
-		bool repeat_run = (run & 0x80);
-		uint runlen = (run & 0x7f) + 1;
-		uint runpos;
+    x = offset;
+    while (count < (uint)header->height * (uint)header->width) {
+        uint8_t run = *(imagestart + pos);
+        bool repeat_run = (run & 0x80);
+        uint runlen = (run & 0x7f) + 1;
+        uint runpos;
 
-		/* consume the run byte */
-		pos++;
+        /* consume the run byte */
+        pos++;
 
-		p = base + (y * config->width + x) * 3;
+        p = base + (y * config->width + x) * 3;
 
-		/* start of a run */
-		for (runpos = 0; runpos < runlen; runpos++) {
-			*p++ = *(imagestart + pos);
-			*p++ = *(imagestart + pos + 1);
-			*p++ = *(imagestart + pos + 2);
-			count++;
+        /* start of a run */
+        for (runpos = 0; runpos < runlen; runpos++) {
+            *p++ = *(imagestart + pos);
+            *p++ = *(imagestart + pos + 1);
+            *p++ = *(imagestart + pos + 2);
+            count++;
 
-			x++;
+            x++;
 
-			/* if a run of raw pixels, consume an input pixel */
-			if (!repeat_run)
-				pos += 3;
-		}
+            /* if a run of raw pixels, consume an input pixel */
+            if (!repeat_run)
+                pos += 3;
+        }
 
-		/* if this was a run of repeated pixels, consume the one input pixel we repeated */
-		if (repeat_run)
-			pos += 3;
+        /* if this was a run of repeated pixels, consume the one input pixel we repeated */
+        if (repeat_run)
+            pos += 3;
 
-		/* the generator will keep compressing data line by line */
-		/* don't cross the lines */
-		if (x == header->width + offset) {
-			y++;
-			x = offset;
-		}
-	}
+        /* the generator will keep compressing data line by line */
+        /* don't cross the lines */
+        if (x == header->width + offset) {
+            y++;
+            x = offset;
+        }
+    }
 
 }
 
+void gp_get_prod_id(int* prod_id)
+{
+   char gpio_50 = 0;
+   char gpio_51 = 0;
+   gpio_50 = gpio_status(GP_GPIO_PRODUCT_ID_MSB);
+   gpio_51 = gpio_status(GP_GPIO_PRODUCT_ID_LSB);
+   *prod_id = (gpio_51) | (gpio_50 << 1);
+}
+
+extern unsigned reboot_mode;
 void display_default_image_on_screen(void)
 {
-	unsigned i = 0;
-	unsigned total_x;
-	unsigned total_y;
-	unsigned bytes_per_bpp;
-	unsigned image_base;
+    unsigned i = 0;
+    unsigned total_x;
+    unsigned total_y;
+    unsigned bytes_per_bpp;
+    unsigned image_base;
+    unsigned int image_width;
+    unsigned int image_height;
+    char *image_buffer;
+    int prod_id;
 #if DISPLAY_TYPE_MIPI
-	char *image = NULL;
+    char *image = NULL;
 #endif
 
-	if (!config) {
-		dprintf(CRITICAL,"NULL configuration, image cannot be displayed\n");
-		return;
-	}
+    if (!config) {
+        dprintf(CRITICAL,"NULL configuration, image cannot be displayed\n");
+        return;
+    }
 
-	fbcon_clear(); // clear screen with Black color
+    fbcon_clear(); // clear screen with Black color
 
-	total_x = config->width;
-	total_y = config->height;
-	bytes_per_bpp = ((config->bpp) / 8);
-	image_base = ((((total_y/2) - (SPLASH_IMAGE_HEIGHT / 2) - 1) *
-			(config->width)) + (total_x/2 - (SPLASH_IMAGE_WIDTH / 2)));
+    if(RECOVERY_MODE == reboot_mode) {
+        dprintf(CRITICAL,"Recovery mode, load recovery splash image\n");
+        image_buffer = gp_recovery_splash_image_buffer;
+        image_width = GP_RECOVERY_SPLASH_IMAGE_WIDTH;
+        image_height = GP_RECOVERY_SPLASH_IMAGE_HEIGHT;
+    } else {
+        gp_get_prod_id(&prod_id);
+        dprintf(CRITICAL,"Product id is %d\n", prod_id);
+
+        if (prod_id == PRODUCT_BOOMER || prod_id == PRODUCT_BADGER) {
+           dprintf(CRITICAL,"Normal boot, load GoPro boomer splash image\n");
+           image_buffer = gp_logo_splash_image_buffer;
+           image_width = GP_LOGO_SPLASH_IMAGE_WIDTH;
+           image_height = GP_LOGO_SPLASH_IMAGE_HEIGHT;
+        }
+        else {
+           dprintf(CRITICAL, "Invalid product ID , hence returning\n");
+           return;
+        }
+    }
+
+    total_x = config->width;
+    total_y = config->height;
+    bytes_per_bpp = ((config->bpp) / 8);
+    image_base = ((((total_y/2) - (image_height / 2) - 1) *
+            (config->width)) + (total_x/2 - (image_width / 2)));
 
 #if DISPLAY_TYPE_MIPI
 #if ENABLE_WBC
-	image = (pm_appsbl_charging_in_progress() ? image_batt888 : imageBuffer_rgb888);
+    image = (pm_appsbl_charging_in_progress() ? image_batt888 : imageBuffer_rgb888);
 #else
-	image = imageBuffer_rgb888;
+    image = image_buffer;
 #endif
 
-	if (bytes_per_bpp == 3) {
-		for (i = 0; i < SPLASH_IMAGE_HEIGHT; i++) {
-			memcpy (config->base + ((image_base + (i * (config->width))) * bytes_per_bpp),
-			image + (i * SPLASH_IMAGE_WIDTH * bytes_per_bpp),
-			SPLASH_IMAGE_WIDTH * bytes_per_bpp);
-		}
-	}
-	fbcon_flush();
+    if (bytes_per_bpp == 3) {
+        for (i = 0; i < image_height; i++) {
+            memcpy (config->base + ((image_base + (i * (config->width))) * bytes_per_bpp),
+            image + (i * image_width * bytes_per_bpp),
+            image_width * bytes_per_bpp);
+        }
+    }
+    fbcon_flush();
 #if DISPLAY_MIPI_PANEL_NOVATEK_BLUE
-	if(is_cmd_mode_enabled())
-		mipi_dsi_cmd_mode_trigger();
+    if(is_cmd_mode_enabled())
+        mipi_dsi_cmd_mode_trigger();
 #endif
 
 #else
 
-	if (bytes_per_bpp == 2) {
-		for (i = 0; i < SPLASH_IMAGE_HEIGHT; i++) {
-			memcpy (config->base + ((image_base + (i * (config->width))) * bytes_per_bpp),
-			imageBuffer + (i * SPLASH_IMAGE_WIDTH * bytes_per_bpp),
-			SPLASH_IMAGE_WIDTH * bytes_per_bpp);
-		}
-	}
-	fbcon_flush();
+    if (bytes_per_bpp == 2) {
+        for (i = 0; i < image_height; i++) {
+            memcpy (config->base + ((image_base + (i * (config->width))) * bytes_per_bpp),
+            imageBuffer + (i * image_width * bytes_per_bpp),
+            image_width * bytes_per_bpp);
+        }
+    }
+    fbcon_flush();
 #endif
 }
-
 
 void display_image_on_screen(void)
 {
 #if DISPLAY_TYPE_MIPI
-	int fetch_image_from_partition();
-
-	if (fetch_image_from_partition() < 0) {
-		display_default_image_on_screen();
-	} else {
-		/* data has been put into the right place */
-		fbcon_flush();
-	}
+    int fetch_image_from_partition();
+    if(fetch_image_from_partition() < 0) {
+        display_default_image_on_screen();
+    } else {
+        /* data has been put into the right place */
+        fbcon_flush();
+    }
 #else
-	display_default_image_on_screen();
+    display_default_image_on_screen();
 #endif
 }

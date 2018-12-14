@@ -36,9 +36,12 @@
 #include <malloc.h>
 #include <qpic.h>
 #include <target.h>
+#include <qtimer.h>
 #ifdef DISPLAY_TYPE_MDSS
 #include <target/display.h>
 #endif
+
+#define NVD_320P_PANEL_DELAY 40
 
 static struct msm_fb_panel_data *panel;
 
@@ -349,6 +352,8 @@ int msm_display_init(struct msm_fb_panel_data *pdata)
 		ret = pdata->post_power_func(1);
 	if (ret)
 		goto msm_display_init_out;
+
+        mdelay(NVD_320P_PANEL_DELAY);
 
 	/* Turn on backlight */
 	if (pdata->bl_func)

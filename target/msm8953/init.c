@@ -61,6 +61,7 @@
 #include "target/display.h"
 #include "recovery.h"
 #include <ab_partition_parser.h>
+#include <dev/fbcon.h>
 
 #if LONG_PRESS_POWER_ON
 #include <shutdown_detect.h>
@@ -99,6 +100,8 @@
 
 #define SMBCHG_USB_RT_STS 0x21310
 #define USBIN_UV_RT_STS BIT(0)
+
+extern unsigned silent_boot;
 
 struct mmc_device *dev;
 
@@ -181,7 +184,10 @@ int get_target_boot_params(const char *cmdline, const char *part, char **buf)
 					   OR
 					   ...root=/dev/mmcblk0p<NN>...
 					*/
-					buflen += strlen(ROOTDEV_CMDLINE) + sizeof(int) + 1;
+					if(silent_boot == 0)
+						buflen += strlen(ROOTDEV_CMDLINE) + strlen(FB_SPLASH_LOGO) + sizeof(int) + 2;
+					else
+						buflen += strlen(ROOTDEV_CMDLINE) + sizeof(int) + 1;
 				}
 			}
 
@@ -204,8 +210,13 @@ int get_target_boot_params(const char *cmdline, const char *part, char **buf)
 					snprintf(*buf, buflen, "%s %s%d", ROOTDEV_FSTYPE_CMDLINE,
 						 RECOVERY_ROOTDEV_CMDLINE, system_ptn_index);
 				} else {
-					snprintf(*buf, buflen, "%s %s%d", ROOTDEV_FSTYPE_CMDLINE,
-						 ROOTDEV_CMDLINE, system_ptn_index);
+					if(silent_boot == 0)
+						snprintf(*buf, buflen, "%s %s%d %s", ROOTDEV_FSTYPE_CMDLINE,
+							 ROOTDEV_CMDLINE, system_ptn_index, FB_SPLASH_LOGO);
+					else
+						  snprintf(*buf, buflen, "%s %s%d", ROOTDEV_FSTYPE_CMDLINE,
+                             ROOTDEV_CMDLINE, system_ptn_index);
+	
 				}
 			}
 
@@ -318,9 +329,30 @@ uint32_t target_is_pwrkey_pon_reason()
 		return 0;
 }
 
+extern unsigned reboot_mode;
+uint32_t target_is_usb_pon_reason()
+{
+	uint8_t pon_reason = pm8950_get_pon_reason();
+
+	if(RECOVERY_MODE == reboot_mode)
+		return 0;
+
+	if ( (pon_reason == PON1) || (pon_reason == (PON1|USB_CHG)) )
+		return 1;
+	else
+		return 0;
+}
+
 static void target_keystatus()
 {
 	keys_init();
+
+	gpio_tlmm_config(87, 0, GPIO_INPUT, GPIO_PULL_UP, GPIO_8MA, GPIO_ENABLE);
+	dprintf(INFO, "GoPro: Setting Key pull up\n");
+	udelay(10000);
+	gpio_tlmm_config(86, 0, GPIO_INPUT, GPIO_PULL_UP, GPIO_8MA, GPIO_ENABLE);
+	dprintf(INFO, "GoPro: Setting Key pull up\n");
+	udelay(10000);
 
 	if(target_volume_down())
 		keys_post_event(KEY_VOLUMEDOWN, 1);

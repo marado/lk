@@ -146,6 +146,15 @@
 #define BLSP1_UART2_APPS_N                 (CLK_CTL_BASE + 0x3040)
 #define BLSP1_UART2_APPS_D                 (CLK_CTL_BASE + 0x3044)
 
+
+/* I2C5 */
+#define BLSP2_AHB_CBCR                     (CLK_CTL_BASE + 0xB008)
+#define BLSP2_QUP1_I2C_APPS_CBCR           (CLK_CTL_BASE + 0xC008)
+#define BLSP2_QUP1_I2C_APPS_CMD_RCGR       (CLK_CTL_BASE + 0xC00C)
+#define BLSP2_QUP1_I2C_APPS_CFG_RCGR       (CLK_CTL_BASE + 0xC010)
+#define BLSP_QUP_BASE(blsp_id, qup_id)     (PERIPH_SS_BASE + ((blsp_id) - 1) * 0x240000 \
+                                           + 0xB5000 + 0x1000 * (qup_id))
+
 /* USB */
 #define USB_HS_BCR                         (CLK_CTL_BASE + 0x41000)
 #define USB_HS_SYSTEM_CBCR                 (CLK_CTL_BASE + 0x41004)

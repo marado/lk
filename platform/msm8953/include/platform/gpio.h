@@ -69,4 +69,5 @@ void gpio_tlmm_config(uint32_t gpio,
 			uint8_t pull,
 			uint8_t drvstr,
 			uint32_t enable);
+void gpio_config_blsp_i2c(uint8_t blsp_id, uint8_t qup_id);
 #endif

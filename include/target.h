@@ -90,6 +90,7 @@ void target_usb_stop(void);
 uint32_t target_get_hlos_subtype(void);
 void shutdown_device();
 uint32_t target_is_pwrkey_pon_reason(void);
+uint32_t target_is_usb_pon_reason(void);
 bool target_warm_boot(void);
 bool target_use_signed_kernel(void);
 int _emmc_recovery_init(void);

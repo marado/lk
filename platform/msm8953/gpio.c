@@ -32,6 +32,9 @@
 #include <platform/gpio.h>
 #include <blsp_qup.h>
 
+#define BLSP2_QUP1_I2C5_SDA 18
+#define BLSP2_QUP1_I2C5_SCL 19
+
 void gpio_tlmm_config(uint32_t gpio, uint8_t func,
 			uint8_t dir, uint8_t pull,
 			uint8_t drvstr, uint32_t enable)
@@ -70,3 +73,23 @@ void gpio_config_uart_dm(uint8_t id)
 	gpio_tlmm_config(4, 2, GPIO_OUTPUT, GPIO_NO_PULL,
 				GPIO_8MA, GPIO_DISABLE);
 }
+
+void gpio_config_blsp_i2c(uint8_t blsp_id, uint8_t qup_id)
+{
+    if (blsp_id == BLSP_ID_2)
+    {
+        switch (qup_id)
+        {
+        case QUP_ID_0:
+            gpio_tlmm_config(BLSP2_QUP1_I2C5_SDA, 3, GPIO_OUTPUT, GPIO_NO_PULL,
+                             GPIO_6MA, GPIO_DISABLE);
+            gpio_tlmm_config(BLSP2_QUP1_I2C5_SCL, 3, GPIO_OUTPUT, GPIO_NO_PULL,
+                             GPIO_6MA, GPIO_DISABLE);
+            break;
+        default:
+            dprintf(CRITICAL, "gpio_config_blsp_i2c() not supported for BLSP[%d] QUP[%d]\n", blsp_id, qup_id);
+            break;
+        }
+    }
+}
+

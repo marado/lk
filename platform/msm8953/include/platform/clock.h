@@ -104,4 +104,5 @@ void mmss_dsi_clock_enable(uint32_t cfg_rcgr, uint32_t dual_dsi,
 void mmss_dsi_clock_disable(uint32_t dual_dsi);
 void clock_usb30_init(void);
 void clock_reset_usb_phy();
+void clock_config_blsp_i2c(uint8_t blsp_id, uint8_t qup_id);
 #endif
