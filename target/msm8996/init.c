@@ -1227,6 +1227,7 @@ int animated_splash() {
 #if EARLYCAMERA_NO_GPIO
 	uint32_t frame_count = 0;
 #endif
+	int32_t *scratch_pad = NULL;
 
 	if (!buffers[0]) {
 		dprintf(CRITICAL, "Unexpected error in read\n");
@@ -1297,6 +1298,11 @@ int animated_splash() {
 			// to shutdown. LK can update kernel when it is
 			// ready to shutdown by calling clear_early_service_active_bit
 			// for EARLY_DISPLAY service id.
+
+			scratch_pad = (int32_t *) get_service_shared_mem_start(EARLY_DISPLAY);
+
+			if (scratch_pad)
+				*scratch_pad = 0xBEEFBEEF;
 
 			if (0 == early_camera_enabled)
 				break;
