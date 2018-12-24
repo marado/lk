@@ -1058,6 +1058,7 @@ int animated_splash_screen_mmc()
 	void *tmp;
 	void *head;
 	int ret = 0;
+	uint32_t total_frame_num = 0;
 
 	index = partition_get_index(ANIMATED_SPLAH_PARTITION);
 	if (index == 0) {
@@ -1084,6 +1085,9 @@ int animated_splash_screen_mmc()
 		dprintf(CRITICAL, "ERROR: fb config is not allocated\n");
 		return -1;
 	}
+
+	total_frame_num = SPLASH_BUFFER_SIZE /
+			(fb_display->width * fb_display->height * (fb_display->bpp/8));
 
 	// dynamical allocaton for img header structure based on blocksize
 	img_header = (animated_img_header *)malloc(NUM_DISPLAYS * (blocksize * sizeof(uint8_t)));
@@ -1122,6 +1126,13 @@ int animated_splash_screen_mmc()
 			goto end;
 		}
 
+		//ensure no overflow
+		if (header->num_frames > (INT_MAX / sizeof(void *))) {
+			dprintf(CRITICAL, "Too many frames causes overflow\n");
+			ret = -1;
+			goto end;
+		}
+
 		buffers[j] = (void **)malloc(header->num_frames*sizeof(void *));
 		if (buffers[j] == NULL) {
 			dprintf(CRITICAL, "Cant alloc mem for ptrs\n");
@@ -1143,11 +1154,34 @@ int animated_splash_screen_mmc()
 			}
 			dprintf(INFO, "width:%d height:%d blocks:%d imgsize:%d num_frames:%d\n", header->width,
 			header->height, header->blocks, header->img_size,header->num_frames);
+
+			if ((INT_MAX < (header->blocks * blocksize + blocksize)) ||
+				((total_frame_num * fb_display->width * fb_display->height * (fb_display->bpp/8))
+									<= header->blocks * blocksize)) {
+				dprintf(CRITICAL, "block number causes overflow\n");
+				ret = -1;
+				goto end;
+			}
+
 			realsize =  header->blocks * blocksize;
 			if ((realsize % blocksize) != 0)
 				readsize =  ROUNDUP(realsize, blocksize) - blocksize;
 			else
 				readsize = realsize;
+
+			//Before buffer reading, need some checks to ensure no overflow occurs.
+			if (((uint8_t *)buffer < (uint8_t *)ANIMATED_SPLASH_BUFFER) ||
+				((uint8_t *)buffer > (uint8_t *)ANIMATED_SPLASH_BUFFER + SPLASH_BUFFER_SIZE)) {
+				dprintf(CRITICAL, "buffer address not valid\n");
+				ret = -1;
+				goto end;
+			}
+
+			if ((uint8_t *)buffer + readsize > (uint8_t *)ANIMATED_SPLASH_BUFFER + SPLASH_BUFFER_SIZE) {
+				dprintf(CRITICAL, "buffer out of boundary\n");
+				ret = -1;
+				goto end;
+			}
 
 			//read splash buffer directly
 			if (mmc_read((ptn + blocksize), (uint32_t *)buffer, readsize)) {
