@@ -43,9 +43,6 @@
 #include <target/scalar.h>
 #endif
 
-/* splash memory size is 35 MiB */
-#define SPLASH_BUFFER_SIZE 36700160
-
 static struct msm_fb_panel_data *panel;
 #ifdef NUM_TARGET_DISPLAYS
 static struct msm_fb_panel_data panel_array[NUM_TARGET_DISPLAYS];
