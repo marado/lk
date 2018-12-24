@@ -41,6 +41,9 @@
 #define LOGO_IMG_MAGIC_SIZE sizeof(LOGO_IMG_MAGIC) - 1
 #define LOGO_IMG_HEADER_SIZE 512
 
+/* splash memory size is 35 MiB */
+#define SPLASH_BUFFER_SIZE 36700160
+
 /* 45 characters per line for portrait orientation
  * "720 (W) 1280(H)" -- 720 /(8*2) = 45
  * "1080(W) 1920(H)" -- 1080/(8*3) = 45
