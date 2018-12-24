@@ -41,6 +41,9 @@
 #define LOGO_IMG_MAGIC_SIZE sizeof(LOGO_IMG_MAGIC) - 1
 #define LOGO_IMG_HEADER_SIZE 512
 
+/* splash memory size is 35 MiB */
+#define SPLASH_BUFFER_SIZE 36700160
+
 enum fbcon_msg_type {
 	/* type for menu */
 	FBCON_COMMON_MSG = 0,
