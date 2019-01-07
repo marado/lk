@@ -204,6 +204,7 @@ static const char *skip_ramfs = " skip_initramfs";
 static const char *resume = " resume=/dev/mmcblk0p";
 #endif
 
+static const char *mem_arg = " mem=";
 #ifdef INIT_BIN_LE
 static const char *sys_path_cmdline = " rootwait ro init="INIT_BIN_LE;
 #endif
@@ -264,7 +265,7 @@ static unsigned long long int blank_img_header_mmc;
 
 /* Assuming unauthorized kernel image by default */
 static int auth_kernel_img = 0;
-static device_info device = {DEVICE_MAGIC,0,0,0,0,0,{0},{0},{0},1,0,0,{0},0,{0}};
+static device_info device = {DEVICE_MAGIC,0,0,0,0,0,{0},{0},{0},1,0,0,{0},0,{0},{0}};
 static char *vbcmdline;
 static bootinfo info = {0};
 
@@ -426,6 +427,7 @@ unsigned char *update_cmdline(const char * cmdline)
         int syspath_buflen = strlen(sys_path) + sizeof(int) + 2; /*allocate buflen for largest possible string*/
 #endif
 	char syspath_buf[syspath_buflen];
+	int memarg_length = 0;
 #if HIBERNATION_SUPPORT
 	int resume_buflen = strlen(resume) + sizeof(int) + 2;
 	char resume_buf[resume_buflen];
@@ -643,7 +645,11 @@ unsigned char *update_cmdline(const char * cmdline)
 		}
 	}
 #endif
-
+	if((memarg_length = strlen((char*) device.boot_memory)) != 0)
+	{
+		cmdline_len += strlen(mem_arg);
+		cmdline_len += memarg_length;
+	}
 #if TARGET_CMDLINE_SUPPORT
 	char *target_cmdline_buf = malloc(TARGET_MAX_CMDLNBUF);
 	int target_cmd_line_len;
@@ -909,7 +915,15 @@ unsigned char *update_cmdline(const char * cmdline)
 			while ((*dst++ = *src++));
 		}
 #endif
-
+		if(memarg_length)
+		{
+			src = mem_arg;
+			--dst;
+			while ((*dst++ = *src++));
+			src = (char *) device.boot_memory;
+			--dst;src++;
+			while ((*dst++ = *src++));
+		}
 #if TARGET_CMDLINE_SUPPORT
 		if (target_cmdline_buf && target_cmd_line_len)
 		{
@@ -4193,7 +4207,36 @@ void cmd_set_active(const char *arg, void *data, unsigned sz)
 	fastboot_fail("Invalid slot suffix.");
 	return;
 }
+void cmd_oem_boot_memory(const char *arg, void *data, unsigned sz)
+{
+	char *sp = (char *)arg;
+	int length= strlen(sp);
 
+	switch(*(sp+length-1))
+	{
+		case 'G':
+		case 'g':
+		case 'M':
+		case 'm':
+			if(length < DEVICE_MEMORY_SIZE)
+			{
+				memset(device.boot_memory,0,sizeof(device.boot_memory));
+				sprintf((char*)device.boot_memory,"%s",sp);
+				write_device_info(&device);
+				dprintf(INFO,"set mem=%s\n",device.boot_memory);
+				fastboot_okay("");
+			}
+			else
+			{
+				fastboot_fail("");
+				dprintf(INFO,"Invalid length of memory, Represent memory in higher/lower dimentions\n");
+			}
+			break;
+		default :
+			dprintf(INFO, "Represent memory in M/G \n");
+			fastboot_fail("");
+	}
+}
 void cmd_reboot_bootloader(const char *arg, void *data, unsigned sz)
 {
 	dprintf(INFO, "rebooting the device\n");
@@ -4849,6 +4892,7 @@ void aboot_fastboot_register_commands(void)
 						{"oem off-mode-charge", cmd_oem_off_mode_charger},
 						{"oem select-display-panel", cmd_oem_select_display_panel},
 						{"set_active",cmd_set_active},
+						{"oem boot-memory", cmd_oem_boot_memory},
 #if UNITTEST_FW_SUPPORT
 						{"oem run-tests", cmd_oem_runtests},
 #endif
