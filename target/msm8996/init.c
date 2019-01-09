@@ -1295,6 +1295,7 @@ int animated_splash() {
 				//Force an early exit for early camera.
 				frame_count = EARLYCAM_NO_GPIO_FRAME_LIMIT +1;
 				early_camera_stop();
+				early_camera_enabled = 0;
 				layer_ptr = target_display_acquire_layer(
 				update[RVC_DISPLAY_ID].disp, "as", kFormatRGB888);
 				layer_list[RVC_DISPLAY_ID].layer = layer_ptr;
@@ -1307,17 +1308,20 @@ int animated_splash() {
 		}
 		k++;
 #if EARLYCAMERA_NO_GPIO
-		if (EARLYCAM_NO_GPIO_FRAME_LIMIT < frame_count) {
-			early_camera_enabled = 0;
-			if(camera_frame_on) {
-				early_camera_stop();
-				layer_ptr = target_display_acquire_layer(
-					update[RVC_DISPLAY_ID].disp, "as", kFormatRGB888);
-				layer_list[RVC_DISPLAY_ID].layer = layer_ptr;
-				layer_list[RVC_DISPLAY_ID].z_order = 2;
-				camera_frame_on = false;
+		if (early_camera_enabled) {
+			if (EARLYCAM_NO_GPIO_FRAME_LIMIT < frame_count) {
+				if(early_camera_enabled) {
+					early_camera_stop();
+					early_camera_enabled = 0;
+				}
+				if(camera_frame_on) {
+					layer_ptr = target_display_acquire_layer(
+						update[RVC_DISPLAY_ID].disp, "as", kFormatRGB888);
+					layer_list[RVC_DISPLAY_ID].layer = layer_ptr;
+					layer_list[RVC_DISPLAY_ID].z_order = 2;
+					camera_frame_on = false;
+				}
 			}
-		} else if (early_camera_enabled){
 			frame_count++;
 		}
 #endif

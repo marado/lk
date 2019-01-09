@@ -29,9 +29,13 @@
 #ifndef _TARGET_CAMERA_H
 #define _TARGET_CAMERA_H
 
+#include <sys/types.h>
+
 //#define BRIDGE_REV_1  // For adashub rev 1 of TI 960 Bridge chip.
 #define RVC_DISPLAY_ID 0 // Use primary display
-#define MAX_CAM_ERROR_EXIT 1200
+#define MAX_CAM_ERROR_EXIT 1500
+// Pattern used to fill buffer displayed during error
+#define EARLY_CAMERA_FILL_PATTERN 0
 
 // Enable ADV7481 early camera on CSI1
 // If not defined TI 964 on CSI2 is used.
@@ -90,6 +94,9 @@ int32_t msm_cci_i2c_write(struct camera_i2c_reg_array *pArray,
 int adv7481_intr_enable(void);
 int adv7481_sdp_isr(void);
 void adv7481_isr(void);
+int adv7481_lock_status(void);
+
+
 #endif
 
 #endif
