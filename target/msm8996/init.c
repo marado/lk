@@ -1151,9 +1151,12 @@ int animated_splash() {
 			break;
 		}
 		else if (0xDEADDEAD == reg_value) {
-			// This reg value means kernel is started
-			// LK should notify kernel by writing 0xDEADBEEF to
-			// MDSS_SCRATCH_REG_1 when it is ready to exit
+			// This reg value means kernel starts to commit.
+			// Additionally, LK should notify kernel by writing 0xBEEFBEEF
+			// to MDSS_SCRATCH_REG_1 as one intermediate status, to tell
+			// kernel it has finished last flush loop and kernel can
+			// continue its own process.
+			writel(0xBEEFBEEF, MDSS_SCRATCH_REG_1);
 
 			if (0 == early_camera_enabled)
 				break;
