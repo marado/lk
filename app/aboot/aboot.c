@@ -220,6 +220,10 @@ static const char *sys_path_cmdline = " rootwait ro init="INIT_BIN_LE;
 static const char *verity_dev = " root=/dev/dm-0";
 static const char *verity_system_part = " dm=\"system";
 static const char *verity_params = " none ro,0 1 android-verity /dev/mmcblk0p";
+#else
+
+#define MAX_DTBO_IDX_STR 64
+static const char *android_boot_dtbo_idx = " androidboot.dtbo_idx=";
 #endif
 
 #if VERIFIED_BOOT
@@ -269,12 +273,15 @@ bool boot_into_fastboot = false;
 static uint32_t dt_size = 0;
 static unsigned long long int blank_img_header_flash = ULLONG_MAX;
 static unsigned long long int blank_img_header_mmc;
+static char *vbcmdline;
+static bootinfo info = {0};
+static void *recovery_dtbo_buf = NULL;
+static uint32_t recovery_dtbo_size = 0;
 
 /* Assuming unauthorized kernel image by default */
 static int auth_kernel_img = 0;
 static device_info device = {DEVICE_MAGIC,0,0,0,0,0,{0},{0},{0},1,0,0,{0},0,{0},0,0};
 static char *vbcmdline;
-static bootinfo info = {0};
 
 static bool is_allow_unlock = 0;
 
@@ -376,7 +383,7 @@ extern int emmc_recovery_init(void);
 extern int fastboot_trigger(void);
 #endif
 
-static void update_ker_tags_rdisk_addr(struct boot_img_hdr *hdr, bool is_arm64)
+static void update_ker_tags_rdisk_addr(boot_img_hdr *hdr, bool is_arm64)
 {
 	/* overwrite the destination of specified for the project */
 #ifdef ABOOT_IGNORE_BOOT_HEADER_ADDRS
@@ -401,6 +408,50 @@ static void ptentry_to_tag(unsigned **ptr, struct ptentry *ptn)
 	memcpy(*ptr, &atag_ptn, sizeof(struct atag_ptbl_entry));
 	*ptr += sizeof(struct atag_ptbl_entry) / sizeof(unsigned);
 }
+#ifdef VERIFIED_BOOT_2
+void load_vbmeta_image(void **vbmeta_image_buf, uint32_t *vbmeta_image_sz)
+{
+	int index = 0;
+	char *vbm_img_buf = NULL;
+	unsigned long long ptn = 0;
+	unsigned long long ptn_size = 0;
+
+	/* Immediately return if dtbo is not supported */
+	index = partition_get_index("vbmeta");
+	ptn = partition_get_offset(index);
+	if(!ptn)
+	{
+		dprintf(CRITICAL, "ERROR: vbmeta partition not found.\n");
+		return;
+	}
+
+	ptn_size = partition_get_size(index);
+	if (ptn_size > MAX_SUPPORTED_VBMETA_IMG_BUF)
+	{
+		dprintf(CRITICAL, "ERROR: vbmeta parition size is greater than supported.\n");
+		return;
+	}
+
+	vbm_img_buf = (char *)memalign(CACHE_LINE, ROUNDUP((uint32_t)ptn_size, CACHE_LINE));
+	if (!vbm_img_buf)
+	{
+		dprintf(CRITICAL, "ERROR: vbmeta unable to locate buffer\n");
+		return;
+	}
+
+	mmc_set_lun(partition_get_lun(index));
+	if (mmc_read(ptn, (uint32_t *)vbm_img_buf, (uint32_t)ptn_size))
+	{
+		dprintf(CRITICAL, "ERROR: vbmeta read failure\n");
+		free(vbm_img_buf);
+		return;
+	}
+
+	*vbmeta_image_buf = vbm_img_buf;
+	*vbmeta_image_sz = (uint32_t)ptn_size;
+	return;
+}
+#endif
 
 #if CHECK_BAT_VOLTAGE
 void update_battery_status(void)
@@ -435,7 +486,9 @@ unsigned char *update_cmdline(const char * cmdline)
 				+ strlen(verity_system_part) + (sizeof(char) * 2) + 2
 				+ strlen(verity_params) + sizeof(int) + 2;
 #else
-        int syspath_buflen = strlen(sys_path) + sizeof(int) + 2; /*allocate buflen for largest possible string*/
+	int syspath_buflen = strlen(sys_path) + sizeof(int) + 2; /*allocate buflen for largest possible string*/
+	char dtbo_idx_str[MAX_DTBO_IDX_STR] = "\0";
+	int dtbo_idx = INVALID_PTN;
 #endif
 	char syspath_buf[syspath_buflen];
 #if HIBERNATION_SUPPORT
@@ -520,7 +573,7 @@ unsigned char *update_cmdline(const char * cmdline)
 	} else if (boot_reason_alarm) {
 		cmdline_len += strlen(alarmboot_cmdline);
 	} else if ((target_build_variant_user() || device.charger_screen_enabled)
-			&& target_pause_for_battery_charge()) {
+			&& target_pause_for_battery_charge() && !boot_into_recovery) {
 		pause_at_bootup = 1;
 		cmdline_len += strlen(battchg_pause);
 	}
@@ -665,6 +718,15 @@ unsigned char *update_cmdline(const char * cmdline)
 	ASSERT(target_cmdline_buf);
 	target_cmd_line_len = target_update_cmdline(target_cmdline_buf);
 	cmdline_len += target_cmd_line_len;
+#endif
+
+#if !VERITY_LE
+	dtbo_idx = get_dtbo_idx ();
+	if (dtbo_idx != INVALID_PTN) {
+		snprintf(dtbo_idx_str, sizeof(dtbo_idx_str), "%s%d",
+			android_boot_dtbo_idx, dtbo_idx);
+		cmdline_len += strlen (dtbo_idx_str);
+	}
 #endif
 
 	if (cmdline_len > 0) {
@@ -941,6 +1003,14 @@ unsigned char *update_cmdline(const char * cmdline)
 			free(target_cmdline_buf);
 		}
 #endif
+
+#if !VERITY_LE
+		if (dtbo_idx != INVALID_PTN) {
+			src = dtbo_idx_str;
+			--dst;
+			while ((*dst++ = *src++));
+		}
+#endif
 	}
 
 
@@ -1083,8 +1153,8 @@ void boot_linux(void *kernel, unsigned *tags,
 	generate_atags(tags, final_cmdline, ramdisk, ramdisk_size);
 #endif
 
-#if VERIFIED_BOOT
-	if (VB_M == target_get_vb_version())
+#if VERIFIED_BOOT || VERIFIED_BOOT_2
+	if (VB_M <= target_get_vb_version())
 	{
 		if (device.verity_mode == 0) {
 #if FBCON_DISPLAY_MSG
@@ -1200,20 +1270,23 @@ static void reboot_into_recovery_kernel(void)
 static inline void reboot_into_recovery_kernel(void) { }
 #endif
 
-int getimage(const bootinfo *info, void **image_buffer, uint32_t *imgsize,
-                    char *imgname)
+int getimage(void **image_buffer, uint32_t *imgsize,
+                    const char *imgname)
 {
-	if (info == NULL || image_buffer == NULL || imgsize == NULL ||
+	uint32_t loadedindex;
+	if (image_buffer == NULL || imgsize == NULL ||
 	    imgname == NULL) {
 		dprintf(CRITICAL, "getimage: invalid parameters\n");
 		return -1;
 	}
-
-	for (uint32_t loadedindex = 0; loadedindex < info->num_loaded_images; loadedindex++) {
-		if (!strncmp(info->images[loadedindex].name, imgname,
+	for (loadedindex = 0; loadedindex < info.num_loaded_images; loadedindex++) {
+		if (!strncmp(info.images[loadedindex].name, imgname,
 		                  strlen(imgname))) {
-			*image_buffer = info->images[loadedindex].image_buffer;
-			*imgsize = info->images[loadedindex].imgsize;
+			*image_buffer = info.images[loadedindex].image_buffer;
+			*imgsize = info.images[loadedindex].imgsize;
+			dprintf(SPEW, "getimage(): Loaded image [%s|%d]\n",
+						info.images[loadedindex].name,
+						info.images[loadedindex].imgsize);
 			return 0;
 		}
 	}
@@ -1336,22 +1409,6 @@ static void verify_signed_bootimg(uint32_t bootimg_addr, uint32_t bootimg_size)
 #endif
 }
 
-int get_boot_image_info(void **image_buffer, uint32_t *imgsize,char *imgname)
-{
-    if (image_buffer == NULL || imgsize == NULL || imgname == NULL) {
-        dprintf(CRITICAL, "get_boot_image_info: invalid parameters\n");
-        return -1;
-    }
-
-    if (!strncmp(info.images[0].name, imgname,
-                strlen(imgname))) {
-        *image_buffer = info.images[0].image_buffer;
-        *imgsize = info.images[0].imgsize;
-        return 0;
-    }
-    return -1;
-}
-
 static bool check_format_bit()
 {
 	bool ret = false;
@@ -1421,10 +1478,18 @@ void boot_verifier_init()
 	}
 }
 
+/* Function to return recovery appended dtbo buffer info */
+void get_recovery_dtbo_info(uint32_t *dtbo_size, void **dtbo_buf)
+{
+	*dtbo_size = recovery_dtbo_size;
+	*dtbo_buf = recovery_dtbo_buf;
+	return;
+}
+
 int boot_linux_from_mmc(void)
 {
-	struct boot_img_hdr *hdr = (void*) buf;
-	struct boot_img_hdr *uhdr;
+	boot_img_hdr *hdr = (void*) buf;
+	boot_img_hdr *uhdr;
 	unsigned offset = 0;
 	int rcode;
 	unsigned long long ptn = 0;
@@ -1444,9 +1509,14 @@ int boot_linux_from_mmc(void)
 	unsigned char *kernel_start_addr = NULL;
 	unsigned int kernel_size = 0;
 	unsigned int patched_kernel_hdr_size = 0;
+	uint64_t image_size = 0;
 	int rc;
 #if VERIFIED_BOOT_2
 	int status;
+	void *dtbo_image_buf = NULL;
+	uint32_t dtbo_image_sz = 0;
+	void *vbmeta_image_buf = NULL;
+	uint32_t vbmeta_image_sz = 0;
 #endif
 	char *ptn_name = NULL;
 #if DEVICE_TREE
@@ -1474,7 +1544,7 @@ int boot_linux_from_mmc(void)
 			boot_into_ffbm = true;
 	} else
 		boot_into_ffbm = false;
-	uhdr = (struct boot_img_hdr *)EMMC_BOOT_IMG_HEADER_ADDR;
+	uhdr = (boot_img_hdr *)EMMC_BOOT_IMG_HEADER_ADDR;
 	if (!memcmp(uhdr->magic, BOOT_MAGIC, BOOT_MAGIC_SIZE)) {
 		dprintf(INFO, "Unified boot method!\n");
 		hdr = uhdr;
@@ -1491,7 +1561,8 @@ int boot_linux_from_mmc(void)
 
 	index = partition_get_index(ptn_name);
 	ptn = partition_get_offset(index);
-	if(ptn == 0) {
+	image_size = partition_get_size(index);
+	if(ptn == 0 || image_size == 0) {
 		dprintf(CRITICAL, "ERROR: No %s partition found\n", ptn_name);
 		return -1;
 	}
@@ -1529,6 +1600,10 @@ int boot_linux_from_mmc(void)
 	second_actual  = ROUND_TO_PAGE(hdr->second_size, page_mask);
 
 	image_addr = (unsigned char *)target_get_scratch_address();
+#if VERIFIED_BOOT_2
+	/* Create hole in start of image for VB salt to copy */
+	image_addr += SALT_BUFF_OFFSET;
+#endif
 	memcpy(image_addr, (void *)buf, page_size);
 
 	/* ensure commandline is terminated */
@@ -1537,7 +1612,10 @@ int boot_linux_from_mmc(void)
 #if DEVICE_TREE
 #ifndef OSVERSION_IN_BOOTIMAGE
 	dt_size = hdr->dt_size;
+#else
+	dprintf(INFO, "BootImage Header: %d\n", hdr->header_version);
 #endif
+
 	dt_actual = ROUND_TO_PAGE(dt_size, page_mask);
 	if (UINT_MAX < ((uint64_t)kernel_actual + (uint64_t)ramdisk_actual+ (uint64_t)second_actual + (uint64_t)dt_actual + page_size)) {
 		dprintf(CRITICAL, "Integer overflow detected in bootimage header fields at %u in %s\n",__LINE__,__FILE__);
@@ -1551,6 +1629,72 @@ int boot_linux_from_mmc(void)
 	}
 	imagesize_actual = (page_size + kernel_actual + ramdisk_actual + second_actual);
 #endif
+
+#ifdef OSVERSION_IN_BOOTIMAGE
+	/* If header version is ONE and booting into recovery,
+		dtbo is appended with recovery image.
+		Doing following:
+			* Validating the recovery offset and size.
+			* Extracting recovery dtbo to be used as dtbo.
+	*/
+	if (boot_into_recovery &&
+		hdr->header_version == BOOT_HEADER_VERSION_ONE)
+	{
+		struct boot_img_hdr_v1 *hdr1 =
+			(struct boot_img_hdr_v1 *) (image_addr + sizeof(boot_img_hdr));
+		unsigned int recovery_dtbo_actual = 0;
+
+		recovery_dtbo_actual = ROUND_TO_PAGE(hdr1->recovery_dtbo_size, page_mask);
+		if ((hdr1->header_size !=
+				sizeof(struct boot_img_hdr_v1) + sizeof(boot_img_hdr)))
+		{
+			dprintf(CRITICAL, "Invalid boot image header: %d\n", hdr1->header_size);
+			return -1;
+		}
+
+		if (recovery_dtbo_actual > MAX_SUPPORTED_DTBO_IMG_BUF)
+		{
+			dprintf(CRITICAL, "Recovery Dtbo Size too big %x, Allowed size %x\n", recovery_dtbo_actual,
+				MAX_SUPPORTED_DTBO_IMG_BUF);
+			return -1;
+		}
+
+		if (UINT_MAX < ((uint64_t)imagesize_actual + recovery_dtbo_actual))
+		{
+			dprintf(CRITICAL, "Integer overflow detected in recoveryimage header fields at %u in %s\n",__LINE__,__FILE__);
+			return -1;
+		}
+
+		if (UINT_MAX < (hdr1->recovery_dtbo_offset + recovery_dtbo_actual)) {
+			dprintf(CRITICAL,
+				"Integer overflow detected in recovery image header fields at %u in %s\n",__LINE__,__FILE__);
+			return -1;
+		}
+
+		if (hdr1->recovery_dtbo_offset + recovery_dtbo_actual > image_size)
+		{
+			dprintf(CRITICAL, "Invalid recovery dtbo: Recovery Dtbo Offset=0x%llx,"
+				" Recovery Dtbo Size=0x%x, Image Size=0x%llx\n",
+				hdr1->recovery_dtbo_offset, recovery_dtbo_size, image_size);
+			return -1;
+		}
+
+		recovery_dtbo_buf = (void *)(hdr1->recovery_dtbo_offset + image_addr);
+		recovery_dtbo_size = recovery_dtbo_actual;
+		imagesize_actual += recovery_dtbo_size;
+
+		dprintf(SPEW, "Header version: %d\n", hdr->header_version);
+		dprintf(SPEW, "Recovery Dtbo Size 0x%x\n", recovery_dtbo_size);
+		dprintf(SPEW, "Recovery Dtbo Offset 0x%llx\n", hdr1->recovery_dtbo_offset);
+
+	}
+#endif
+
+	/* Validate the boot/recovery image size is within the bounds of partition size */
+	if (imagesize_actual > image_size) {
+		dprintf(CRITICAL, "Image size is greater than partition size.\n");
+		return -1;
+	}
 
 #if VERIFIED_BOOT
 	boot_verifier_init();
@@ -1632,11 +1776,38 @@ int boot_linux_from_mmc(void)
 		return -1;
 	}
 
+	/* load and validate dtbo partition */
+	load_validate_dtbo_image(&dtbo_image_buf, &dtbo_image_sz);
+
+	/* load vbmeta partition */
+	load_vbmeta_image(&vbmeta_image_buf, &vbmeta_image_sz);
+
 	memset(&info, 0, sizeof(bootinfo));
-	info.images[0].image_buffer = image_addr;
-	info.images[0].imgsize = imagesize_actual;
-	info.images[0].name = "boot";
-	info.num_loaded_images = 0;
+
+	/* Pass loaded boot image passed */
+	info.images[IMG_BOOT].image_buffer = SUB_SALT_BUFF_OFFSET(image_addr);
+	info.images[IMG_BOOT].imgsize = imagesize_actual;
+	info.images[IMG_BOOT].name = ptn_name;
+	++info.num_loaded_images;
+
+	/* Pass loaded dtbo image */
+	if (dtbo_image_buf != NULL) {
+		info.images[IMG_DTBO].image_buffer =
+					SUB_SALT_BUFF_OFFSET(dtbo_image_buf);
+		info.images[IMG_DTBO].imgsize = dtbo_image_sz;
+		info.images[IMG_DTBO].name = "dtbo";
+		++info.num_loaded_images;
+	}
+
+	/* Pass loaded vbmeta image */
+	if (vbmeta_image_buf != NULL) {
+		info.images[IMG_VBMETA].image_buffer = vbmeta_image_buf;
+		info.images[IMG_VBMETA].imgsize = vbmeta_image_sz;
+		info.images[IMG_VBMETA].name = "vbmeta";
+		++info.num_loaded_images;
+	}
+
+	info.header_version = hdr->header_version;
 	info.multi_slot_boot = partition_multislot_is_supported();
 	info.bootreason_alarm = boot_reason_alarm;
 	info.bootinto_recovery = boot_into_recovery;
@@ -1645,6 +1816,12 @@ int boot_linux_from_mmc(void)
 		return -1;
 
 	vbcmdline = info.vbcmdline;
+
+	/* Free the buffer allocated to vbmeta post verification */
+	if (vbmeta_image_buf != NULL) {
+		free(vbmeta_image_buf);
+		--info.num_loaded_images;
+	}
 #else
 	/* Change the condition a little bit to include the test framework support.
 	 * We would never reach this point if device is in fastboot mode, even if we did
@@ -1731,6 +1908,10 @@ int boot_linux_from_mmc(void)
 	{
 		out_addr = (unsigned char *)(image_addr + imagesize_actual + page_size);
 		out_avai_len = target_get_max_flash_size() - imagesize_actual - page_size;
+#if VERIFIED_BOOT_2
+		if (dtbo_image_sz)
+			out_avai_len -= DTBO_IMG_BUF;
+#endif
 		dprintf(INFO, "decompressing kernel image: start\n");
 		rc = decompress((unsigned char *)(image_addr + page_size),
 				hdr->kernel_size, out_addr, out_avai_len,
@@ -1885,6 +2066,9 @@ int boot_linux_from_mmc(void)
 		 * If appended dev tree is found, update the atags with
 		 * memory address to the DTB appended location on RAM.
 		 * Else update with the atags address in the kernel header
+		 *
+		 * Make sure everything from scratch address is read before next step!
+		 * In case of dtbo, this API is going to read dtbo on scratch.
 		 */
 		void *dtb;
 		dtb = dev_tree_appended(
@@ -1913,7 +2097,7 @@ unified_boot:
 
 int boot_linux_from_flash(void)
 {
-	struct boot_img_hdr *hdr = (void*) buf;
+	boot_img_hdr *hdr = (void*) buf;
 	struct ptentry *ptn;
 	struct ptable *ptable;
 	unsigned offset = 0;
@@ -1936,7 +2120,7 @@ int boot_linux_from_flash(void)
 #endif
 
 	if (target_is_emmc_boot()) {
-		hdr = (struct boot_img_hdr *)EMMC_BOOT_IMG_HEADER_ADDR;
+		hdr = (boot_img_hdr *)EMMC_BOOT_IMG_HEADER_ADDR;
 		if (memcmp(hdr->magic, BOOT_MAGIC, BOOT_MAGIC_SIZE)) {
 			dprintf(CRITICAL, "ERROR: Invalid boot image header\n");
 			return -1;
@@ -2174,6 +2358,9 @@ int boot_linux_from_flash(void)
 		 * If appended dev tree is found, update the atags with
 		 * memory address to the DTB appended location on RAM.
 		 * Else update with the atags address in the kernel header
+		 *
+		 * Make sure everything from scratch address is read before next step!
+		 * In case of dtbo, this API is going to read dtbo on scratch.
 		 */
 		void *dtb = NULL;
 		dtb = dev_tree_appended((void*)(image_addr + page_size ),hdr->kernel_size, dtb_offset, (void *)hdr->tags_addr);
@@ -2730,7 +2917,7 @@ int copy_dtb(uint8_t *boot_image_start, unsigned int scratch_offset)
 	unsigned char *best_match_dt_addr = NULL;
 	int rc;
 
-	struct boot_img_hdr *hdr = (struct boot_img_hdr *) (boot_image_start);
+	boot_img_hdr *hdr = (boot_img_hdr *) (boot_image_start);
 
 #ifndef OSVERSION_IN_BOOTIMAGE
 	dt_size = hdr->dt_size;
@@ -2818,7 +3005,7 @@ void cmd_boot(const char *arg, void *data, unsigned sz)
 	unsigned second_actual;
 	uint32_t image_actual;
 	uint32_t dt_actual = 0;
-	struct boot_img_hdr *hdr = NULL;
+	boot_img_hdr *hdr = NULL;
 	struct kernel64_hdr *kptr = NULL;
 	char *ptr = ((char*) data);
 	int ret = 0;
@@ -2830,6 +3017,12 @@ void cmd_boot(const char *arg, void *data, unsigned sz)
 	unsigned char *kernel_start_addr = NULL;
 	unsigned int kernel_size = 0;
 	unsigned int scratch_offset = 0;
+#if VERIFIED_BOOT_2
+	void *dtbo_image_buf = NULL;
+	uint32_t dtbo_image_sz = 0;
+	void *vbmeta_image_buf = NULL;
+	uint32_t vbmeta_image_sz = 0;
+#endif
 #if !VERIFIED_BOOT_2
 	uint32_t sig_actual = 0;
 	uint32_t sig_size = 0;
@@ -2856,7 +3049,7 @@ void cmd_boot(const char *arg, void *data, unsigned sz)
 		goto boot_failed;
 	}
 
-	hdr = (struct boot_img_hdr *)data;
+	hdr = (boot_img_hdr *)data;
 
 	/* ensure commandline is terminated */
 	hdr->cmdline[BOOT_ARGS_SIZE-1] = 0;
@@ -2886,16 +3079,48 @@ void cmd_boot(const char *arg, void *data, unsigned sz)
 		fastboot_fail("bootimage header fields are invalid");
 		goto boot_failed;
 	}
+
 #if VERIFIED_BOOT_2
+
+	/* load and validate dtbo partition */
+	load_validate_dtbo_image(&dtbo_image_buf, &dtbo_image_sz);
+
+	/* load vbmeta partition */
+	load_vbmeta_image(&vbmeta_image_buf, &vbmeta_image_sz);
+
 	memset(&info, 0, sizeof(bootinfo));
-	info.images[0].image_buffer = data;
-	info.images[0].imgsize = image_actual;
-	info.images[0].name = "boot";
-	info.num_loaded_images = 1;
+
+	info.images[IMG_BOOT].image_buffer = SUB_SALT_BUFF_OFFSET(data);
+	info.images[IMG_BOOT].imgsize = image_actual;
+	info.images[IMG_BOOT].name = "boot";
+	++info.num_loaded_images;
+
+	/* Pass loaded dtbo image */
+	if (dtbo_image_buf != NULL) {
+		info.images[IMG_DTBO].image_buffer = SUB_SALT_BUFF_OFFSET(dtbo_image_buf);
+		info.images[IMG_DTBO].imgsize = dtbo_image_sz;
+		info.images[IMG_DTBO].name = "dtbo";
+		++info.num_loaded_images;
+	}
+
+	/* Pass loaded vbmeta image */
+	if (vbmeta_image_buf != NULL) {
+		info.images[IMG_VBMETA].image_buffer = vbmeta_image_buf;
+		info.images[IMG_VBMETA].imgsize = vbmeta_image_sz;
+		info.images[IMG_VBMETA].name = "vbmeta";
+		++info.num_loaded_images;
+	}
+
 	info.multi_slot_boot = partition_multislot_is_supported();
 	if (load_image_and_auth(&info))
 		goto boot_failed;
 	vbcmdline = info.vbcmdline;
+
+	/* Free the buffer allocated to vbmeta post verification */
+	if (vbmeta_image_buf != NULL) {
+		free(vbmeta_image_buf);
+		--info.num_loaded_images;
+	}
 #else
 	sig_size = sz - image_actual;
 
@@ -2978,6 +3203,10 @@ void cmd_boot(const char *arg, void *data, unsigned sz)
 		out_addr = (unsigned char *)target_get_scratch_address();
 		out_addr = (unsigned char *)(out_addr + image_actual + page_size);
 		out_avai_len = target_get_max_flash_size() - image_actual - page_size;
+#if VERIFIED_BOOT_2
+		if (dtbo_image_sz)
+			out_avai_len -= DTBO_IMG_BUF;
+#endif
 		dprintf(INFO, "decompressing kernel image: start\n");
 		ret = decompress((unsigned char *)(ptr + page_size),
 				hdr->kernel_size, out_addr, out_avai_len,
@@ -4698,7 +4927,7 @@ int splash_screen_mmc()
 
 	if (fb_display) {
 		if (header->type && (header->blocks != 0) &&
-			(UINT_MAX >= header->blocks * 512 + blocksize) &&
+			(UINT_MAX >= header->blocks * 512 + LOGO_IMG_HEADER_SIZE) &&
 			((header->blocks * 512) <=  (fb_display->width *
 			fb_display->height * (fb_display->bpp / 8)))) {
 			/* 1 RLE24 compressed data */
@@ -5185,7 +5414,7 @@ void aboot_init(const struct app_descriptor *app)
 	{
 		boot_reason_alarm = true;
 	}
-#if VERIFIED_BOOT
+#if VERIFIED_BOOT || VERIFIED_BOOT_2
 	else if (VB_M <= target_get_vb_version())
 	{
 		if (reboot_mode == DM_VERITY_ENFORCING)
@@ -5290,7 +5519,13 @@ fastboot:
 	partition_dump();
 
 	/* initialize and start fastboot */
+#if !VERIFIED_BOOT_2
 	fastboot_init(target_get_scratch_address(), target_get_max_flash_size());
+#else
+	/* Add salt buffer offset at start of image address to copy VB salt */
+	fastboot_init(ADD_SALT_BUFF_OFFSET(target_get_scratch_address()),
+		SUB_SALT_BUFF_OFFSET(target_get_max_flash_size()));
+#endif
 #if FBCON_DISPLAY_MSG
 	display_fastboot_menu();
 #endif

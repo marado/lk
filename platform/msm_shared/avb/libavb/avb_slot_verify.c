@@ -158,19 +158,16 @@ static AvbSlotVerifyResult load_and_verify_hash_partition(
     }
   }
 
-  image_buf = (uint8_t *)target_get_scratch_address()+0x02000000;
+  if (!strncmp(part_name, "boot", strlen("boot"))) {
+      image_size = hash_desc.image_size;
+  }
+
+  io_ret = ops->read_from_partition(
+            ops, part_name, 0 /* offset */, image_size, &image_buf, &part_num_read);
+
   if (image_buf == NULL) {
     ret = AVB_SLOT_VERIFY_RESULT_ERROR_OOM;
     goto out;
-  }
-
-  if (!strncmp(part_name, "boot", strlen("boot"))) {
-      image_size = hash_desc.image_size;
-      io_ret = ops->read_from_partition(
-              ops, part_name, 0 /* offset */, image_size, &image_buf, &part_num_read);
-  }  else {
-      io_ret = ops->read_from_partition(
-              ops, part_name, 0 /* offset */, image_size, image_buf, &part_num_read);
   }
   if (io_ret == AVB_IO_RESULT_ERROR_OOM) {
     ret = AVB_SLOT_VERIFY_RESULT_ERROR_OOM;
@@ -180,7 +177,7 @@ static AvbSlotVerifyResult load_and_verify_hash_partition(
     ret = AVB_SLOT_VERIFY_RESULT_ERROR_IO;
     goto out;
   }
-  if (part_num_read != image_size) {
+  if (part_num_read < image_size) {
     avb_errorv(part_name, ": Read fewer than requested bytes.\n", NULL);
     ret = AVB_SLOT_VERIFY_RESULT_ERROR_IO;
     goto out;
@@ -188,17 +185,17 @@ static AvbSlotVerifyResult load_and_verify_hash_partition(
 
   if (avb_strcmp((const char*)hash_desc.hash_algorithm, "sha256") == 0) {
     uint32_t complete_len = hash_desc.salt_len + hash_desc.image_size;
-    uint8_t *complete_buf = (uint8_t *)target_get_scratch_address()+0x08000000;
     digest = avb_malloc(AVB_SHA256_DIGEST_SIZE);
-    if(digest == NULL)
+    if(digest == NULL || hash_desc.salt_len > SALT_BUFF_OFFSET )
     {
         avb_errorv(part_name, ": Failed to allocate memory\n", NULL);
         ret = AVB_SLOT_VERIFY_RESULT_ERROR_IO;
         goto out;
     }
-    avb_memcpy(complete_buf, desc_salt, hash_desc.salt_len);
-    avb_memcpy(complete_buf + hash_desc.salt_len, image_buf, hash_desc.image_size);
-    hash_find(complete_buf, complete_len, digest, CRYPTO_AUTH_ALG_SHA256);
+    image_buf = ADD_SALT_BUFF_OFFSET(image_buf) - hash_desc.salt_len;
+    avb_memcpy(image_buf, desc_salt, hash_desc.salt_len);
+    hash_find(image_buf, complete_len, digest, CRYPTO_AUTH_ALG_SHA256);
+    image_buf = SUB_SALT_BUFF_OFFSET(image_buf) +  hash_desc.salt_len;
     digest_len = AVB_SHA256_DIGEST_SIZE;
   } else if (avb_strcmp((const char*)hash_desc.hash_algorithm, "sha512") == 0) {
     AvbSHA512Ctx sha512_ctx;
@@ -308,14 +305,8 @@ static AvbSlotVerifyResult load_requested_partitions(
     }
     avb_debugv(part_name, ": Loading entire partition.\n", NULL);
 
-    image_buf = avb_malloc(image_size);
-    if (image_buf == NULL) {
-      ret = AVB_SLOT_VERIFY_RESULT_ERROR_OOM;
-      goto out;
-    }
-
     io_ret = ops->read_from_partition(
-        ops, part_name, 0 /* offset */, image_size, image_buf, &part_num_read);
+        ops, part_name, 0 /* offset */, image_size, &image_buf, &part_num_read);
     if (io_ret == AVB_IO_RESULT_ERROR_OOM) {
       ret = AVB_SLOT_VERIFY_RESULT_ERROR_OOM;
       goto out;
@@ -373,7 +364,7 @@ static AvbSlotVerifyResult load_and_verify_vbmeta(
   char full_partition_name[PART_NAME_MAX_SIZE];
   AvbSlotVerifyResult ret;
   AvbIOResult io_ret;
-  size_t vbmeta_offset;
+  UINTN vbmeta_offset;
   size_t vbmeta_size;
   uint8_t* vbmeta_buf = NULL;
   size_t vbmeta_num_read;
@@ -465,23 +456,35 @@ static AvbSlotVerifyResult load_and_verify_vbmeta(
       ret = AVB_SLOT_VERIFY_RESULT_ERROR_INVALID_METADATA;
       goto out;
     }
-
     vbmeta_offset = footer.vbmeta_offset;
     vbmeta_size = footer.vbmeta_size;
   }
 
-  vbmeta_buf = (uint8_t *)target_get_scratch_address() + 0x06000000;
-  if (vbmeta_buf == NULL) {
-    ret = AVB_SLOT_VERIFY_RESULT_ERROR_OOM;
-    goto out;
-  }
-
-  io_ret = ops->read_from_partition(ops,
+  if (avb_strcmp(full_partition_name, "vbmeta") == 0) {
+    io_ret = ops->read_from_partition(ops,
+                                    full_partition_name,
+                                    vbmeta_offset,
+                                    vbmeta_size,
+                                    &vbmeta_buf,
+                                    &vbmeta_num_read);
+  } else { // for chain partitions
+    vbmeta_buf = avb_malloc(vbmeta_size);
+    if (vbmeta_buf == NULL) {
+        ret = AVB_SLOT_VERIFY_RESULT_ERROR_OOM;
+        goto out;
+    }
+    io_ret = ops->read_from_partition(ops,
                                     full_partition_name,
                                     vbmeta_offset,
                                     vbmeta_size,
                                     vbmeta_buf,
                                     &vbmeta_num_read);
+  }
+  if (vbmeta_buf == NULL) {
+    ret = AVB_SLOT_VERIFY_RESULT_ERROR_OOM;
+    goto out;
+  }
+
   if (io_ret == AVB_IO_RESULT_ERROR_OOM) {
     ret = AVB_SLOT_VERIFY_RESULT_ERROR_OOM;
     goto out;

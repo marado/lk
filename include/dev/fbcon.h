@@ -39,6 +39,7 @@
 #define LOGO_IMG_OFFSET (12*1024*1024)
 #define LOGO_IMG_MAGIC "SPLASH!!"
 #define LOGO_IMG_MAGIC_SIZE sizeof(LOGO_IMG_MAGIC) - 1
+#define LOGO_IMG_HEADER_SIZE 512
 
 /* 45 characters per line for portrait orientation
  * "720 (W) 1280(H)" -- 720 /(8*2) = 45
