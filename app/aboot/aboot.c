@@ -168,6 +168,9 @@ struct fastboot_cmd_desc {
 /* String for the case select-display-panel is set to none. */
 #define PANEL_IS_NONE " none"
 
+/*String for default memory*/
+#define DEFAULT_MEMORY " 2G"
+
 #if USE_BOOTDEV_CMDLINE
 static const char *emmc_cmdline = " androidboot.bootdevice=";
 #else
@@ -649,6 +652,12 @@ unsigned char *update_cmdline(const char * cmdline)
 	{
 		cmdline_len += strlen(mem_arg);
 		cmdline_len += memarg_length;
+	}
+	else
+	{
+		strncpy((char*)device.boot_memory,DEFAULT_MEMORY,strlen(DEFAULT_MEMORY));
+		memarg_length = strlen(DEFAULT_MEMORY);
+		dprintf(INFO,"setting default mem=%s\n",(char*)device.boot_memory);
 	}
 #if TARGET_CMDLINE_SUPPORT
 	char *target_cmdline_buf = malloc(TARGET_MAX_CMDLNBUF);
