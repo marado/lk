@@ -657,6 +657,8 @@ unsigned char *update_cmdline(const char * cmdline)
 	{
 		strncpy((char*)device.boot_memory,DEFAULT_MEMORY,strlen(DEFAULT_MEMORY));
 		memarg_length = strlen(DEFAULT_MEMORY);
+		cmdline_len += strlen(mem_arg);
+	        cmdline_len += memarg_length;
 		dprintf(INFO,"setting default mem=%s\n",(char*)device.boot_memory);
 	}
 #if TARGET_CMDLINE_SUPPORT
