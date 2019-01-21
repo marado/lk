@@ -39,6 +39,7 @@ typedef struct device_info device_info;
 #define MAX_VB_PARTITIONS 32
 #define MAX_USER_KEY_SIZE 2048
 #define SHA256_DIGEST_LENGTH 32
+#define DEVICE_MEMORY_SIZE 7
 
 enum unlock_type {
 	UNLOCK = 0,
@@ -64,5 +65,6 @@ struct device_info
 	uint8_t user_public_key[MAX_USER_KEY_SIZE];
 	bool hibernation_golden_image;
 	bool hibernation;
+	unsigned char boot_memory[DEVICE_MEMORY_SIZE];
 };
 #endif
