@@ -1,4 +1,4 @@
-/* Copyright (c) 2010-2016,2019, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2010-2016, 2019 The Linux Foundation. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -1081,7 +1081,7 @@ void mdss_hdmi_get_vic(char *buf)
 
 }
 
-static void mdss_hdmi_panel_init(struct msm_panel_info *pinfo)
+static void mdss_hdmi_panel_init(struct msm_panel_info *pinfo, bool splitter_is_enabled)
 {
 	struct mdss_hdmi_timing_info tinfo = {0};
 	uint32_t ret = mdss_hdmi_get_timing_info(&tinfo, mdss_hdmi_video_fmt);
@@ -1107,18 +1107,29 @@ static void mdss_hdmi_panel_init(struct msm_panel_info *pinfo)
 	pinfo->lcdc.yres_pad   = 0;
 
 	/* Add dual pipe configuration for resultions greater than
-	 * MSM_MDP_MAX_PIPE_WIDTH.
+	 * MSM_MDP_MAX_PIPE_WIDTH or shared display case.
 	 */
 	if (pinfo->xres > MSM_MDP_MAX_PIPE_WIDTH) {
 		pinfo->lcdc.dual_pipe  = 1;
-		pinfo->lm_split[0] = pinfo->xres / 2;
-		pinfo->lm_split[1] = pinfo->xres - pinfo->lm_split[0];
+		pinfo->lcdc.force_merge = 0;
+		pinfo->lm_split[SPLIT_DISPLAY_0] = pinfo->xres / MAX_SPLIT_DISPLAY;
+		pinfo->lm_split[SPLIT_DISPLAY_1] = pinfo->xres - pinfo->lm_split[SPLIT_DISPLAY_0];
+		pinfo->zorder[SPLIT_DISPLAY_1] = SPLASH_SPLIT_0_LAYER_ZORDER;
 	} else {
-		pinfo->lcdc.dual_pipe  = 0;
+		if (splitter_is_enabled) {
+			pinfo->lcdc.dual_pipe  = 1;
+			pinfo->lcdc.force_merge = 1;
+			pinfo->lm_split[SPLIT_DISPLAY_0] = pinfo->xres / MAX_SPLIT_DISPLAY;
+			pinfo->lm_split[SPLIT_DISPLAY_1] = pinfo->xres - pinfo->lm_split[SPLIT_DISPLAY_0];
+			pinfo->zorder[SPLIT_DISPLAY_1] = SPLASH_SPLIT_1_LAYER_ZORDER;
+		} else {
+			pinfo->lcdc.dual_pipe  = 0;
+			pinfo->lcdc.force_merge = 0;
+		}
 	}
 
 	pinfo->pipe_type = MDSS_MDP_PIPE_TYPE_RGB;
-	pinfo->zorder = 2;
+	pinfo->zorder[SPLIT_DISPLAY_0] = SPLASH_SPLIT_0_LAYER_ZORDER;
 }
 
 static uint8_t mdss_hdmi_cable_status(void)
@@ -1159,28 +1170,42 @@ static uint8_t mdss_hdmi_cable_status(void)
 	return cable_status;
 }
 
-static int mdss_hdmi_update_panel_info(void)
+static int mdss_hdmi_update_panel_info(bool splitter_is_enabled)
 {
 	mdss_hdmi_video_fmt = DEFAULT_RESOLUTION;
-	mdss_hdmi_panel_init(&(panel.panel_info));
+	mdss_hdmi_panel_init(&(panel.panel_info), splitter_is_enabled);
+	int i = 0, max_fb_cnt = 0;
+	void *base;
 
-	panel.fb.width   = panel.panel_info.xres;
-	panel.fb.height  = panel.panel_info.yres;
-	panel.fb.stride  = panel.panel_info.xres;
-	panel.fb.bpp     = panel.panel_info.bpp;
-	panel.fb.format  = FB_FORMAT_RGB888;
+	max_fb_cnt = splitter_is_enabled ? MAX_SPLIT_DISPLAY : SPLIT_DISPLAY_1;
+	base = panel.fb[SPLIT_DISPLAY_0].base;
+
+	for (i = SPLIT_DISPLAY_0; i < max_fb_cnt; i++) {
+		panel.fb[i].base = base;
+		panel.fb[i].width = panel.panel_info.xres / max_fb_cnt;
+		panel.fb[i].height = panel.panel_info.yres;
+		panel.fb[i].stride = (panel.panel_info.xres * panel.panel_info.bpp / 8) / max_fb_cnt;
+		panel.fb[i].bpp = panel.panel_info.bpp;
+		panel.fb[i].format = FB_FORMAT_RGB888;
+
+		/* update FB base address */
+		base = (void *)((int8_t *)panel.fb[i].base + panel.fb[i].stride * panel.fb[i].height);
+
+		dprintf(CRITICAL, "FB[%d] width %d, height %d\n", i, panel.fb[i].width, panel.fb[i].height);
+	}
 
 	return NO_ERROR;
 }
 
-void mdss_hdmi_display_init(uint32_t rev, void *base)
+void mdss_hdmi_display_init(uint32_t rev, void *base, bool splitter_display_is_enabled)
 {
 	panel.power_func        = mdss_hdmi_enable_power;
 	panel.clk_func          = mdss_hdmi_panel_clock;
 	panel.update_panel_info = mdss_hdmi_update_panel_info;
 	panel.pll_clk_func      = mdss_hdmi_pll_clock;
+	panel.splitter_is_enabled = splitter_display_is_enabled;
 
-	panel.fb.base = base;
+	panel.fb[SPLIT_DISPLAY_0].base = base;
 	panel.mdp_rev = rev;
 
 	msm_display_init(&panel);

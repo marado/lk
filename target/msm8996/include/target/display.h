@@ -153,7 +153,7 @@ struct target_display {
   float    fps;
   bool     dual_pipe;
   bool     has_rvc;
-  bool     display_is_shared;
+  bool     splitter_display_enabled;
 };
 
 struct target_layer_int {
@@ -165,17 +165,17 @@ struct target_layer_int {
 
 struct target_layer {
   void                *layer; /* layer pointer returned by assign */
-  uint32_t            src_rect_x;
-  uint32_t            src_rect_y;
-  uint32_t            dst_rect_x;
-  uint32_t            dst_rect_y;
-  uint32_t            z_order;
+  uint32_t            src_rect_x[MAX_SPLIT_DISPLAY];
+  uint32_t            src_rect_y[MAX_SPLIT_DISPLAY];
+  uint32_t            dst_rect_x[MAX_SPLIT_DISPLAY];
+  uint32_t            dst_rect_y[MAX_SPLIT_DISPLAY];
+  uint32_t            z_order[MAX_SPLIT_DISPLAY];
   uint32_t            global_aplha;
-  uint32_t            src_width;
-  uint32_t            src_height;
-  uint32_t            dst_width;
-  uint32_t            dst_height;
-  struct fbcon_config *fb;
+  uint32_t            src_width[MAX_SPLIT_DISPLAY];
+  uint32_t            src_height[MAX_SPLIT_DISPLAY];
+  uint32_t            dst_width[MAX_SPLIT_DISPLAY];
+  uint32_t            dst_height[MAX_SPLIT_DISPLAY];
+  struct fbcon_config fb[MAX_SPLIT_DISPLAY];
 };
 
 struct target_display_update {
@@ -189,7 +189,7 @@ void * target_display_open (uint32 display_id);
 uint32_t target_display_get_rvc_display_id();
 struct target_display * target_get_display_info(void *disp);
 void *target_display_acquire_layer(struct target_display * disp, char *client_name, int color_format);
-struct fbcon_config* target_display_get_fb(uint32_t disp_id);
+struct fbcon_config* target_display_get_fb(uint32_t disp_id, uint32_t fb_index);
 int target_display_update(struct target_display_update * update, uint32_t size, uint32_t disp_id);
 int target_display_update_pipe(struct target_display_update * update,
 				uint32_t size, uint32_t disp_id);

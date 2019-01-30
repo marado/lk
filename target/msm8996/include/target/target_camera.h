@@ -40,7 +40,6 @@
 // If not defined TI 964 on CSI2 is used.
 #define ADV7481
 
-
 #define MAX_REV_ID 2
 
 struct camera_i2c_reg_array {
@@ -63,10 +62,10 @@ struct i2c_config_data {
 int get_cam_data(int csi, struct i2c_config_data **cam_data);
 int early_camera_init(void);
 void target_early_camera_init(void);
-int early_camera_flip(void);
+int early_camera_flip(void *cam_layer);
 int early_camera_on(void);
 
-void early_camera_stop(void);
+void early_camera_stop(void *cam_layer);
 
 void set_early_camera_enabled(bool enabled);
 int msm_cci_i2c_read(uint32_t address,

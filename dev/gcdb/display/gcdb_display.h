@@ -1,4 +1,4 @@
-/* Copyright (c) 2013-2015, 2017 The Linux Foundation. All rights reserved.
+/* Copyright (c) 2013-2015, 2017, 2019 The Linux Foundation. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -57,7 +57,7 @@ int target_ldo_ctrl(uint8_t enable, struct msm_panel_info *pinfo);
 int target_display_dsi2hdmi_config(struct msm_panel_info *pinfo);
 int target_dsi_phy_config(struct mdss_dsi_phy_ctrl *phy_db);
 
-int gcdb_display_init(const char *panel_name, uint32_t rev, void *base);
+int gcdb_display_init(const char *panel_name, uint32_t rev, void *base, bool splitter_display_is_enabled);
 int gcdb_display_cmdline_arg(char *pbuf, uint16_t buf_size);
 void gcdb_display_shutdown();
 int oem_panel_select(const char *panel_name, struct panel_struct *panelstruct,

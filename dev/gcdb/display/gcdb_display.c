@@ -1,4 +1,4 @@
-/* Copyright (c) 2013-2018 The Linux Foundation. All rights reserved.
+/* Copyright (c) 2013-2019 The Linux Foundation. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -569,11 +569,12 @@ static int update_dsi_display_config()
 	return ret;
 }
 
-int gcdb_display_init(const char *panel_name, uint32_t rev, void *base)
+int gcdb_display_init(const char *panel_name, uint32_t rev, void *base, bool splitter_display_is_enabled)
 {
 	int ret = NO_ERROR;
 	int pan_type;
 	static bool is_first_display=1;
+	struct fbcon_config *fb;
 
 	dsi_video_mode_phy_db.pll_type = DSI_PLL_TYPE_28NM;
 	panel.panel_info.disable_wled_labibb = false;
@@ -584,6 +585,7 @@ int gcdb_display_init(const char *panel_name, uint32_t rev, void *base)
 		is_first_display = 0;
 	}
 
+	fb = &panel.fb[SPLIT_DISPLAY_0];
 	if (pan_type == PANEL_TYPE_DSI) {
 		if (update_dsi_display_config())
 			goto error_gcdb_display_init;
@@ -609,33 +611,35 @@ int gcdb_display_init(const char *panel_name, uint32_t rev, void *base)
 		 */
 		panel.panel_info.dfps.dfps_fb_base = base;
 		base += DFPS_PLL_CODES_SIZE;
-		panel.fb.base = base;
+
+		fb->base = base;
 		dprintf(SPEW, "dfps base=0x%p,d, fb_base=0x%p!\n",
 				panel.panel_info.dfps.dfps_fb_base, base);
 
-		panel.fb.width =  panel.panel_info.xres;
-		panel.fb.height =  panel.panel_info.yres;
-		panel.fb.stride =  panel.panel_info.xres;
-		panel.fb.bpp =  panel.panel_info.bpp;
-		panel.fb.format = panel.panel_info.mipi.dst_format;
+		fb->width =  panel.panel_info.xres;
+		fb->height =  panel.panel_info.yres;
+		fb->stride =  panel.panel_info.xres;
+		fb->bpp =  panel.panel_info.bpp;
+		fb->format = panel.panel_info.mipi.dst_format;
 	} else if (pan_type == PANEL_TYPE_EDP) {
 		mdss_edp_panel_init(&(panel.panel_info));
 		/* prepare func is set up at edp_panel_init */
                 panel.clk_func = mdss_edp_panel_clock;
                 panel.power_func = mdss_edp_panel_power;
 		panel.bl_func = mdss_edp_bl_enable;
-                panel.fb.format = FB_FORMAT_RGB888;
+		fb->base = base;
+		fb->format = FB_FORMAT_RGB888;
 	} else if (pan_type == PANEL_TYPE_SPI) {
 		panel.panel_info.xres = panelstruct.panelres->panel_width;
 		panel.panel_info.yres = panelstruct.panelres->panel_height;
 		panel.panel_info.bpp = panelstruct.color->color_format;
 		panel.power_func = mdss_spi_panel_power;
 		panel.bl_func = mdss_spi_bl_enable;
-		panel.fb.base = base;
-		panel.fb.width = panel.panel_info.xres;
-		panel.fb.height = panel.panel_info.yres;
-		panel.fb.bpp = panel.panel_info.bpp;
-		panel.fb.format = FB_FORMAT_RGB565;
+		fb->base = base;
+		fb->width = panel.panel_info.xres;
+		fb->height = panel.panel_info.yres;
+		fb->bpp = panel.panel_info.bpp;
+		fb->format = FB_FORMAT_RGB565;
 		panel.panel_info.type = SPI_PANEL;
 	} else {
 		dprintf(CRITICAL, "Target panel init not found!\n");
@@ -643,7 +647,6 @@ int gcdb_display_init(const char *panel_name, uint32_t rev, void *base)
 		goto error_gcdb_display_init;
 	}
 
-	panel.fb.base = base;
 	panel.mdp_rev = rev;
 
 	ret = msm_display_init(&panel);

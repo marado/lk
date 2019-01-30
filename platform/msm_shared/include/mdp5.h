@@ -1,4 +1,4 @@
-/* Copyright (c) 2012-2016, 2018, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2012-2016, 2018-2019, The Linux Foundation. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -94,6 +94,7 @@
 #define LAYER_0_OUT_SIZE                        0x04
 #define LAYER_0_OP_MODE                         0x00
 #define LAYER_0_BORDER_COLOR_0                  0x08
+#define LAYER_0_BORDER_COLOR_1                  0x10
 #define LAYER_0_BLEND_OP                        0x20
 #define LAYER_0_BLEND0_FG_ALPHA                 0x24
 #define LAYER_1_BLEND_OP                        0x50
@@ -327,7 +328,7 @@ int target_edp_panel_enable(void);
 int target_edp_panel_disable(void);
 int target_edp_bl_ctrl(int enable);
 int mdss_hdmi_init(void);
-void mdss_hdmi_display_init(uint32_t rev, void *base);
+void mdss_hdmi_display_init(uint32_t rev, void *base, bool splitter_display_is_enabled);
 int mdss_hdmi_on(struct msm_panel_info *pinfo);
 int mdss_hdmi_off(struct msm_panel_info *pinfo);
 int mdss_hdmi_config(struct msm_panel_info *pinfo, struct fbcon_config *fb);

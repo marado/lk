@@ -125,11 +125,11 @@ struct target_display displays[NUM_TARGET_DISPLAYS];
 struct target_layer_int layers[NUM_TARGET_LAYERS];
 
 extern int msm_display_update(struct fbcon_config *fb, uint32_t pipe_id,
-	uint32_t pipe_type, uint32_t zorder, uint32_t width, uint32_t height, uint32_t disp_id);
+	uint32_t pipe_type, uint32_t *zorder, uint32_t *width, uint32_t *height, uint32_t disp_id);
 extern int msm_display_update_pipe(struct fbcon_config *fb, uint32_t pipe_id,
-	uint32_t pipe_type, uint32_t zorder, uint32_t width, uint32_t height, uint32_t disp_id);
+	uint32_t pipe_type, uint32_t *zorder, uint32_t *width, uint32_t *height, uint32_t disp_id);
 extern int msm_display_remove_pipe(uint32_t pipe_id, uint32_t pipe_type, uint32_t disp_id);
-extern struct fbcon_config* msm_display_get_fb(uint32_t disp_id);
+extern struct fbcon_config* msm_display_get_fb(uint32_t disp_id, uint32_t fb_index);
 extern int msm_display_init_count();
 
 bool display_init_done = false;
@@ -857,7 +857,7 @@ void target_set_switch_gpio(int enable_dsi2hdmibridge)
 		gpio_set(enable_gpio.pin_id, GPIO_STATE_HIGH); /* Normal DSI operation */
 }
 
-/* Populate the default resolutions for each display */
+/* Populate the default configurations for each display */
 static int target_display_populate(struct target_display *displays)
 {
 	// the display_id is following the order in targe_disp_init()
@@ -867,7 +867,7 @@ static int target_display_populate(struct target_display *displays)
 	displays[0].dual_pipe = false;
 	displays[0].fps = 60;
 	displays[0].has_rvc = false;
-	displays[0].display_is_shared = false;
+	displays[0].splitter_display_enabled = false;
 
 	displays[1].display_id = 1;
 	displays[1].width = 1280;
@@ -875,7 +875,7 @@ static int target_display_populate(struct target_display *displays)
 	displays[1].dual_pipe = false;
 	displays[1].fps = 60;
 	displays[1].has_rvc = false;
-	displays[1].display_is_shared = false;
+	displays[1].splitter_display_enabled = false;
 
 	displays[2].display_id = 2;
 	displays[2].width = 1920;
@@ -883,7 +883,7 @@ static int target_display_populate(struct target_display *displays)
 	displays[2].dual_pipe = false;
 	displays[2].fps = 60;
 	displays[2].has_rvc = false;
-	displays[2].display_is_shared = false;
+	displays[2].splitter_display_enabled = false;
 
 	return 0;
 }
@@ -973,7 +973,7 @@ void target_display_init(const char *panel_name)
 		displays[rvc_disp_id].has_rvc = true;
 
 	if (target_utils_validate_input_config(oem.panel, &shared_disp_id, SHARE_DISPLAY))
-		displays[shared_disp_id].display_is_shared = true;
+		displays[shared_disp_id].splitter_display_enabled = true;
 
 	if (!strcmp(oem.panel, "")
 		|| !strcmp(oem.panel, NO_PANEL_CONFIG)
@@ -986,7 +986,7 @@ void target_display_init(const char *panel_name)
 			oem.panel);
 		goto target_display_init_end;
 	} else if (!strcmp(oem.panel, HDMI_PANEL_NAME)) {
-		mdss_hdmi_display_init(MDP_REV_50, (void *) HDMI_FB_ADDR);
+		mdss_hdmi_display_init(MDP_REV_50, (void *) HDMI_FB_ADDR, displays[0].splitter_display_enabled);
 		// Get HDMI resolution
 		target_display_HDMI_resolution (&displays[0].width, &displays[0].height);
 		if (displays[0].width > 2560)
@@ -1001,12 +1001,12 @@ void target_display_init(const char *panel_name)
 	} else if (!strcmp(oem.panel, "dual_720p_single_hdmi_video")) {
 		// Three display panels init, init DSI0 first
 		gcdb_display_init("adv7533_720p_dsi0_video", MDP_REV_50,
-				(void *)MIPI_FB_ADDR);
+				(void *)MIPI_FB_ADDR, false);
 		// if the panel has different size or color format, they cannot use
 		// the same FB buffer
 		gcdb_display_init("adv7533_720p_dsi1_video", MDP_REV_50,
-				(void *)MIPI_FB_ADDR + 0x1000000);
-		mdss_hdmi_display_init(MDP_REV_50, (void *) HDMI_FB_ADDR);
+				(void *)MIPI_FB_ADDR + 0x1000000, false);
+		mdss_hdmi_display_init(MDP_REV_50, (void *) HDMI_FB_ADDR, displays[2].splitter_display_enabled);
 		displays[0].width = 1280;
 		displays[0].height = 720;
 		displays[1].width = 1280;
@@ -1022,12 +1022,12 @@ void target_display_init(const char *panel_name)
 	} else if (!strcmp(oem.panel, "dual_1080p_single_hdmi_video")) {
 		// Three display panels init, init DSI0 first
 		gcdb_display_init("adv7533_1080p_dsi0_video", MDP_REV_50,
-				(void *)MIPI_FB_ADDR);
+				(void *)MIPI_FB_ADDR, false);
 		// if the panel has different size or color format, they cannot use
 		// the same FB buffer
 		gcdb_display_init("adv7533_1080p_dsi1_video", MDP_REV_50,
-				(void *)MIPI_FB_ADDR + 0x1000000);
-		mdss_hdmi_display_init(MDP_REV_50, (void *) HDMI_FB_ADDR);
+				(void *)MIPI_FB_ADDR + 0x1000000, false);
+		mdss_hdmi_display_init(MDP_REV_50, (void *) HDMI_FB_ADDR, displays[2].splitter_display_enabled);
 		displays[0].width = 1920;
 		displays[0].height = 1080;
 		displays[1].width = 1920;
@@ -1043,8 +1043,8 @@ void target_display_init(const char *panel_name)
 	} else if (!strcmp(oem.panel, "single_720p_single_hdmi_video")) {
 		// Dual display panels init, init DSI0 first
 		gcdb_display_init("adv7533_720p_video", MDP_REV_50,
-				(void *)MIPI_FB_ADDR);
-		mdss_hdmi_display_init(MDP_REV_50, (void *) HDMI_FB_ADDR);
+				(void *)MIPI_FB_ADDR, false);
+		mdss_hdmi_display_init(MDP_REV_50, (void *) HDMI_FB_ADDR, displays[1].splitter_display_enabled);
 		displays[0].width = 1280;
 		displays[0].height = 720;
 		// Get HDMI resolution
@@ -1059,8 +1059,8 @@ void target_display_init(const char *panel_name)
 	} else if (!strcmp(oem.panel, "single_1080p_single_hdmi_video")) {
 		//Single display panel init, init DSI0 only
 		gcdb_display_init("adv7533_1080p_video", MDP_REV_50,
-				(void *)MIPI_FB_ADDR);
-		mdss_hdmi_display_init(MDP_REV_50, (void *) HDMI_FB_ADDR);
+				(void *)MIPI_FB_ADDR, false);
+		mdss_hdmi_display_init(MDP_REV_50, (void *) HDMI_FB_ADDR, displays[1].splitter_display_enabled);
 		displays[0].width = 1920;
 		displays[0].height = 1080;
 		// Get HDMI resolution
@@ -1090,8 +1090,8 @@ void target_display_init(const char *panel_name)
 		displays[2].height = 0;
 	} else if (!strcmp(oem.panel, "adv7533_3840w_hdmi")) {
 		gcdb_display_init("adv7533_3840w", MDP_REV_50,
-				(void *)MIPI_FB_ADDR);
-		mdss_hdmi_display_init(MDP_REV_50, (void *) HDMI_FB_ADDR);
+				(void *)MIPI_FB_ADDR, false);
+		mdss_hdmi_display_init(MDP_REV_50, (void *) HDMI_FB_ADDR, displays[1].splitter_display_enabled);
 		displays[0].width = 3840;
 		displays[0].height = 1080;
 		displays[0].dual_pipe = true;
@@ -1106,8 +1106,8 @@ void target_display_init(const char *panel_name)
 		goto target_display_init_end;
 	} else if (!strcmp(oem.panel, "adv7533_2560w_hdmi")) {
 		gcdb_display_init("adv7533_2560w", MDP_REV_50,
-				(void *)MIPI_FB_ADDR);
-		mdss_hdmi_display_init(MDP_REV_50, (void *) HDMI_FB_ADDR);
+				(void *)MIPI_FB_ADDR, false);
+		mdss_hdmi_display_init(MDP_REV_50, (void *) HDMI_FB_ADDR, displays[1].splitter_display_enabled);
 		displays[0].width = 2560;
 		displays[0].height = 720;
 		displays[0].dual_pipe = true;
@@ -1122,8 +1122,8 @@ void target_display_init(const char *panel_name)
 		goto target_display_init_end;
 	} else if (!strcmp(oem.panel, "adv7533_3840w_swap_hdmi")) {
 		gcdb_display_init("adv7533_3840w_swap", MDP_REV_50,
-				(void *)MIPI_FB_ADDR);
-		mdss_hdmi_display_init(MDP_REV_50, (void *) HDMI_FB_ADDR);
+				(void *)MIPI_FB_ADDR, false);
+		mdss_hdmi_display_init(MDP_REV_50, (void *) HDMI_FB_ADDR, displays[1].splitter_display_enabled);
 		displays[0].width = 3840;
 		displays[0].height = 1080;
 		displays[0].dual_pipe = true;
@@ -1139,15 +1139,15 @@ void target_display_init(const char *panel_name)
 	} else if (!strcmp(oem.panel, "dsi0_600p_dsi1_720p_hdmi_video")) {
 		// Initialize DSI0 in 1024x600 resolution
 		gcdb_display_init("adv7533_1024_600p_dsi0_video", MDP_REV_50,
-				(void *)MIPI_FB_ADDR);
+				(void *)MIPI_FB_ADDR, false);
 		displays[0].width = 1024;
 		displays[0].height = 600;
 		// Initialize DSI1 in 1280x720 resolution
 		gcdb_display_init("adv7533_720p_dsi1_video", MDP_REV_50,
-				(void *)MIPI_FB_ADDR + 0x1000000);
+				(void *)MIPI_FB_ADDR + 0x1000000, false);
 		displays[1].width = 1280;
 		displays[1].height = 720;
-		mdss_hdmi_display_init(MDP_REV_50, (void *) HDMI_FB_ADDR);
+		mdss_hdmi_display_init(MDP_REV_50, (void *) HDMI_FB_ADDR, displays[2].splitter_display_enabled);
 		// Get HDMI resolution
 		target_display_HDMI_resolution (&displays[2].width, &displays[2].height);
 		if (displays[2].width > 2560)
@@ -1170,7 +1170,7 @@ void target_display_init(const char *panel_name)
 		for (i = 0; ((i < panel_count) && (i < MAX_PANEL_COUNT)); i++) {
 			if (!strcmp(panel[i], HDMI_PANEL_NAME)) {
 				dprintf (SPEW, "panel%d name is %s\n", i, panel[i]);
-				mdss_hdmi_display_init(MDP_REV_50, (void *) HDMI_FB_ADDR);
+				mdss_hdmi_display_init(MDP_REV_50, (void *) HDMI_FB_ADDR, displays[i].splitter_display_enabled);
 				// Get HDMI resolution
 				target_display_HDMI_resolution (&displays[i].width, &displays[i].height);
 				if (displays[i].width > 2560)
@@ -1178,7 +1178,7 @@ void target_display_init(const char *panel_name)
 				else
 					displays[i].dual_pipe = false;
 			} else {
-				gcdb_display_init(panel[i], MDP_REV_50, (void *)MIPI_FB_ADDR);
+				gcdb_display_init(panel[i], MDP_REV_50, (void *)MIPI_FB_ADDR, false);
 				if ((!strcmp(panel[i], "adv7533_1080p_dsi0_video")) ||
 					(!strcmp(panel[i], "adv7533_1080p_dsi1_video")) ||
 					(!strcmp(panel[i], "adv7533_1080p_video")) ||
@@ -1197,7 +1197,7 @@ void target_display_init(const char *panel_name)
 		goto target_display_init_end;
 	}
 
-	if (gcdb_display_init(oem.panel, MDP_REV_50, (void *)MIPI_FB_ADDR)) {
+	if (gcdb_display_init(oem.panel, MDP_REV_50, (void *)MIPI_FB_ADDR, false)) {
 		target_force_cont_splash_disable(true);
 		msm_display_off();
 	}
@@ -1298,7 +1298,7 @@ struct target_display * target_get_display_info(void *disp)
 	return (struct target_display *) disp;
 }
 
-void *target_display_acquire_layer(struct target_display * disp, char *client_name, int color_format)
+void *target_display_acquire_layer(struct target_display *disp, char *client_name, int color_format)
 {
 	if (color_format < kFormatYCbCr422H2V1Packed)
 		return target_acquire_rbg_pipe(disp);
@@ -1306,15 +1306,15 @@ void *target_display_acquire_layer(struct target_display * disp, char *client_na
 		return target_acquire_vig_pipe(disp);
 }
 
-struct fbcon_config* target_display_get_fb(uint32_t disp_id)
+struct fbcon_config* target_display_get_fb(uint32_t disp_id, uint32_t fb_index)
 {
-	return msm_display_get_fb(disp_id);
+	return msm_display_get_fb(disp_id, fb_index);
 }
 
-int target_display_update(struct target_display_update * update, uint32_t size, uint32_t disp_id)
+int target_display_update(struct target_display_update *update, uint32_t size, uint32_t disp_id)
 {
 	uint32_t i = 0;
-	uint32_t pipe_type, pipe_id, zorder;
+	uint32_t pipe_type, pipe_id;
 	struct target_layer_int *lyr;
 	struct target_display *cur_disp;
 	uint32_t ret = 0;
@@ -1328,17 +1328,6 @@ int target_display_update(struct target_display_update * update, uint32_t size, 
 		dprintf(CRITICAL, "Error: Invalid argument\n");
 		return ERR_INVALID_ARGS;
 	}
-	if (KERNEL_TRIGGER_VALUE == readl_relaxed((void *)MDSS_SCRATCH_REG_0)) {
-		// Remove Animated splash layer
-		lyr = (struct target_layer_int *)update[i].layer_list[0].layer;
-		if (lyr != NULL)
-			msm_display_remove_pipe(lyr->layer_id, lyr->layer_type, disp_id);
-		else
-			dprintf(CRITICAL, "No layer to remove\n");
-		// Remove static splash layer
-		msm_display_remove_pipe(0, 0, disp_id);
-		return 1;
-	}
 
 	for (i = 0; i < size; i++) {
 		cur_disp = (struct target_display *)update[i].disp;
@@ -1349,9 +1338,8 @@ int target_display_update(struct target_display_update * update, uint32_t size, 
 		}
 		pipe_id = lyr->layer_id;
 		pipe_type = lyr->layer_type;
-		zorder = update[i].layer_list[0].z_order;
 #if ENABLE_QSEED_SCALAR
-		layer.src_format = update[i].layer_list[0].fb->format;
+		layer.src_format = update[i].layer_list[0].fb[SPLIT_DISPLAY_0].format;
 		//setup Layer structure for scaling
 		memset((void*)&left_scale_setting, 0, sizeof (struct Scale));
 		memset((void*)&right_scale_setting, 0, sizeof (struct Scale));
@@ -1362,54 +1350,56 @@ int target_display_update(struct target_display_update * update, uint32_t size, 
 		layer.left_pipe.id = 1;
 		layer.right_pipe.id = 0;
 		// call Qseed function to get the scaling data
-		if (cur_disp->dual_pipe) {
+		if (cur_disp->dual_pipe && !cur_disp->splitter_display_enabled) {
 			layer.left_pipe.horz_deci = 0;
 			layer.left_pipe.vert_deci = 0;
-			layer.left_pipe.src_width = update[i].layer_list[0].src_width;
-			layer.left_pipe.src_height = update[i].layer_list[0].src_height;
+			layer.left_pipe.src_width = update[i].layer_list[0].src_width[SPLIT_DISPLAY_0];
+			layer.left_pipe.src_height = update[i].layer_list[0].src_height[SPLIT_DISPLAY_0];
 			layer.left_pipe.src_rect.x = 0;
 			layer.left_pipe.src_rect.y = 0;
-			layer.left_pipe.src_rect.w = update[i].layer_list[0].src_width / 2;
-			layer.left_pipe.src_rect.h = update[i].layer_list[0].src_height;
-			layer.left_pipe.dst_rect.x = (cur_disp->width - update[i].layer_list[0].dst_width) / 2;
-			layer.left_pipe.dst_rect.y = (cur_disp->height - update[i].layer_list[0].dst_height) / 2;
-			layer.left_pipe.dst_rect.w = update[i].layer_list[0].dst_width / 2;
-			layer.left_pipe.dst_rect.h = update[i].layer_list[0].dst_height;
+			layer.left_pipe.src_rect.w = update[i].layer_list[0].src_width[SPLIT_DISPLAY_0] / 2;
+			layer.left_pipe.src_rect.h = update[i].layer_list[0].src_height[SPLIT_DISPLAY_0];
+			layer.left_pipe.dst_rect.x = (cur_disp->width - update[i].layer_list[0].dst_width[SPLIT_DISPLAY_0]) / 2;
+			layer.left_pipe.dst_rect.y = (cur_disp->height - update[i].layer_list[0].dst_height[SPLIT_DISPLAY_0]) / 2;
+			layer.left_pipe.dst_rect.w = update[i].layer_list[0].dst_width[SPLIT_DISPLAY_0] / 2;
+			layer.left_pipe.dst_rect.h = update[i].layer_list[0].dst_height[SPLIT_DISPLAY_0];
 
 			layer.right_pipe.horz_deci = 0;
 			layer.right_pipe.vert_deci = 0;
-			layer.right_pipe.src_width = update[i].layer_list[0].src_width;
-			layer.right_pipe.src_height = update[i].layer_list[0].src_height;
-			layer.right_pipe.src_rect.x = (update[i].layer_list[0].src_width / 2);
+			layer.right_pipe.src_width = update[i].layer_list[0].src_width[SPLIT_DISPLAY_0];
+			layer.right_pipe.src_height = update[i].layer_list[0].src_height[SPLIT_DISPLAY_0];
+			layer.right_pipe.src_rect.x = (update[i].layer_list[0].src_width[SPLIT_DISPLAY_0] / 2);
 			layer.right_pipe.src_rect.y = 0;
-			layer.right_pipe.src_rect.w = update[i].layer_list[0].src_width / 2;
-			layer.right_pipe.src_rect.h = update[i].layer_list[0].src_height;
-			layer.right_pipe.dst_rect.x = 0;
-			layer.right_pipe.dst_rect.y = (cur_disp->height - update[i].layer_list[0].dst_height) / 2;
-			layer.right_pipe.dst_rect.w = update[i].layer_list[0].dst_width / 2;
-			layer.right_pipe.dst_rect.h = update[i].layer_list[0].dst_height;
+			layer.right_pipe.src_rect.w = update[i].layer_list[0].src_width[SPLIT_DISPLAY_0] / 2;
+			layer.right_pipe.src_rect.h = update[i].layer_list[0].src_height[SPLIT_DISPLAY_0];
+			layer.right_pipe.dst_rect.x = cur_disp->width / 2;
+			layer.right_pipe.dst_rect.y = (cur_disp->height - update[i].layer_list[0].dst_height[SPLIT_DISPLAY_0]) / 2;
+			layer.right_pipe.dst_rect.w = update[i].layer_list[0].dst_width[SPLIT_DISPLAY_0] / 2;
+			layer.right_pipe.dst_rect.h = update[i].layer_list[0].dst_height[SPLIT_DISPLAY_0];
 			layer.left_pipe.flags = SCALAR_DUAL_PIPE;
 			layer.right_pipe.flags = SCALAR_DUAL_PIPE;
 			if (pipe_type == MDSS_MDP_PIPE_TYPE_VIG) {
 				dualQseedScalar(&layer);
-				dprintf(SPEW, "dual pipe Qseed Scalar src:%d-%d\n", update[i].layer_list[0].src_width, update[i].layer_list[0].src_height);
-			}else{
+				dprintf(SPEW, "dual pipe Qseed Scalar src:%d-%d\n",
+                                                                update[i].layer_list[0].src_width[SPLIT_DISPLAY_0], update[i].layer_list[0].src_height[SPLIT_DISPLAY_0]);
+			} else {
 				dualRgbScalar(&layer);
-				dprintf(SPEW, "dual pipe RGB Scalar src:%d-%d\n", update[i].layer_list[0].src_width, update[i].layer_list[0].src_height);
+				dprintf(SPEW, "dual pipe RGB Scalar src:%d-%d\n",
+                                                                update[i].layer_list[0].src_width[SPLIT_DISPLAY_0], update[i].layer_list[0].src_height[SPLIT_DISPLAY_0]);
 			}
 		} else {
 			layer.left_pipe.horz_deci = 0;
 			layer.left_pipe.vert_deci = 0;
-			layer.left_pipe.src_width = update[i].layer_list[0].src_width;
-			layer.left_pipe.src_height = update[i].layer_list[0].src_height;
-			layer.left_pipe.src_rect.x = update[i].layer_list[0].src_rect_x;
-			layer.left_pipe.src_rect.y = update[i].layer_list[0].src_rect_y;
-			layer.left_pipe.src_rect.w = update[i].layer_list[0].src_width;
-			layer.left_pipe.src_rect.h = update[i].layer_list[0].src_height;
-			layer.left_pipe.dst_rect.x = update[i].layer_list[0].dst_rect_x;
-			layer.left_pipe.dst_rect.y = update[i].layer_list[0].dst_rect_y;
-			layer.left_pipe.dst_rect.w = update[i].layer_list[0].dst_width;
-			layer.left_pipe.dst_rect.h = update[i].layer_list[0].dst_height;
+			layer.left_pipe.src_width = update[i].layer_list[0].src_width[SPLIT_DISPLAY_0];
+			layer.left_pipe.src_height = update[i].layer_list[0].src_height[SPLIT_DISPLAY_0];
+			layer.left_pipe.src_rect.x = update[i].layer_list[0].src_rect_x[SPLIT_DISPLAY_0];
+			layer.left_pipe.src_rect.y = update[i].layer_list[0].src_rect_y[SPLIT_DISPLAY_0];
+			layer.left_pipe.src_rect.w = update[i].layer_list[0].src_width[SPLIT_DISPLAY_0];
+			layer.left_pipe.src_rect.h = update[i].layer_list[0].src_height[SPLIT_DISPLAY_0];
+			layer.left_pipe.dst_rect.x = update[i].layer_list[0].dst_rect_x[SPLIT_DISPLAY_0];
+			layer.left_pipe.dst_rect.y = update[i].layer_list[0].dst_rect_y[SPLIT_DISPLAY_0];
+			layer.left_pipe.dst_rect.w = update[i].layer_list[0].dst_width[SPLIT_DISPLAY_0];
+			layer.left_pipe.dst_rect.h = update[i].layer_list[0].dst_height[SPLIT_DISPLAY_0];
 			/* make sure the right pipe is empty for single pipe case */
 			memset((void*)&layer.right_pipe, 0, sizeof (struct PipeInfo));
 			if (pipe_type == MDSS_MDP_PIPE_TYPE_VIG) {
@@ -1418,17 +1408,21 @@ int target_display_update(struct target_display_update * update, uint32_t size, 
 				singleRgbScalar(&layer);
 			}
 		}
-		update[i].layer_list[0].fb->layer_scale = &layer;
+		update[i].layer_list[0].fb[SPLIT_DISPLAY_0].layer_scale = &layer;
+		update[i].layer_list[0].fb[SPLIT_DISPLAY_1].layer_scale = NULL;
+		if (cur_disp->splitter_display_enabled && pipe_type != MDSS_MDP_PIPE_TYPE_VIG)
+			update[i].layer_list[0].fb[SPLIT_DISPLAY_0].layer_scale = NULL;
 #endif
 
-		ret = msm_display_update(update[i].layer_list[0].fb, pipe_id, pipe_type, zorder,
+		ret = msm_display_update(update[i].layer_list[0].fb, pipe_id, pipe_type, update[i].layer_list[0].z_order,
 			update[i].layer_list[0].dst_width, update[i].layer_list[0].dst_height, disp_id);
 		if (ret != 0)
 			dprintf(CRITICAL, "Error in display upadte ret=%u\n",ret);
 
 #if ENABLE_QSEED_SCALAR
 		// Clean up the FB structure because it will be reuse
-		update[i].layer_list[0].fb->layer_scale = NULL;
+		update[i].layer_list[0].fb[SPLIT_DISPLAY_0].layer_scale = NULL;
+		update[i].layer_list[0].fb[SPLIT_DISPLAY_1].layer_scale = NULL;
 #endif
 	}
 	return ret;
@@ -1438,7 +1432,7 @@ int target_display_update_pipe(struct target_display_update * update, uint32_t s
 							uint32_t disp_id)
 {
 	uint32_t i = 0;
-	uint32_t pipe_type, pipe_id, zorder;
+	uint32_t pipe_type, pipe_id;
 	struct target_layer_int *lyr;
 	struct target_display *cur_disp;
 	uint32_t ret = 0;
@@ -1457,9 +1451,8 @@ int target_display_update_pipe(struct target_display_update * update, uint32_t s
 		}
 		pipe_id = lyr->layer_id;
 		pipe_type = lyr->layer_type;
-		zorder = update[i].layer_list[0].z_order;
 
-		ret = msm_display_update_pipe(update[i].layer_list[0].fb, pipe_id, pipe_type, zorder,
+		ret = msm_display_update_pipe(update[i].layer_list[0].fb, pipe_id, pipe_type, update[i].layer_list[0].z_order,
 			update[i].layer_list[0].dst_width, update[i].layer_list[0].dst_height, disp_id);
 		if (ret != 0)
 			dprintf(CRITICAL, "Error in display pipe upadte ret=%u\n",ret);
