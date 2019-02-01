@@ -153,6 +153,7 @@ struct target_display {
   float    fps;
   bool     dual_pipe;
   bool     has_rvc;
+  bool     display_is_shared;
 };
 
 struct target_layer_int {

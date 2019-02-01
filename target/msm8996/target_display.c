@@ -867,6 +867,7 @@ static int target_display_populate(struct target_display *displays)
 	displays[0].dual_pipe = false;
 	displays[0].fps = 60;
 	displays[0].has_rvc = false;
+	displays[0].display_is_shared = false;
 
 	displays[1].display_id = 1;
 	displays[1].width = 1280;
@@ -874,6 +875,7 @@ static int target_display_populate(struct target_display *displays)
 	displays[1].dual_pipe = false;
 	displays[1].fps = 60;
 	displays[1].has_rvc = false;
+	displays[1].display_is_shared = false;
 
 	displays[2].display_id = 2;
 	displays[2].width = 1920;
@@ -881,6 +883,7 @@ static int target_display_populate(struct target_display *displays)
 	displays[2].dual_pipe = false;
 	displays[2].fps = 60;
 	displays[2].has_rvc = false;
+	displays[2].display_is_shared = false;
 
 	return 0;
 }
@@ -956,6 +959,7 @@ void target_display_init(const char *panel_name)
 {
 	struct oem_panel_data oem;
 	uint32_t rvc_disp_id = 0;
+	uint32_t shared_disp_id = 0;
 
 	target_display_populate(displays);
 	target_layers_populate(layers);
@@ -967,6 +971,9 @@ void target_display_init(const char *panel_name)
 
 	if (target_utils_validate_input_config(oem.panel, &rvc_disp_id, RVC_DISPLAY))
 		displays[rvc_disp_id].has_rvc = true;
+
+	if (target_utils_validate_input_config(oem.panel, &shared_disp_id, SHARE_DISPLAY))
+		displays[shared_disp_id].display_is_shared = true;
 
 	if (!strcmp(oem.panel, "")
 		|| !strcmp(oem.panel, NO_PANEL_CONFIG)
