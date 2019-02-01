@@ -2056,6 +2056,7 @@ int early_camera_check_rev(unsigned int *pExpected_rev_id, unsigned int num_id, 
 
 static void early_camera_setup_layer(int display_id)
 {
+	uint32_t rvc_display_id = 0;
 
 	if(!layer_cam_ptr)
 		layer_cam_ptr = target_display_acquire_layer(disp_ptr, "as", kFormatYCbCr422H2V1Packed);
@@ -2066,7 +2067,9 @@ static void early_camera_setup_layer(int display_id)
 		layer_cam.layer = NULL;
 		return;
 	}
-	fb = target_display_get_fb(RVC_DISPLAY_ID);
+
+	rvc_display_id = target_display_get_rvc_display_id();
+	fb = target_display_get_fb(rvc_display_id);
 	if (fb == NULL){
 		dprintf(CRITICAL, "Display FB acquire failed\n");
 		layer_cam.fb = NULL;
@@ -2105,14 +2108,18 @@ static void early_camera_remove_layer(void)
 
 static int early_camera_setup_display(void)
 {
-	disp_ptr = target_display_open(RVC_DISPLAY_ID);
+	uint32_t rvc_display_id;
+
+	rvc_display_id = target_display_get_rvc_display_id();
+	disp_ptr = target_display_open(rvc_display_id);
+
 	if (disp_ptr == NULL) {
 		dprintf(CRITICAL, "Display open failed\n");
 		return -1;
 	}
 	disp = target_get_display_info(disp_ptr);
 	if (disp == NULL){
-	dprintf(CRITICAL, "Display info failed\n");
+		dprintf(CRITICAL, "Display info failed\n");
 		return -1;
 	}
 	return 0;
@@ -2458,13 +2465,13 @@ int early_camera_on(void)
 }
 int early_camera_flip(void)
 {
+	uint32_t rvc_display_id;
 #ifdef ADV7481
 	static int msg_count = 0;
 	static int previous_lock_status = 1;
 	struct camera_i2c_reg_array reg_stop[1] = {{ 0x0, 0x81, 0}};
 	struct camera_i2c_reg_array reg_start[1] = {{ 0x0, 0x21, 0}};
 #endif
-
 
 #ifdef DEBUG_T32
 	while(delay_to_attach_t32 != 1)
@@ -2473,7 +2480,6 @@ int early_camera_flip(void)
 		dprintf(CRITICAL, "Waiting to attach to t.32\n");
 	}
 #endif
-
 
 #ifdef ADV7481
 	previous_lock_status = lock;
@@ -2552,12 +2558,14 @@ int early_camera_flip(void)
 		bs_set_timestamp(BS_EARLY_CAMERA_START);
 	}
 
+	rvc_display_id = target_display_get_rvc_display_id();
+
 	frame_counter++;
 	if(early_cam_on == 1) {
 		if (gpio_triggered) {
 			if(toggle ==0) {
 				toggle = 1;
-				early_camera_setup_layer(RVC_DISPLAY_ID);
+				early_camera_setup_layer(rvc_display_id);
 			}
 
 			if (layer_cam.fb) {
@@ -2576,15 +2584,15 @@ int early_camera_flip(void)
 				layer_cam.z_order = 7;
 				layer_cam.fb->format = kFormatYCbCr422H2V1Packed;
 				if (pingpong_buffer_updated < 2) {
-					target_display_update(&update_cam,1,RVC_DISPLAY_ID);
+					target_display_update(&update_cam, 1, rvc_display_id);
 					pingpong_buffer_updated++;
 				} else {
 					if (firstframe)
 						target_display_update(&update_cam, 1,
-								RVC_DISPLAY_ID);
+								rvc_display_id);
 					else
 						target_display_update_pipe(&update_cam, 1,
-								RVC_DISPLAY_ID);
+								rvc_display_id);
 				}
 			}
 		} else {

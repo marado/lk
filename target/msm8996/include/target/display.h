@@ -1,4 +1,4 @@
-/* Copyright (c) 2015-2016, 2018, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2015-2016, 2018-2019, The Linux Foundation. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -152,6 +152,7 @@ struct target_display {
   uint32_t height;
   float    fps;
   bool     dual_pipe;
+  bool     has_rvc;
 };
 
 struct target_layer_int {
@@ -184,6 +185,7 @@ struct target_display_update {
 
 /* DYNAMIC APIS */
 void * target_display_open (uint32 display_id);
+uint32_t target_display_get_rvc_display_id();
 struct target_display * target_get_display_info(void *disp);
 void *target_display_acquire_layer(struct target_display * disp, char *client_name, int color_format);
 struct fbcon_config* target_display_get_fb(uint32_t disp_id);

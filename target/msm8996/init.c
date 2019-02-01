@@ -1,4 +1,4 @@
-/* Copyright (c) 2014-2016, 2018, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2014-2016, 2018-2019, The Linux Foundation. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -1262,6 +1262,7 @@ int animated_splash() {
 	uint32_t frame_count = 0;
 #endif
 	int32_t *scratch_pad = NULL;
+	uint32_t rvc_display_id = 0;
 
 	if (!buffers[0]) {
 		dprintf(CRITICAL, "Unexpected error in read\n");
@@ -1287,6 +1288,10 @@ int animated_splash() {
 			dprintf(CRITICAL, "Display info failed\n");
 			return -1;
 		}
+
+		if (disp->has_rvc)
+			rvc_display_id = j;
+
 		layer_ptr = target_display_acquire_layer(disp_ptr, "as", kFormatRGB888);
 		if (layer_ptr == NULL){
 			dprintf(CRITICAL, "Layer acquire failed\n");
@@ -1350,7 +1355,7 @@ int animated_splash() {
 		}
 
 		for (j = 0; j < disp_cnt; j++) {
-			if (j == 0 && early_camera_enabled == 1) {
+			if (j == rvc_display_id && early_camera_enabled == 1) {
 				if (early_camera_on()) {
 					if(layer_list[j].layer) {
 						target_release_layer(&layer_list[j]);
@@ -1407,9 +1412,9 @@ int animated_splash() {
 				frame_count = EARLYCAM_NO_GPIO_FRAME_LIMIT +1;
 				early_camera_stop();
 				layer_ptr = target_display_acquire_layer(
-				update[RVC_DISPLAY_ID].disp, "as", kFormatRGB888);
-				layer_list[RVC_DISPLAY_ID].layer = layer_ptr;
-				layer_list[RVC_DISPLAY_ID].z_order = 2;
+				update[rvc_display_id].disp, "as", kFormatRGB888);
+				layer_list[rvc_display_id].layer = layer_ptr;
+				layer_list[rvc_display_id].z_order = 2;
 				camera_frame_on = false;
 			}
 		} else {
@@ -1424,9 +1429,9 @@ int animated_splash() {
 			if(camera_frame_on) {
 				early_camera_stop();
 				layer_ptr = target_display_acquire_layer(
-					update[RVC_DISPLAY_ID].disp, "as", kFormatRGB888);
-				layer_list[RVC_DISPLAY_ID].layer = layer_ptr;
-				layer_list[RVC_DISPLAY_ID].z_order = 2;
+					update[rvc_display_id].disp, "as", kFormatRGB888);
+				layer_list[rvc_display_id].layer = layer_ptr;
+				layer_list[rvc_display_id].z_order = 2;
 				camera_frame_on = false;
 			}
 		} else if (early_camera_enabled){
@@ -1440,9 +1445,9 @@ int animated_splash() {
 			early_camera_stop();
 			if(camera_frame_on) {
 				layer_ptr = target_display_acquire_layer(
-				update[RVC_DISPLAY_ID].disp, "as", kFormatRGB888);
-				layer_list[RVC_DISPLAY_ID].layer = layer_ptr;
-				layer_list[RVC_DISPLAY_ID].z_order = 2;
+				update[rvc_display_id].disp, "as", kFormatRGB888);
+				layer_list[rvc_display_id].layer = layer_ptr;
+				layer_list[rvc_display_id].z_order = 2;
 				camera_frame_on = false;
 			}
 		}
