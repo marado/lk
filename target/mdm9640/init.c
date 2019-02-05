@@ -1,4 +1,4 @@
-/* Copyright (c) 2014-2016, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2014-2016,2019 The Linux Foundation. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -190,6 +190,8 @@ void target_init(void)
 /* reboot */
 void reboot_device(unsigned reboot_reason)
 {
+	int ret = 0;
+
 	/* Write the reboot reason */
 	writel(reboot_reason, RESTART_REASON_ADDR);
 
@@ -202,6 +204,12 @@ void reboot_device(unsigned reboot_reason)
 		pm8x41_v2_reset_configure(PON_PSHOLD_WARM_RESET);
 	else
 		pm8x41_v2_reset_configure(PON_PSHOLD_HARD_RESET);
+
+	ret = scm_halt_pmic_arbiter();
+	if (ret)
+		dprintf (CRITICAL , "Failed to halt pmic arbiter: %d\n", ret);
+
+	mdelay (500);
 
 	/* Drop PS_HOLD for MSM */
 	writel(0x00, MPM2_MPM_PS_HOLD);
