@@ -2278,16 +2278,6 @@ int mdp_dsi_video_update(struct msm_panel_info *pinfo)
 	return NO_ERROR;
 }
 
-int mdp_dsi_video_reset_interrupt_status(void)
-{
-	writel(~DSI_ERR_INT_RESET_STATUS, DSI0_ERR_INT_MASK);
-	writel(~DSI_INT_CTRL_RESET_STATUS, DSI0_INT_CTRL);
-	writel(~DSI_ERR_INT_RESET_STATUS, DSI1_ERR_INT_MASK);
-	writel(~DSI_INT_CTRL_RESET_STATUS, DSI1_INT_CTRL);
-
-	return 0;
-}
-
 int mdp_dsi_video_update_pipe(struct msm_panel_info *pinfo,  struct fbcon_config *fb)
 {
 	uint32_t ctl0_reg_val = 0, ctl1_reg_val = 0;
