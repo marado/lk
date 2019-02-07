@@ -1,4 +1,4 @@
-/* Copyright (c) 2012-2016, 2018, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2012-2016, 2018-2019, The Linux Foundation. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -340,13 +340,6 @@ int msm_display_update(struct fbcon_config *fb, uint32_t pipe_id, uint32_t pipe_
 
 	switch (pinfo->type) {
 		case MIPI_VIDEO_PANEL:
-			/*
-			 * Kernel will enable interrupts for the case LK and Kernel
-			 * access hardware at the same time, so LK can't disable
-			 * interrupts.
-			 */
-			mdp_dsi_video_reset_interrupt_status();
-
 			ret = mdp_dsi_video_config(pinfo, fb);
 			if (ret) {
 				dprintf(CRITICAL, "ERROR in display config\n");
