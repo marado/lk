@@ -747,20 +747,33 @@ static void verify_signed_bootimg(uint32_t bootimg_addr, uint32_t bootimg_size)
 	}
 
 #if VERIFIED_BOOT
-	if(boot_verify_get_state() == RED)
+	switch(boot_verify_get_state())
 	{
-		if(!boot_into_recovery)
-		{
-			dprintf(CRITICAL,
-					"Device verification failed. Rebooting into recovery.\n");
-			reboot_device(RECOVERY_MODE);
-		}
-		else
-		{
-			dprintf(CRITICAL,
-					"Recovery image verification failed. Asserting..\n");
-			ASSERT(0);
-		}
+	case RED:
+		dprintf(CRITICAL,
+			"Your device has failed verification and may not work properly.\nWait for 5 seconds before proceeding\n");
+		mdelay(5000);
+		break;
+	case YELLOW:
+		dprintf(CRITICAL,
+			"Your device has loaded a different operating system.\nWait for 5 seconds before proceeding\n");
+		mdelay(5000);
+		break;
+	default:
+		break;
+	}
+#endif
+#if !VERIFIED_BOOT
+	if(device.is_tampered)
+	{
+		write_device_info_mmc(&device);
+	#ifdef TZ_TAMPER_FUSE
+		set_tamper_fuse_cmd();
+	#endif
+	#ifdef ASSERT_ON_TAMPER
+		dprintf(CRITICAL, "Device is tampered. Asserting..\n");
+		ASSERT(0);
+	#endif
 	}
 #endif
 }
@@ -1809,10 +1822,12 @@ void cmd_boot(const char *arg, void *data, unsigned sz)
 		return;
 	}
 
+	// Initialize boot state before trying to verify boot.img
+#if VERIFIED_BOOT
+		boot_verifier_init();
 	/* Handle overflow if the input image size is greater than
 	 * boot image buffer can hold
 	 */
-#if VERIFIED_BOOT
 	if ((target_get_max_flash_size() - (image_actual - sig_actual)) < page_size)
 	{
 		fastboot_fail("booimage: size is greater than boot image buffer can hold");

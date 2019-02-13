@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2014-2016, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2014-2016,2019 The Linux Foundation. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -34,6 +34,7 @@
  *    AndroidVerifiedBootSignature DEFINITIONS ::=
  *    BEGIN
  *        FormatVersion ::= INTEGER
+ *        Certificate ::= Certificate
  *        AlgorithmIdentifier ::=  SEQUENCE {
  *            algorithm OBJECT IDENTIFIER,
  *            parameters ANY DEFINED BY algorithm OPTIONAL
@@ -137,8 +138,9 @@ enum boot_verfiy_event
 {
 	BOOT_INIT,
 	DEV_UNLOCK,
-	KEYSTORE_VERIFICATION_FAIL,
-	BOOT_VERIFICATION_FAIL,
+	BOOTIMG_EMBEDDED_CERT_VERIFICATION_PASS,
+	BOOTIMG_KEYSTORE_VERIFICATION_PASS,
+	BOOTIMG_VERIFICATION_FAIL,
 	USER_DENIES,
 };
 
@@ -157,6 +159,9 @@ void boot_verify_print_state();
 bool boot_verify_validate_keystore(unsigned char * user_addr, unsigned sz);
 /* Function to check if partition is allowed to flash in verified mode */
 bool boot_verify_flash_allowed(const char * entry);
+/* Function to send root of trust to trust zone */
+bool send_rot_command(uint32_t is_unlocked);
+unsigned char* get_boot_fingerprint(unsigned int* buf_size);
 bool boot_verify_compare_sha256(unsigned char *image_ptr,
 		unsigned int image_size, unsigned char *signature_ptr, RSA *rsa);
 KEYSTORE *boot_gerity_get_oem_keystore();
