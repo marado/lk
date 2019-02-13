@@ -788,6 +788,24 @@ static void verify_signed_bootimg(uint32_t bootimg_addr, uint32_t bootimg_size)
 	set_tamper_flag(device.is_tampered);
 #endif
 
+#if VERIFIED_BOOT
+	switch(boot_verify_get_state())
+	{
+	case RED:
+		dprintf(CRITICAL,
+			"Your device has failed verification and may not work properly.\nWait for 5 seconds before proceeding\n");
+		mdelay(5000);
+		break;
+	case YELLOW:
+		dprintf(CRITICAL,
+			"Your device has loaded a different operating system.\nWait for 5 seconds before proceeding\n");
+		mdelay(5000);
+		break;
+	default:
+		break;
+	}
+#endif
+#if !VERIFIED_BOOT
 	if(device.is_tampered)
 	{
 		write_device_info_mmc(&device);
@@ -798,23 +816,6 @@ static void verify_signed_bootimg(uint32_t bootimg_addr, uint32_t bootimg_size)
 		dprintf(CRITICAL, "Device is tampered. Asserting..\n");
 		ASSERT(0);
 	#endif
-	}
-
-#if VERIFIED_BOOT
-	if(boot_verify_get_state() == RED)
-	{
-		if(!boot_into_recovery)
-		{
-			dprintf(CRITICAL,
-					"Device verification failed. Rebooting into recovery.\n");
-			reboot_device(RECOVERY_MODE);
-		}
-		else
-		{
-			dprintf(CRITICAL,
-					"Recovery image verification failed. Asserting..\n");
-			ASSERT(0);
-		}
 	}
 #endif
 }
@@ -1173,6 +1174,18 @@ int boot_linux_from_mmc(void)
 
 		imagesize_actual = (page_size + kernel_actual + ramdisk_actual);
 
+#endif
+#if VERIFIED_BOOT
+	if (boot_verify_get_state() == ORANGE)
+	{
+		dprintf(CRITICAL,
+			"Your device has been unlocked and can't be trusted.\nWait for 5 seconds before proceeding\n");
+		mdelay(5000);
+	}
+
+	// send root of trust
+	if(!send_rot_command((uint32_t)device.is_unlocked))
+		ASSERT(0);
 #endif
 		if (check_aboot_addr_range_overlap((uintptr_t) image_addr, imagesize_actual))
 		{
@@ -1885,10 +1898,12 @@ void cmd_boot(const char *arg, void *data, unsigned sz)
 		}
 	}
 
+	// Initialize boot state before trying to verify boot.img
+#if VERIFIED_BOOT
+		boot_verifier_init();
 	/* Handle overflow if the input image size is greater than
 	 * boot image buffer can hold
 	 */
-#if VERIFIED_BOOT
 	if ((target_get_max_flash_size() - (image_actual - sig_actual)) < page_size)
 	{
 		fastboot_fail("booimage: size is greater than boot image buffer can hold");
