@@ -222,3 +222,14 @@ bool platform_is_glink_enabled()
 	else
 		return 0;
 }
+
+#if VBLEIMA
+int platform_is_vbleima_enabled()
+{
+	if (platform_is_mdm9650()) {
+		if (((board_target_id() >> 8) & 0xFF) == 0x01)
+			return 1;
+	}
+	return 0;
+}
+#endif

@@ -188,6 +188,11 @@ static const char *skip_ramfs = " skip_initramfs";
 static const char *sys_path_cmdline = " rootwait ro init=/init";
 static const char *sys_path = "  root=/dev/mmcblk0p";
 
+#if VBLEIMA
+static const char *ima_appraise_off = " ima_appraise=off";
+static const char *ima_appraise_on = " ima_tcb ima_appraise_tcb";
+#endif
+
 #if VERIFIED_BOOT
 #if !VBOOT_MOTA
 static const char *verity_mode = " androidboot.veritymode=";
@@ -521,6 +526,13 @@ unsigned char *update_cmdline(const char * cmdline)
 			cmdline_len += strlen(skip_ramfs);
 	}
 
+#if VBLEIMA
+	if(platform_is_vbleima_enabled())
+		cmdline_len += strlen(ima_appraise_on);
+	else
+		cmdline_len += strlen(ima_appraise_off);
+#endif
+
 #if TARGET_CMDLINE_SUPPORT
 	char *target_cmdline_buf = malloc(TARGET_MAX_CMDLNBUF);
 	int target_cmd_line_len;
@@ -745,6 +757,15 @@ unsigned char *update_cmdline(const char * cmdline)
 				--dst;
 				while ((*dst++ = *src++));
 		}
+
+#if VBLEIMA
+	if (have_cmdline) --dst;
+	if(platform_is_vbleima_enabled())
+		src = ima_appraise_on;
+	else
+		src = ima_appraise_off;
+	while((*dst++ = *src++));
+#endif
 
 #if TARGET_CMDLINE_SUPPORT
 		if (target_cmdline_buf && target_cmd_line_len)

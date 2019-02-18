@@ -91,4 +91,7 @@ uint64_t platform_get_ddr_start();
 bool platform_is_glink_enabled();
 bool platform_is_mdm9206();
 int is_vb_le_enabled();
+#if VBLEIMA
+int platform_is_vbleima_enabled();
+#endif
 #endif
