@@ -2005,7 +2005,7 @@ int mdp_edp_config(struct msm_panel_info *pinfo, struct fbcon_config *fb)
 int mdss_hdmi_config(struct msm_panel_info *pinfo, struct fbcon_config *fb)
 {
 	uint32_t left_pipe, right_pipe, out_size;
-	uint32_t old_intf_sel;
+	uint32_t old_intf_sel, prg_fetch_start_en;
 	mdss_intf_tg_setup(pinfo, MDP_INTF_3_BASE + mdss_mdp_intf_offset());
 	mdss_intf_fetch_start_config(pinfo, MDP_INTF_3_BASE + mdss_mdp_intf_offset());
 
@@ -2098,7 +2098,10 @@ int mdss_hdmi_config(struct msm_panel_info *pinfo, struct fbcon_config *fb)
 	 */
 	writel(0x01, CDM_HDMI_PACK_OP_MODE);
 	writel(0x00, MDP_OUT_CTL_0);
-	writel(0x00, MDP_INTF_3_INTF_CONFIG);
+	prg_fetch_start_en = readl(MDP_INTF_3_INTF_CONFIG);
+	/* Preserve PROG_FETCH_START_EN bit */
+	prg_fetch_start_en &= BIT(31);
+	writel(prg_fetch_start_en | 0x00, MDP_INTF_3_INTF_CONFIG);
 	out_size = (pinfo->xres & 0xFFFF) | ((pinfo->yres & 0xFFFF) << 16);
 	writel(out_size, CDM_CDWN2_OUT_SIZE);
 	writel(0x80, CDM_CDWN2_OP_MODE);
