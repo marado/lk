@@ -58,6 +58,7 @@ enum boot_device
 void platform_read_boot_config();
 uint32_t platform_get_boot_dev();
 uint32_t platform_boot_dev_isemmc();
+uint32_t platform_boot_dev_is_nand();
 void platform_boot_dev_cmdline(char *buf);
 
 void *target_mmc_device();
