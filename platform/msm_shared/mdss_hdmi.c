@@ -1,4 +1,4 @@
-/* Copyright (c) 2010-2016, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2010-2016,2019, The Linux Foundation. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -1118,6 +1118,7 @@ static void mdss_hdmi_panel_init(struct msm_panel_info *pinfo)
 	}
 
 	pinfo->pipe_type = MDSS_MDP_PIPE_TYPE_RGB;
+	pinfo->zorder = 2;
 }
 
 static uint8_t mdss_hdmi_cable_status(void)

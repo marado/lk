@@ -1332,7 +1332,6 @@ void mdss_layer_mixer_setup(struct fbcon_config *fb, struct msm_panel_info *pinf
 	uint32_t right_mixer_base = 0;
 	uint32_t left_ctl_base = 0;
 	uint32_t right_ctl_base = 0;
-	uint32_t pipe_order;
 	struct resource_req *rm = NULL;
 	struct resource_req *display_1_rm = NULL;
 
@@ -1438,37 +1437,26 @@ void mdss_layer_mixer_setup(struct fbcon_config *fb, struct msm_panel_info *pinf
 			}
 			break;
 	}
-	switch (pinfo->zorder) {
-		case 1:
-			pipe_order = 6;
-			break;
-		case 2:
-			pipe_order = 2;
-			break;
-		default:
-			pipe_order = 1;
-			break;
-	}
 
 	switch (pinfo->pipe_type) {
 		case MDSS_MDP_PIPE_TYPE_RGB:
 			switch (pinfo->pipe_id) {
 				case 1:
-					new_left_staging_level = pipe_order << 12;
-					new_right_staging_level = pipe_order << 15;
+					new_left_staging_level = pinfo->zorder << 12;
+					new_right_staging_level = pinfo->zorder << 15;
 					break;
 				case 2:
-					new_left_staging_level = pipe_order << 15;
-					new_right_staging_level = pipe_order << 29;
+					new_left_staging_level = pinfo->zorder << 15;
+					new_right_staging_level = pinfo->zorder << 29;
 					break;
 				case 3:
-					new_left_staging_level = pipe_order << 29;
-					new_right_staging_level = pipe_order << 9;
+					new_left_staging_level = pinfo->zorder << 29;
+					new_right_staging_level = pinfo->zorder << 9;
 					break;
 				case 0:
 				default:
-					new_left_staging_level = pipe_order << 9;
-					new_right_staging_level = pipe_order << 12;
+					new_left_staging_level = pinfo->zorder << 9;
+					new_right_staging_level = pinfo->zorder << 12;
 			}
 			break;
 		case MDSS_MDP_PIPE_TYPE_DMA:
@@ -1479,21 +1467,21 @@ void mdss_layer_mixer_setup(struct fbcon_config *fb, struct msm_panel_info *pinf
 		default:
 			switch (pinfo->pipe_id) {
 				case 1:
-					new_left_staging_level = pipe_order << 3;
-					new_right_staging_level = pipe_order << 6;
+					new_left_staging_level = pinfo->zorder << 3;
+					new_right_staging_level = pinfo->zorder << 6;
 					break;
 				case 2:
-					new_left_staging_level = pipe_order << 6;
-					new_right_staging_level = pipe_order << 26;
+					new_left_staging_level = pinfo->zorder << 6;
+					new_right_staging_level = pinfo->zorder << 26;
 					break;
 				case 3:
-					new_left_staging_level = pipe_order << 26;
-					new_right_staging_level = pipe_order << 3;
+					new_left_staging_level = pinfo->zorder << 26;
+					new_right_staging_level = pinfo->zorder << 3;
 					break;
 				case 0:
 				default:
-					new_left_staging_level = pipe_order;
-					new_right_staging_level = pipe_order << 3;
+					new_left_staging_level = pinfo->zorder;
+					new_right_staging_level = pinfo->zorder << 3;
 			}
 			break;
 	}
@@ -1939,10 +1927,6 @@ int mdss_hdmi_config(struct msm_panel_info *pinfo, struct fbcon_config *fb)
 
 	mdss_intf_tg_setup(pinfo, MDP_INTF_3_BASE + mdss_mdp_intf_offset());
 	mdss_intf_fetch_start_config(pinfo, MDP_INTF_3_BASE + mdss_mdp_intf_offset());
-
-	//ensure vig layer from camera uses layer stage 6
-	if (pinfo->pipe_type == MDSS_MDP_PIPE_TYPE_VIG)
-		pinfo->zorder = 1;
 
 	mdp_select_pipe_type(pinfo, &left_pipe, &right_pipe);
 
