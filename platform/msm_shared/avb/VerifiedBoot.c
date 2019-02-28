@@ -607,7 +607,9 @@ static EFI_STATUS DisplayVerifiedBootScreen(bootinfo *Info)
 	switch (Info->boot_state)
         {
 		case RED:
+#if FBCON_DISPLAY_MSG
 			display_bootverify_menu(DISPLAY_MENU_RED);
+#endif
 			//if (Status != EFI_SUCCESS) {
 				dprintf(INFO, "Your device is corrupt. It can't be trusted and will not boot." \
 					"\nYour device will shutdown in 30s\n");
@@ -616,9 +618,11 @@ static EFI_STATUS DisplayVerifiedBootScreen(bootinfo *Info)
 			shutdown_device();
 			break;
 		case YELLOW:
+#if FBCON_DISPLAY_MSG
 			display_bootverify_menu(DISPLAY_MENU_YELLOW);
 			//if (Status == EFI_SUCCESS) {
 				wait_for_users_action();
+#endif
 			//} else {
 				dprintf(INFO, "Your device has loaded a different operating system." \
 					"\nWait for 5 seconds before proceeding\n");
@@ -629,9 +633,13 @@ static EFI_STATUS DisplayVerifiedBootScreen(bootinfo *Info)
 			if (ffbm_mode_string[0] != '\0' && !target_build_variant_user()) {
 				dprintf(DEBUG, "Device will boot into FFBM mode\n");
 			} else {
+#if FBCON_DISPLAY_MSG
 				display_bootverify_menu(DISPLAY_MENU_ORANGE);
+#endif
 				if (Status == EFI_SUCCESS) {
+#if FBCON_DISPLAY_MSG
 					wait_for_users_action();
+#endif
 				} else {
 					dprintf(INFO, "Device is unlocked, Skipping boot verification\n");
 					udelay(5000000);
