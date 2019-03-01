@@ -1,5 +1,5 @@
 /*
- * * Copyright (c) 2011,2014-2016,2018 The Linux Foundation. All rights reserved.
+ * * Copyright (c) 2011,2014-2016,2018-2019, The Linux Foundation. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -59,6 +59,9 @@ struct device_info
 	char radio_version[MAX_VERSION_LEN];
 	bool verity_mode; // 1 = enforcing, 0 = logging
 	bool early_camera_enabled;
+	char rvc_display_name[MAX_PANEL_ID_LEN];
+	bool shared_display_enabled;
+	char shared_display_name[MAX_PANEL_ID_LEN];
 	bool early_audio_enabled;
 	uint64_t rollback_index[MAX_VB_PARTITIONS];
 	uint32_t user_public_key_length;

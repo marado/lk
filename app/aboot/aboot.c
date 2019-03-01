@@ -2,7 +2,7 @@
  * Copyright (c) 2009, Google Inc.
  * All rights reserved.
  *
- * Copyright (c) 2009-2018, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2009-2019, The Linux Foundation. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are met:
@@ -99,6 +99,7 @@
 #include "fastboot_test.h"
 #include <target/target_camera.h>
 #include <target/target_audio.h>
+#include <target/target_utils.h>
 
 extern  bool target_use_signed_kernel(void);
 extern void platform_uninit(void);
@@ -281,7 +282,7 @@ static uint32_t recovery_dtbo_size = 0;
 
 /* Assuming unauthorized kernel image by default */
 static int auth_kernel_img = 0;
-static device_info device = {DEVICE_MAGIC,0,0,0,0,0,{0},{0},{0},1,0,0,{0},0,{0},0,0,{0}};
+static device_info device = {DEVICE_MAGIC,0,0,0,0,0,{0},{0},{0},1,0,"none",0,"none",0,{0},0,{0},0,0,{0}};
 static char *vbcmdline;
 
 static bool is_allow_unlock = 0;
@@ -4630,10 +4631,15 @@ void cmd_oem_disable_early_domain(const char *arg, void *data, unsigned size)
 
 void cmd_oem_enable_early_camera(const char *arg, void *data, unsigned size)
 {
-       dprintf(INFO, "Enabling early camera\n");
-       device.early_camera_enabled = 1;
-       write_device_info(&device);
-       fastboot_okay("");
+	if (arg) {
+		dprintf(INFO, "Enabling early camera on %s display\n", arg);
+		strlcpy(device.rvc_display_name, arg,
+			sizeof(device.rvc_display_name));
+	}
+
+	device.early_camera_enabled = 1;
+	write_device_info(&device);
+	fastboot_okay("");
 }
 
 void cmd_oem_disable_early_camera(const char *arg, void *data, unsigned size)
@@ -4660,6 +4666,26 @@ void cmd_oem_disable_early_audio(const char *arg, void *data, unsigned size)
        fastboot_okay("");
 }
 
+void cmd_oem_enable_shared_display(const char *arg, void *data, unsigned size)
+{
+	if (arg) {
+		dprintf(INFO, "Enabling %s shared display\n", arg);
+		strlcpy(device.shared_display_name, arg,
+				sizeof(device.shared_display_name));
+		device.shared_display_enabled = 1;
+		write_device_info(&device);
+		fastboot_okay("");
+	}
+}
+
+void cmd_oem_disable_shared_display(const char *arg, void *data, unsigned size)
+{
+	dprintf(INFO, "Disabling shared display\n");
+	device.shared_display_enabled = 0;
+	write_device_info(&device);
+	fastboot_okay("");
+}
+
 #else
 void cmd_oem_enable_early_domain(const char *arg, void *data, unsigned size)
 {
@@ -4682,6 +4708,14 @@ void cmd_oem_enable_early_audio(const char *arg, void *data, unsigned size)
 }
 
 void cmd_oem_disable_early_audio(const char *arg, void *data, unsigned size)
+{
+}
+
+void cmd_oem_enable_shared_display(const char *arg, void *data, unsigned size)
+{
+}
+
+void cmd_oem_disable_shared_display(const char *arg, void *data, unsigned size)
 {
 }
 
@@ -5203,6 +5237,8 @@ void aboot_fastboot_register_commands(void)
 						{"oem disable-early-camera", cmd_oem_disable_early_camera},
 						{"oem enable-early-audio", cmd_oem_enable_early_audio},
 						{"oem disable-early-audio", cmd_oem_disable_early_audio},
+						{"oem enable-shared-display", cmd_oem_enable_shared_display},
+						{"oem disable-shared-display", cmd_oem_disable_shared_display},
 						{"oem off-mode-charge", cmd_oem_off_mode_charger},
 						{"oem select-display-panel", cmd_oem_select_display_panel},
 						{"set_active",cmd_set_active},
@@ -5365,6 +5401,11 @@ void aboot_init(const struct app_descriptor *app)
 			dprintf(INFO, "Active Slot: (%s)\n", SUFFIX_SLOT(boot_slot));
 		}
 	}
+
+	target_utils_set_input_config(device.early_camera_enabled,
+				device.rvc_display_name, RVC_DISPLAY);
+	target_utils_set_input_config(device.shared_display_enabled,
+				device.shared_display_name, SHARE_DISPLAY);
 
 	/* Display splash screen if enabled */
 	place_marker("Display init start");

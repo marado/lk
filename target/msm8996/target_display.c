@@ -1,4 +1,4 @@
-/* Copyright (c) 2014-2016, 2018, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2014-2016, 2018-2019, The Linux Foundation. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -47,6 +47,7 @@
 #include <platform/clock.h>
 #include <platform/iomap.h>
 #include <target/display.h>
+#include <target/target_utils.h>
 #if ENABLE_QSEED_SCALAR
 #include <target/scalar.h>
 #endif
@@ -865,18 +866,24 @@ static int target_display_populate(struct target_display *displays)
 	displays[0].height = 720;
 	displays[0].dual_pipe = false;
 	displays[0].fps = 60;
+	displays[0].has_rvc = false;
+	displays[0].display_is_shared = false;
 
 	displays[1].display_id = 1;
 	displays[1].width = 1280;
 	displays[1].height = 720;
 	displays[1].dual_pipe = false;
 	displays[1].fps = 60;
+	displays[1].has_rvc = false;
+	displays[1].display_is_shared = false;
 
 	displays[2].display_id = 2;
 	displays[2].width = 1920;
 	displays[2].height = 1080;
 	displays[2].dual_pipe = false;
 	displays[2].fps = 60;
+	displays[2].has_rvc = false;
+	displays[2].display_is_shared = false;
 
 	return 0;
 }
@@ -951,6 +958,8 @@ static bool composite_panel_name(const char *panel_name)
 void target_display_init(const char *panel_name)
 {
 	struct oem_panel_data oem;
+	uint32_t rvc_disp_id = 0;
+	uint32_t shared_disp_id = 0;
 
 	target_display_populate(displays);
 	target_layers_populate(layers);
@@ -959,6 +968,12 @@ void target_display_init(const char *panel_name)
 	oem = mdss_dsi_get_oem_data();
 
 	target_display_set_panel_type(oem.panel);
+
+	if (target_utils_validate_input_config(oem.panel, &rvc_disp_id, RVC_DISPLAY))
+		displays[rvc_disp_id].has_rvc = true;
+
+	if (target_utils_validate_input_config(oem.panel, &shared_disp_id, SHARE_DISPLAY))
+		displays[shared_disp_id].display_is_shared = true;
 
 	if (!strcmp(oem.panel, "")
 		|| !strcmp(oem.panel, NO_PANEL_CONFIG)
@@ -1263,6 +1278,19 @@ void * target_display_open (uint32 display_id)
 	} else {
 		return (void *) &displays[display_id];
 	}
+}
+
+uint32_t target_display_get_rvc_display_id()
+{
+	uint32_t i;
+
+	for (i = 0; i < NUM_TARGET_DISPLAYS; i++) {
+		if (displays[i].has_rvc)
+			return i;
+	}
+
+	/* by default, use primary display for rvc */
+	return 0;
 }
 
 struct target_display * target_get_display_info(void *disp)
