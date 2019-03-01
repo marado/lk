@@ -55,6 +55,7 @@
 #define QPIC_PANEL		13	/* QPIC */
 #define SPI_PANEL		14
 
+#define MAX_NUM_DISPLAY 3
 #define DISPLAY_UNKNOWN		0
 #define DISPLAY_1		1
 #define DISPLAY_2		2

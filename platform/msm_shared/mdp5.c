@@ -1,4 +1,4 @@
-/* Copyright (c) 2012-2016,2018, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2012-2016,2018-2019, The Linux Foundation. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are met:
@@ -26,6 +26,7 @@
  */
 
 #include <mdp5.h>
+#include <mdp5_rm.h>
 #include <debug.h>
 #include <reg.h>
 #include <target/display.h>
@@ -50,32 +51,6 @@
 int restore_secure_cfg(uint32_t id);
 
 static int mdp_rev;
-
-#define MAX_NUM_DISPLAY 3
-#define MAX_NUM_PIPE 10
-
-struct resource_req {
-    int num_lm;
-    int num_ctl;
-    bool needs_split_display;
-    bool primary_dsi;
-    uint32_t ctl_base[2];
-    uint32_t pipe_base[2];
-    uint32_t lm_base [2];
-};
-/* 0-3 are VIG0-3
- * 4-7 are RGB0-3
- * 8-9 are DMA0-1
- */
-/*struct pipe_info pipe_usage[MAX_NUM_PIPE] = {{-1, DISPLAY_UNKNOWN, 0}, {-1, DISPLAY_UNKNOWN, 0},{-1, DISPLAY_UNKNOWN, 0}, {-1, DISPLAY_UNKNOWN, 0}, {-1, DISPLAY_UNKNOWN, 0},
-{-1, DISPLAY_UNKNOWN, 0}, {-1, DISPLAY_UNKNOWN, 0}, {-1, DISPLAY_UNKNOWN, 0},
-{-1, DISPLAY_UNKNOWN, 0}, {-1, DISPLAY_UNKNOWN, 0}};
-*/
-struct resource_req display_req[MAX_NUM_DISPLAY] = {
-    {0,0,0,0, {0,0}, {0,0}, {0,0}},
-    {0,0,0,0, {0,0}, {0,0}, {0,0}},
-    {0,0,0,0, {0,0}, {0,0}, {0,0}}
-};
 
 void mdp_set_revision(int rev)
 {
@@ -229,17 +204,8 @@ static void mdp_select_pipe_type(struct msm_panel_info *pinfo,
 			}
 			break;
 	}
-	if (pinfo->dest == DISPLAY_3) {
-		display_req[2].pipe_base[0] = *left_pipe;
-		display_req[2].pipe_base[1] = *right_pipe;
-	} else if (pinfo->dest == DISPLAY_2) {
-		display_req[1].pipe_base[0] = *left_pipe;
-		display_req[1].pipe_base[1] = *right_pipe;
-	} else {
-		display_req[0].pipe_base[0] = *left_pipe;
-		display_req[0].pipe_base[1] = *right_pipe;
-	}
 
+	mdp_rm_update_pipe_base(pinfo, left_pipe, right_pipe);
 }
 
 #if ENABLE_QSEED_SCALAR
@@ -458,6 +424,14 @@ static void mdss_mdp_set_flush(struct msm_panel_info *pinfo,
 	uint32_t mdss_mdp_rev = readl(MDP_HW_REV);
 	bool dual_pipe_single_ctl = pinfo->lcdc.dual_pipe &&
 		!pinfo->mipi.dual_dsi && !pinfo->lcdc.split_display;
+	struct resource_req *rm = NULL;
+	struct resource_req *display_rm = NULL;
+
+	rm = mdp_rm_retrieve_resource(pinfo->dest);
+	if (!rm) {
+		dprintf(CRITICAL, "%s: get hardware resource failed\n", __func__);
+		return;
+	}
 
 	switch (pinfo->pipe_id) {
 		case 1:
@@ -510,23 +484,23 @@ static void mdss_mdp_set_flush(struct msm_panel_info *pinfo,
 	if (pinfo->dest == DISPLAY_3) {
 		// Display 3 can only possible to use mixer 2 or mixer 5
 		*ctl0_reg_val |= BIT(8);  //mixer 2
-		if (display_req[2].num_lm == 2)
+		if (rm->num_lm == 2)
 			*ctl0_reg_val |= BIT(20);  //mixer 5
 	} else if (pinfo->dest == DISPLAY_2) {
 		// Display 2 can only possible to use mixer 1 or mixer 2
-		if (display_req[1].lm_base[0] == MDP_VP_0_MIXER_1_BASE) {
+		if (rm->lm_base[0] == MDP_VP_0_MIXER_1_BASE) {
 			*ctl0_reg_val |= BIT(7);  //mixer 1
-			if (display_req[1].num_lm == 2)
+			if (rm->num_lm == 2)
 				*ctl1_reg_val |= BIT(8);  //mixer 2
 		} else {
 			*ctl0_reg_val |= BIT(8);  //mixer 2
-			if (display_req[1].num_lm == 2)
+			if (rm->num_lm == 2)
 				*ctl1_reg_val |= BIT(20);  //mixer 5
 		}
 	} else {
 		// Display 1 can only possible to use mixer 0 or mixer 1
 		*ctl0_reg_val |= BIT(6);  //mixer 0
-		if (display_req[0].num_lm == 2)
+		if (rm->num_lm == 2)
 			*ctl1_reg_val |= BIT(7);  //mixer 1
 	}
 
@@ -563,7 +537,14 @@ static void mdss_mdp_set_flush(struct msm_panel_info *pinfo,
 			// skip if it is current display
 			if (i == (int)(pinfo->dest - 1))
 				continue;
-			if (display_req[i].primary_dsi){
+
+			display_rm = mdp_rm_retrieve_resource(i + DISPLAY_1);
+			if (!display_rm) {
+				dprintf(CRITICAL, "%s: get hardware resource failed\n", __func__);
+				continue;
+			}
+
+			if (display_rm->primary_dsi){
 				use_second_dsi = true;
 				break;
 			}
@@ -588,6 +569,13 @@ static void mdss_source_pipe_config(struct fbcon_config *fb, struct msm_panel_in
 	uint32_t flip_bits = 0;
 	uint32_t src_xy = 0, dst_xy = 0;
 	uint32_t height, width;
+	struct resource_req *rm = NULL;
+
+	rm = mdp_rm_retrieve_resource(pinfo->dest);
+	if (!rm) {
+		dprintf(CRITICAL, "%s: get hardware resource failed\n", __func__);
+		return;
+	}
 
 #if ENABLE_QSEED_SCALAR
 	if (fb->layer_scale) {
@@ -609,7 +597,7 @@ static void mdss_source_pipe_config(struct fbcon_config *fb, struct msm_panel_in
 			width /= 2;
 			roi_size = (height << 16) | width;
 			out_size = roi_size;
-		}else{
+		} else {
 			roi_size = img_size;
 			out_size = img_size;
 		}
@@ -618,7 +606,7 @@ static void mdss_source_pipe_config(struct fbcon_config *fb, struct msm_panel_in
 #endif
 
 	if (pinfo->lcdc.dual_pipe) {
-		if (display_req[pinfo->dest - 1].pipe_base[0] == pipe_base){
+		if (rm->pipe_base[0] == pipe_base){
 			//Left pipe
 			fb_off = 0;
 		} else {
@@ -1168,18 +1156,34 @@ int mdss_layer_mixer_remove_pipe(struct msm_panel_info *pinfo) {
 	uint32_t left_bitmask, right_bitmask;
 	uint32_t left_ctl_base = 0;
 	uint32_t right_ctl_base = 0;
+	struct resource_req *rm = NULL;
+	struct resource_req *display_1_rm = NULL;
 
 	if (!pinfo) {
 		dprintf(CRITICAL, "Invalid input\n");
 		return ERROR;
 	}
 
-	left_ctl_base = display_req[pinfo->dest - 1].ctl_base[0];
-	right_ctl_base = display_req[pinfo->dest - 1].ctl_base[1];
+	rm = mdp_rm_retrieve_resource(pinfo->dest);
+	if (!rm) {
+		dprintf(CRITICAL, "%s: get hardware resource failed\n", __func__);
+		return ERR_NOT_VALID;
+	}
+
+	if (pinfo->dest != DISPLAY_1) {
+		display_1_rm = mdp_rm_retrieve_resource(DISPLAY_1);
+		if (!display_1_rm) {
+			dprintf(CRITICAL, "%s: get hardware resource failed\n", __func__);
+			return ERR_NOT_VALID;
+		}
+	}
+
+	left_ctl_base = rm->ctl_base[0];
+	right_ctl_base = rm->ctl_base[1];
 
 	switch (pinfo->dest){
 		case DISPLAY_2:
-			if (display_req[0].num_lm == 1) {  //Disp1 used 1 pipe only
+			if (display_1_rm->num_lm == 1) {  //Disp1 used 1 pipe only
 				left_staging_level = readl(left_ctl_base + CTL_LAYER_1);
 				if (pinfo->lcdc.dual_pipe) {
 					if (pinfo->lcdc.split_display)
@@ -1187,7 +1191,7 @@ int mdss_layer_mixer_remove_pipe(struct msm_panel_info *pinfo) {
 				else  // single ctl, dual pipe
 					right_staging_level = readl(left_ctl_base + CTL_LAYER_2);
 				}
-			} else if (display_req[0].num_lm == 2) { //Disp1 used 2 pipes
+			} else if (display_1_rm->num_lm == 2) { //Disp1 used 2 pipes
 				left_staging_level = readl(left_ctl_base + CTL_LAYER_2);
 				if (pinfo->lcdc.dual_pipe) {
 					if (pinfo->lcdc.split_display)
@@ -1279,7 +1283,7 @@ int mdss_layer_mixer_remove_pipe(struct msm_panel_info *pinfo) {
 
 	switch (pinfo->dest){
 		case DISPLAY_2:
-			if (display_req[0].num_lm == 1) {
+			if (display_1_rm->num_lm == 1) {
 				writel(left_staging_level, left_ctl_base + CTL_LAYER_1);
 				if (pinfo->lcdc.dual_pipe) {
 					if (pinfo->lcdc.split_display)
@@ -1287,7 +1291,7 @@ int mdss_layer_mixer_remove_pipe(struct msm_panel_info *pinfo) {
 					else  // single ctl, dual pipe
 						writel(right_staging_level, left_ctl_base + CTL_LAYER_2);
 				}
-			} else if (display_req[0].num_lm == 2) { //Disp1 used 2 pipes
+			} else if (display_1_rm->num_lm == 2) { //Disp1 used 2 pipes
 				writel(left_staging_level, left_ctl_base + CTL_LAYER_2);
 				if (pinfo->lcdc.dual_pipe) {
 					if (pinfo->lcdc.split_display)
@@ -1317,8 +1321,7 @@ int mdss_layer_mixer_remove_pipe(struct msm_panel_info *pinfo) {
 	return 0;
 }
 
-void mdss_layer_mixer_setup(struct fbcon_config *fb, struct msm_panel_info
-		*pinfo)
+void mdss_layer_mixer_setup(struct fbcon_config *fb, struct msm_panel_info *pinfo)
 {
 	uint32_t mdp_rgb_size, height, width;
 	uint32_t left_staging_level = 0;
@@ -1330,57 +1333,30 @@ void mdss_layer_mixer_setup(struct fbcon_config *fb, struct msm_panel_info
 	uint32_t left_ctl_base = 0;
 	uint32_t right_ctl_base = 0;
 	uint32_t pipe_order;
+	struct resource_req *rm = NULL;
+	struct resource_req *display_1_rm = NULL;
 
-	// Select mixer base on destination
-	if (pinfo->dest == DISPLAY_1){
-		// first Display can use CTL path 0 and 1
-		display_req[0].ctl_base[0] = MDP_CTL_0_BASE;
-		display_req[0].lm_base[0] = MDP_VP_0_MIXER_0_BASE;
-		if (display_req[0].num_ctl == 2)
-			display_req[0].ctl_base[1] = MDP_CTL_1_BASE;
-		if (display_req[0].num_lm == 2)
-			display_req[0].lm_base[1] = MDP_VP_0_MIXER_1_BASE;
+	/* Update mixer per destination */
+	mdp_rm_select_mixer(pinfo);
 
-		left_mixer_base = display_req[0].lm_base[0];
-		right_mixer_base = display_req[0].lm_base[1];
-		left_ctl_base = display_req[0].ctl_base[0];
-		right_ctl_base = display_req[0].ctl_base[1];
-	} else if (pinfo->dest == DISPLAY_2) {
-		if (display_req[0].num_ctl == 2) {
-			display_req[1].ctl_base[0] = MDP_CTL_2_BASE;
-		} else if (display_req[0].num_ctl == 1) {
-			display_req[1].ctl_base[0] = MDP_CTL_1_BASE;
-			if (display_req[1].num_ctl == 2)
-				display_req[1].ctl_base[1] = MDP_CTL_2_BASE;
-		} else {
-			dprintf(CRITICAL, "Display 1 CTL setup incorrect\n");
-		}
-		if (display_req[0].num_lm == 2) {
-			display_req[1].lm_base[0] = MDP_VP_0_MIXER_2_BASE;
-			if (display_req[1].num_lm == 2)
-				display_req[1].lm_base[1] = MDP_VP_0_MIXER_5_BASE;
-		} else if (display_req[0].num_ctl == 1) {
-			display_req[1].lm_base[0] = MDP_VP_0_MIXER_1_BASE;
-			if (display_req[1].num_lm == 2)
-				display_req[1].lm_base[1] = MDP_VP_0_MIXER_2_BASE;
-		} else {
-			dprintf(CRITICAL, "Display 2 CTL setup incorrect\n");
-		}
-		left_mixer_base = display_req[1].lm_base[0];
-		right_mixer_base = display_req[1].lm_base[1];
-		left_ctl_base = display_req[1].ctl_base[0];
-		right_ctl_base = display_req[1].ctl_base[1];
-	} else {
-		//pinfo->dest is DISPLAY_3, the only possible CTL path is 2 only
-		display_req[2].ctl_base[0] = MDP_CTL_2_BASE;
-		display_req[2].lm_base[0] = MDP_VP_0_MIXER_2_BASE;
-		if (display_req[2].num_lm == 2)
-			display_req[2].lm_base[1] = MDP_VP_0_MIXER_5_BASE;
-		left_mixer_base = display_req[2].lm_base[0];
-		right_mixer_base = display_req[2].lm_base[1];
-		left_ctl_base = display_req[2].ctl_base[0];
-		right_ctl_base = display_req[2].ctl_base[1];
+	rm = mdp_rm_retrieve_resource(pinfo->dest);
+	if (!rm) {
+		dprintf(CRITICAL, "%s: get hardware resource failed\n", __func__);
+		return;
 	}
+
+	if (pinfo->dest != DISPLAY_1) {
+		display_1_rm = mdp_rm_retrieve_resource(DISPLAY_1);
+		if (!display_1_rm) {
+			dprintf(CRITICAL, "%s: get hardware resource failed\n", __func__);
+			return;
+		}
+	}
+
+	left_mixer_base = rm->lm_base[0];
+	right_mixer_base = rm->lm_base[1];
+	left_ctl_base = rm->ctl_base[0];
+	right_ctl_base = rm->ctl_base[1];
 
 	height = fb->height;
 	width = fb->width;
@@ -1428,7 +1404,7 @@ void mdss_layer_mixer_setup(struct fbcon_config *fb, struct msm_panel_info
 
 	switch (pinfo->dest){
 		case DISPLAY_2:
-			if (display_req[0].num_lm == 1) {  //Disp1 used 1 pipe only
+			if (display_1_rm->num_lm == 1) {  //Disp1 used 1 pipe only
 				left_staging_level = readl(left_ctl_base + CTL_LAYER_1);
 				if (pinfo->lcdc.dual_pipe) {
 					if (pinfo->lcdc.split_display)
@@ -1436,7 +1412,7 @@ void mdss_layer_mixer_setup(struct fbcon_config *fb, struct msm_panel_info
 					else  // single ctl, dual pipe
 						right_staging_level = readl(left_ctl_base + CTL_LAYER_2);
 				}
-			} else if (display_req[0].num_lm == 2) { //Disp1 used 2 pipes
+			} else if (display_1_rm->num_lm == 2) { //Disp1 used 2 pipes
 				left_staging_level = readl(left_ctl_base + CTL_LAYER_2);
 				if (pinfo->lcdc.dual_pipe) {
 					if (pinfo->lcdc.split_display)
@@ -1535,7 +1511,7 @@ void mdss_layer_mixer_setup(struct fbcon_config *fb, struct msm_panel_info
 
 	switch (pinfo->dest){
 		case DISPLAY_2:
-			if (display_req[0].num_lm == 1) {
+			if (display_1_rm->num_lm == 1) {
 				writel(left_staging_level, left_ctl_base + CTL_LAYER_1);
 				if (pinfo->lcdc.dual_pipe) {
 					if (pinfo->lcdc.split_display)
@@ -1543,7 +1519,7 @@ void mdss_layer_mixer_setup(struct fbcon_config *fb, struct msm_panel_info
 					else  // single ctl, dual pipe
 						writel(right_staging_level, left_ctl_base + CTL_LAYER_2);
 				}
-			} else if (display_req[0].num_lm == 2) { //Disp1 used 2 pipes
+			} else if (display_1_rm->num_lm == 2) { //Disp1 used 2 pipes
 				writel(left_staging_level, left_ctl_base + CTL_LAYER_2);
 				if (pinfo->lcdc.dual_pipe) {
 					if (pinfo->lcdc.split_display)
@@ -1766,15 +1742,28 @@ int mdp_dsi_video_config(struct msm_panel_info *pinfo,
 	uint32_t reg;
 	int i;
 	bool use_second_dsi = false;
+	struct resource_req *rm = NULL;
 
 	// scan the display resource to see any display is already using DSI0
 	for (i = 0; i < MAX_NUM_DISPLAY; i++) {
-		if (i == (int)(pinfo->dest - 1))
+		if (i == (int)(pinfo->dest - DISPLAY_1))
 			continue;
-		if (display_req[i].primary_dsi){
+		rm = mdp_rm_retrieve_resource(i + DISPLAY_1);
+		if (!rm)
+			continue;
+		if (rm->primary_dsi) {
 			use_second_dsi = true;
 			break;
 		}
+	}
+
+	// update resource requirement per config and then retrieve it
+	mdp_rm_update_resource(pinfo, use_second_dsi);
+
+	rm = mdp_rm_retrieve_resource(pinfo->dest);
+	if (!rm) {
+		dprintf(CRITICAL, "%s: get hardware resource failed\n", __func__);
+		return ERR_NOT_VALID;
 	}
 
 	if ((use_second_dsi && !pinfo->lcdc.pipe_swap) ||
@@ -1793,50 +1782,6 @@ int mdp_dsi_video_config(struct msm_panel_info *pinfo,
 	}
 
 	mdp_clk_gating_ctrl();
-
-	// setup the resource requirement
-	if (pinfo->dest == DISPLAY_1){
-		display_req[0].num_lm = 1;
-		display_req[0].num_ctl = 1;
-		display_req[0].needs_split_display = false;
-		if (pinfo->lcdc.dual_pipe && !pinfo->mipi.dual_dsi &&
-			!pinfo->lcdc.split_display) {
-			display_req[0].num_ctl = 1;
-			display_req[0].num_lm = 2;
-		} else if (pinfo->lcdc.split_display) {
-			display_req[0].needs_split_display = true;
-			display_req[0].num_ctl = 2;
-			display_req[0].num_lm = 2;
-		}
-		if (!use_second_dsi)
-			display_req[0].primary_dsi = true;
-	} else if (pinfo->dest == DISPLAY_2){
-		display_req[1].num_lm = 1;
-		display_req[1].num_ctl = 1;
-		display_req[1].needs_split_display = false;
-		if (pinfo->lcdc.dual_pipe && !pinfo->mipi.dual_dsi &&
-			!pinfo->lcdc.split_display) {
-			display_req[1].num_ctl = 1;
-			display_req[1].num_lm = 2;
-		} else if (pinfo->lcdc.split_display) {
-			display_req[1].needs_split_display = true;
-			display_req[1].num_ctl = 2;
-			display_req[1].num_lm = 2;
-		}
-		if (!use_second_dsi)
-			display_req[1].primary_dsi = true;
-	} else if (pinfo->dest == DISPLAY_3){
-		display_req[2].num_lm = 1;
-		display_req[2].num_ctl = 1;
-		display_req[2].needs_split_display = false;
-		if (pinfo->lcdc.dual_pipe && !pinfo->mipi.dual_dsi &&
-			!pinfo->lcdc.split_display) {
-			display_req[2].num_ctl = 1;
-			display_req[2].num_lm = 2;
-		} else if (pinfo->lcdc.split_display) {
-			// Display 3 cannot have split display
-		}
-	}
 
 	mdp_select_pipe_type(pinfo, &left_pipe, &right_pipe);
 	mdss_vbif_setup();
@@ -1858,21 +1803,6 @@ int mdp_dsi_video_config(struct msm_panel_info *pinfo,
 	}
 #endif
 
-	// update the left/right pipe in the display resource
-	if (pinfo->dest == DISPLAY_1) {
-		display_req[0].pipe_base[0] = left_pipe;
-		if (pinfo->lcdc.dual_pipe)
-			display_req[0].pipe_base[1] = right_pipe;
-	} else if (pinfo->dest == DISPLAY_2) {
-		display_req[1].pipe_base[0] = left_pipe;
-		if (pinfo->lcdc.dual_pipe)
-			display_req[1].pipe_base[1] = right_pipe;
-	} else if (pinfo->dest == DISPLAY_3) {
-		display_req[2].pipe_base[0] = left_pipe;
-		if (pinfo->lcdc.dual_pipe)
-			display_req[2].pipe_base[1] = right_pipe;
-	}
-
 	mdss_layer_mixer_setup(fb, pinfo);
 
 	if ((use_second_dsi && !pinfo->lcdc.pipe_swap) ||
@@ -1889,12 +1819,8 @@ int mdp_dsi_video_config(struct msm_panel_info *pinfo,
 		if (pinfo->num_dsc_enc != 2)
 			reg |= BIT(19) | BIT(20);
 	}
-	if (pinfo->dest == DISPLAY_1)
-		writel(reg, display_req[0].ctl_base[0] + CTL_TOP);
-	else if (pinfo->dest == DISPLAY_2)
-		writel(reg, display_req[1].ctl_base[0] + CTL_TOP);
-	else if (pinfo->dest == DISPLAY_3)
-		writel(reg, display_req[2].ctl_base[0] + CTL_TOP);
+
+	writel(reg, rm->ctl_base[0] + CTL_TOP);
 
 	if (pinfo->lcdc.split_display) {
 		if ((use_second_dsi && !pinfo->lcdc.pipe_swap) ||
@@ -1904,14 +1830,8 @@ int mdp_dsi_video_config(struct msm_panel_info *pinfo,
 			reg = 0x1f00 | BIT(4) | BIT(5); /* Interface 2 */
 		}
 
-		if (pinfo->dest == DISPLAY_1)
-			writel(reg, display_req[0].ctl_base[1] + CTL_TOP);
-		else if (pinfo->dest == DISPLAY_2)
-			writel(reg, display_req[1].ctl_base[1] + CTL_TOP);
-		else if (pinfo->dest == DISPLAY_3)
-			writel(reg, display_req[2].ctl_base[1] + CTL_TOP);
+		writel(reg, rm->ctl_base[1] + CTL_TOP);
 	}
-
 
 	if ((pinfo->compression_mode == COMPRESSION_DSC) &&
 		pinfo->dsc.mdp_dsc_config) {
@@ -2006,41 +1926,19 @@ int mdss_hdmi_config(struct msm_panel_info *pinfo, struct fbcon_config *fb)
 {
 	uint32_t left_pipe, right_pipe, out_size;
 	uint32_t old_intf_sel, prg_fetch_start_en;
+	struct resource_req *rm = NULL;
+
+	/* update resource manager per config and retrieve it next */
+	mdp_rm_update_resource(pinfo, false);
+
+	rm = mdp_rm_retrieve_resource(pinfo->dest);
+	if (!rm) {
+		dprintf(CRITICAL, "Get hardware resource failed\n");
+		return ERR_NOT_VALID;
+	}
+
 	mdss_intf_tg_setup(pinfo, MDP_INTF_3_BASE + mdss_mdp_intf_offset());
 	mdss_intf_fetch_start_config(pinfo, MDP_INTF_3_BASE + mdss_mdp_intf_offset());
-
-	// setup the resource requirement
-	if (pinfo->dest == DISPLAY_1) {
-		display_req[0].num_lm = 1;
-		display_req[0].num_ctl = 1;
-		display_req[0].needs_split_display = false;
-		if (pinfo->lcdc.dual_pipe) {
-			display_req[0].needs_split_display = true;
-			display_req[0].num_lm = 2;
-		}
-		pinfo->pipe_id = 0;
-		pinfo->zorder = 2;
-	} else if (pinfo->dest == DISPLAY_2) {
-		display_req[1].num_lm = 1;
-		display_req[1].num_ctl = 1;
-		display_req[1].needs_split_display = false;
-		if (pinfo->lcdc.dual_pipe) {
-			display_req[1].needs_split_display = true;
-			display_req[1].num_lm = 2;
-		}
-		pinfo->pipe_id = 2;
-		pinfo->zorder = 2;
-	} else if (pinfo->dest == DISPLAY_3) {
-		display_req[2].num_lm = 1;
-		display_req[2].num_ctl = 1;
-		display_req[2].needs_split_display = false;
-		if (pinfo->lcdc.dual_pipe) {
-			display_req[2].needs_split_display = true;
-			display_req[2].num_lm = 2;
-		}
-		pinfo->pipe_id = 2;
-		pinfo->zorder = 2;
-	}
 
 	//ensure vig layer from camera uses layer stage 6
 	if (pinfo->pipe_type == MDSS_MDP_PIPE_TYPE_VIG)
@@ -2068,22 +1966,10 @@ int mdss_hdmi_config(struct msm_panel_info *pinfo, struct fbcon_config *fb)
 
 	mdss_layer_mixer_setup(fb, pinfo);
 
-	if (pinfo->dest == DISPLAY_1) {
-		if (pinfo->lcdc.dual_pipe)
-			writel(0x181F40, display_req[0].ctl_base[0] + CTL_TOP);
-		else
-			writel(0x1F40, display_req[0].ctl_base[0] + CTL_TOP);
-	} else if (pinfo->dest == DISPLAY_2) {
-		if (pinfo->lcdc.dual_pipe)
-			writel(0x181F40, display_req[1].ctl_base[0] + CTL_TOP);
-		else
-			writel(0x1F40, display_req[1].ctl_base[0] + CTL_TOP);
-	} else if (pinfo->dest == DISPLAY_3) {
-		if (pinfo->lcdc.dual_pipe)
-			writel(0x181F40, display_req[2].ctl_base[0] + CTL_TOP);
-		else
-			writel(0x1F40, display_req[2].ctl_base[0] + CTL_TOP);
-	}
+	if (pinfo->lcdc.dual_pipe)
+		writel(0x181F40, rm->ctl_base[0] + CTL_TOP);
+	else
+		writel(0x1F40, rm->ctl_base[0] + CTL_TOP);
 
 	old_intf_sel = readl(MDP_DISP_INTF_SEL);
 
@@ -2219,25 +2105,21 @@ int mdp_dsi_video_on(struct msm_panel_info *pinfo)
 {
 	uint32_t ctl0_reg_val = 0;
 	uint32_t ctl1_reg_val = 0;
+	struct resource_req *rm = NULL;
+
+	rm = mdp_rm_retrieve_resource(pinfo->dest);
+	if (!rm) {
+		dprintf(CRITICAL, "%s: get hardware resource failed\n", __func__);
+		return ERR_NOT_VALID;
+	}
 
 	mdss_mdp_set_flush(pinfo, &ctl0_reg_val, &ctl1_reg_val);
+	dprintf(SPEW, "dsi video_on Disp%d flush ctl0:0x%x  ctl1:0x%x\n",
+			pinfo->dest, ctl0_reg_val, ctl1_reg_val);
 
-	if (pinfo->dest == DISPLAY_1) {
-		dprintf(SPEW, "video_on Disp1 flush ctl0:0x%x  ctl1:0x%x\n", ctl0_reg_val, ctl1_reg_val);
-		writel(ctl0_reg_val, display_req[0].ctl_base[0] + CTL_FLUSH);
-		if (display_req[0].num_ctl == 2)
-			writel(ctl1_reg_val, display_req[0].ctl_base[1] + CTL_FLUSH);
-	} else if (pinfo->dest == DISPLAY_2) {
-		dprintf(SPEW, "video_on Disp2 flush ctl0:0x%x  ctl1:0x%x\n", ctl0_reg_val, ctl1_reg_val);
-		writel(ctl0_reg_val, display_req[1].ctl_base[0] + CTL_FLUSH);
-		if (display_req[1].num_ctl == 2)
-			writel(ctl1_reg_val, display_req[1].ctl_base[1] + CTL_FLUSH);
-	} else if (pinfo->dest == DISPLAY_3) {
-		dprintf(SPEW, "video_on Disp3 flush ctl0:0x%x  ctl1:0x%x\n", ctl0_reg_val, ctl1_reg_val);
-		writel(ctl0_reg_val, display_req[2].ctl_base[0] + CTL_FLUSH);
-		if (display_req[2].num_ctl == 2)
-			writel(ctl1_reg_val, display_req[2].ctl_base[1] + CTL_FLUSH);
-	}
+	writel(ctl0_reg_val, rm->ctl_base[0] + CTL_FLUSH);
+	if (rm->num_ctl == 2)
+		writel(ctl1_reg_val, rm->ctl_base[1] + CTL_FLUSH);
 
 	// clear and disable DSI interrupts
 	writel(DSI_ERR_INT_RESET_STATUS, DSI0_ERR_INT_MASK);
@@ -2245,13 +2127,13 @@ int mdp_dsi_video_on(struct msm_panel_info *pinfo)
 	writel(DSI_ERR_INT_RESET_STATUS, DSI1_ERR_INT_MASK);
 	writel(DSI_INT_CTRL_RESET_STATUS, DSI1_INT_CTRL);
 
-	if (display_req[pinfo->dest - 1].primary_dsi) {
+	if (rm->primary_dsi) {
 		writel(0x1, MDP_INTF_1_TIMING_ENGINE_EN + mdss_mdp_intf_offset());
 	} else {
 		writel(0x01, MDP_INTF_2_TIMING_ENGINE_EN + mdss_mdp_intf_offset());
 	}
 
-	if (display_req[pinfo->dest - 1].num_ctl == 2) {
+	if (rm->num_ctl == 2) {
 		writel(0x01, MDP_INTF_2_TIMING_ENGINE_EN + mdss_mdp_intf_offset());
 	}
 
@@ -2262,21 +2144,18 @@ int mdp_dsi_video_update(struct msm_panel_info *pinfo)
 {
 	uint32_t ctl0_reg_val = 0;
 	uint32_t ctl1_reg_val = 0;
+	struct resource_req *rm = NULL;
+
+	rm = mdp_rm_retrieve_resource(pinfo->dest);
+	if (!rm) {
+		dprintf(CRITICAL, "%s: get hardware resource failed\n", __func__);
+		return ERR_NOT_VALID;
+	}
 
 	mdss_mdp_set_flush(pinfo, &ctl0_reg_val, &ctl1_reg_val);
-	if (pinfo->dest == DISPLAY_1) {
-		writel(ctl0_reg_val, display_req[0].ctl_base[0] + CTL_FLUSH);
-		if (display_req[0].num_ctl == 2)
-			writel(ctl1_reg_val, display_req[0].ctl_base[1] + CTL_FLUSH);
-	} else if (pinfo->dest == DISPLAY_2) {
-		writel(ctl0_reg_val, display_req[1].ctl_base[0] + CTL_FLUSH);
-		if (display_req[1].num_ctl == 2)
-			writel(ctl1_reg_val, display_req[1].ctl_base[1] + CTL_FLUSH);
-	} else if (pinfo->dest == DISPLAY_3) {
-		writel(ctl0_reg_val, display_req[2].ctl_base[0] + CTL_FLUSH);
-		if (display_req[2].num_ctl == 2)
-			writel(ctl1_reg_val, display_req[2].ctl_base[1] + CTL_FLUSH);
-	}
+	writel(ctl0_reg_val, rm->ctl_base[0] + CTL_FLUSH);
+	if (rm->num_ctl == 2)
+		writel(ctl1_reg_val, rm->ctl_base[1] + CTL_FLUSH);
 
 	return NO_ERROR;
 }
@@ -2295,6 +2174,13 @@ int mdp_dsi_video_update_pipe(struct msm_panel_info *pinfo,  struct fbcon_config
 {
 	uint32_t ctl0_reg_val = 0, ctl1_reg_val = 0;
 	uint32_t left_pipe, right_pipe;
+	struct resource_req *rm = NULL;
+
+	rm = mdp_rm_retrieve_resource(pinfo->dest);
+	if (!rm) {
+		dprintf(CRITICAL, "%s: get hardware resource failed\n", __func__);
+		return ERR_NOT_VALID;
+	}
 
 	mdp_select_pipe_type(pinfo, &left_pipe, &right_pipe);
 	writel((uint32_t) fb->base, left_pipe + PIPE_SSPP_SRC0_ADDR);
@@ -2302,19 +2188,10 @@ int mdp_dsi_video_update_pipe(struct msm_panel_info *pinfo,  struct fbcon_config
 		writel((uint32_t) fb->base, right_pipe + PIPE_SSPP_SRC0_ADDR);
 
 	mdss_mdp_set_flush(pinfo, &ctl0_reg_val, &ctl1_reg_val);
-	if (pinfo->dest == DISPLAY_1) {
-		writel(ctl0_reg_val, display_req[0].ctl_base[0] + CTL_FLUSH);
-		if (display_req[0].num_ctl == 2)
-			writel(ctl1_reg_val, display_req[0].ctl_base[1] + CTL_FLUSH);
-	} else if (pinfo->dest == DISPLAY_2) {
-		writel(ctl0_reg_val, display_req[1].ctl_base[0] + CTL_FLUSH);
-		if (display_req[1].num_ctl == 2)
-			writel(ctl1_reg_val, display_req[1].ctl_base[1] + CTL_FLUSH);
-	} else if (pinfo->dest == DISPLAY_3) {
-		writel(ctl0_reg_val, display_req[2].ctl_base[0] + CTL_FLUSH);
-		if (display_req[2].num_ctl == 2)
-			writel(ctl1_reg_val, display_req[2].ctl_base[1] + CTL_FLUSH);
-	}
+
+	writel(ctl0_reg_val, rm->ctl_base[0] + CTL_FLUSH);
+	if (rm->num_ctl == 2)
+		writel(ctl1_reg_val, rm->ctl_base[1] + CTL_FLUSH);
 
 	return 0;
 }
@@ -2423,12 +2300,19 @@ int mdss_hdmi_on(struct msm_panel_info *pinfo)
 {
 	uint32_t ctl0_reg_val = 0;
 	uint32_t ctl1_reg_val = 0;
+	struct resource_req *rm = NULL;
+
+	rm = mdp_rm_retrieve_resource(pinfo->dest);
+	if (!rm) {
+		dprintf(CRITICAL, "%s: get hardware resource failed\n", __func__);
+		return ERR_NOT_VALID;
+	}
 
 	mdss_mdp_set_flush(pinfo, &ctl0_reg_val, &ctl1_reg_val);
 	ctl0_reg_val &= 0x0FFFFFFF;  // remove the interface setting
 	ctl0_reg_val |= BIT(28);     // enable interface 3
 
-	writel(ctl0_reg_val, display_req[pinfo->dest - 1].ctl_base[0] + CTL_FLUSH);
+	writel(ctl0_reg_val, rm->ctl_base[0] + CTL_FLUSH);
 	writel(0x01, MDP_INTF_3_TIMING_ENGINE_EN + mdss_mdp_intf_offset());
 
 	return NO_ERROR;
@@ -2438,12 +2322,19 @@ int mdss_hdmi_update(struct msm_panel_info *pinfo)
 {
 	uint32_t ctl0_reg_val = 0;
 	uint32_t ctl1_reg_val = 0;
+	struct resource_req *rm = NULL;
+
+	rm = mdp_rm_retrieve_resource(pinfo->dest);
+	if (!rm) {
+		dprintf(CRITICAL, "%s: get hardware resource failed\n", __func__);
+		return ERR_NOT_VALID;
+	}
 
 	mdss_mdp_set_flush(pinfo, &ctl0_reg_val, &ctl1_reg_val);
 	ctl0_reg_val &= 0x0FFFFFFF;  // remove the interface setting
 	ctl0_reg_val |= BIT(28);     // enable interface 3
 
-	writel(ctl0_reg_val, display_req[pinfo->dest - 1].ctl_base[0] + CTL_FLUSH);
+	writel(ctl0_reg_val, rm->ctl_base[0] + CTL_FLUSH);
 
 	return NO_ERROR;
 }
@@ -2453,6 +2344,13 @@ int mdss_hdmi_update_pipe(struct msm_panel_info *pinfo,  struct fbcon_config *fb
 	uint32_t ctl0_reg_val = 0;
 	uint32_t ctl1_reg_val = 0;
 	uint32_t left_pipe, right_pipe;
+	struct resource_req *rm = NULL;
+
+	rm = mdp_rm_retrieve_resource(pinfo->dest);
+	if (!rm) {
+		dprintf(CRITICAL, "%s: get hardware resource failed\n", __func__);
+		return ERR_NOT_VALID;
+	}
 
 	mdp_select_pipe_type(pinfo, &left_pipe, &right_pipe);
 	writel((uint32_t) fb->base, left_pipe + PIPE_SSPP_SRC0_ADDR);
@@ -2462,7 +2360,7 @@ int mdss_hdmi_update_pipe(struct msm_panel_info *pinfo,  struct fbcon_config *fb
 	mdss_mdp_set_flush(pinfo, &ctl0_reg_val, &ctl1_reg_val);
 	ctl0_reg_val &= 0x0FFFFFFF;  // remove the interface setting
 	ctl0_reg_val |= BIT(28);     // enable interface 3
-	writel(ctl0_reg_val, display_req[pinfo->dest - 1].ctl_base[0] + CTL_FLUSH);
+	writel(ctl0_reg_val, rm->ctl_base[0] + CTL_FLUSH);
 
 	return NO_ERROR;
 }
