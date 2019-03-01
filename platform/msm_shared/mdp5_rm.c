@@ -49,7 +49,6 @@ static void _mdp_rm_update_hdmi_display(struct msm_panel_info *pinfo)
 		pinfo->pipe_id = 0;
 	else
 		pinfo->pipe_id = 2;
-	pinfo->zorder = 2;
 }
 
 static void _mdp_rm_update_dsi_display(struct msm_panel_info *pinfo, bool use_second_dsi)

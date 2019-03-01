@@ -1,4 +1,4 @@
-/* Copyright (c) 2014-2016, 2018, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2014-2016, 2018-2019, The Linux Foundation. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -2073,7 +2073,7 @@ static void early_camera_setup_layer(int display_id)
 		return;
 	}
 	layer_cam.layer = layer_cam_ptr;
-	layer_cam.z_order = 1;
+	layer_cam.z_order = 7;
 	update_cam.disp = disp_ptr;
 	update_cam.layer_list = &layer_cam;
 	update_cam.num_layers = 1;
@@ -2573,7 +2573,7 @@ int early_camera_flip(void)
 						layer_cam.fb->base = (void *)VFE_PONG_ADDR;
 #endif
 
-				layer_cam.z_order = 1;
+				layer_cam.z_order = 7;
 				layer_cam.fb->format = kFormatYCbCr422H2V1Packed;
 				if (pingpong_buffer_updated < 2) {
 					target_display_update(&update_cam,1,RVC_DISPLAY_ID);
