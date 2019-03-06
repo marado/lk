@@ -62,6 +62,12 @@ ifeq ($(VERIFIED_BOOT),1)
 ENABLE_RPMB_SUPPORT := 1
 endif
 
+ifeq ($(VERIFIED_BOOT_2),1)
+#enable fbcon display menu
+ENABLE_FBCON_DISPLAY_MSG := 1
+ENABLE_RPMB_SUPPORT := 1
+endif
+
 ifeq ($(ENABLE_FBCON_DISPLAY_MSG),1)
 DEFINES += FBCON_DISPLAY_MSG=1
 endif
