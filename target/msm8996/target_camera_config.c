@@ -42,13 +42,23 @@
 #include <kernel/thread.h>
 #include <target/target_camera.h>
 
+//#define DEBUG_LOGS
+#ifdef DEBUG_LOGS
+#undef CDBG
+#define CDBG _dprintf
+#else
+#undef CDBG
+#define CDBG(fmt, args...) do{}while(0)
+#endif
+#define pr_err dprintf
+
 
 #define CAMERA_SLAVEADDR 0x48
 #define BRIDGE_SLAVEADDR 0x7a
 
 #define ANALOG_CAMERA_SLAVEADDR 0x94 // REG_CSI_TXB_SADDR
 #define ADV_BRIDGE_SLAVEADDR 0xE0 // ADV7481_IO_MAP_SLAVE_ADDR (0x70<<1)
-extern int lock;
+#define INT_DEBOUNCE_NUM 10 // Number of locks to check in a row before we consider it locked.
 
 
 static struct camera_i2c_reg_array ti960_init_regs[] =
@@ -824,15 +834,16 @@ int adv7481_intr_enable(void)
 	return rc;
 }
 
-int adv7481_sdp_isr(void)
+int adv7481_lock_status(void)
 {
+	static int lock = 1;
 	int rc = 0;
 	struct camera_i2c_reg_array reg;
-	uint8 sd_lock_q_info = 0;
 	uint8 sd_lock_sts = 0;
-	uint8 sd_h_v_lock_q_info = 0;
 	int cci_master = 0, queue_id = 1;
 	uint32_t read_val = 0;
+	static uint32_t debounce_count = INT_DEBOUNCE_NUM;
+	uint8 sd_lock_q_info = 0;
 
 
 	//check SDP lock/unlock interrupt
@@ -857,40 +868,6 @@ int adv7481_sdp_isr(void)
 		goto EXIT_FLAG;
 	}
 
-	rc = msm_cci_i2c_read(ADV7481_SDP_RO_MAP_1_USER_SUB_MAP_1_R_REG_42_ADDR,
-					1,
-					&read_val,
-					ADV7481_SDP_MAP_SLAVE_ADDR,
-					cci_master,
-					queue_id,
-					1,
-					1);
-
-	if (rc != 0)
-	{
-		rc = -2;
-		goto EXIT_FLAG;
-	}
-
-	sd_lock_q_info = read_val;
-
-	rc = msm_cci_i2c_read(ADV7481_SDP_RO_MAP_1_USER_SUB_MAP_1_R_REG_4A_ADDR,
-									1,
-									&read_val,
-									ADV7481_SDP_MAP_SLAVE_ADDR,
-									cci_master,
-									queue_id,
-									1,
-									1);
-
-	if (rc != 0)
-	{
-		rc = -3;
-		goto EXIT_FLAG;
-	}
-
-	sd_h_v_lock_q_info = read_val;
-
 	rc = msm_cci_i2c_read(ADV7481_SDP_RO_MAP_1_USER_SUB_MAP_1_R_REG_49_ADDR,
 									1,
 									&read_val,
@@ -902,9 +879,11 @@ int adv7481_sdp_isr(void)
 
 	if (rc != 0)
 	{
-		rc = -4;
+		rc = -6;
 		goto EXIT_FLAG;
 	}
+
+	sd_lock_q_info = read_val;
 
 	//map to SDP_RO_MAIN
 	reg.reg_addr = ADV7481_SDP_MAP_SEL_ADDR;
@@ -943,189 +922,39 @@ int adv7481_sdp_isr(void)
 
 	sd_lock_sts = read_val;
 
-
-	if (sd_lock_q_info
-		& (ADV7481_SDP_RO_MAP_1_USER_SUB_MAP_1_R_REG_42_SD_UNLOCK_Q_BMSK
-			| ADV7481_SDP_RO_MAP_1_USER_SUB_MAP_1_R_REG_42_SD_LOCK_Q_BMSK))
-	{
-		if (sd_lock_sts & ADV7481_SDP_RO_MAIN_MAP_USER_MAP_R_REG_10_IN_LOCK_BMSK)
-		{
-			if (sd_lock_q_info & ADV7481_SDP_RO_MAP_1_USER_SUB_MAP_1_R_REG_42_SD_LOCK_Q_BMSK)
-			{
-				lock = 1;
-				dprintf(CRITICAL,"Locked");
-			}
+	if (sd_lock_sts == 0xd && sd_lock_q_info == 0x6) {
+		debounce_count--;
+		if(debounce_count == 0) {
+			lock = 1;
+			CDBG("Locked\n");
+			debounce_count = INT_DEBOUNCE_NUM;
 		}
-		else
-		{
-			if (sd_lock_q_info & ADV7481_SDP_RO_MAP_1_USER_SUB_MAP_1_R_REG_42_SD_UNLOCK_Q_BMSK)
-			{
-				lock = 0;
-				dprintf(CRITICAL,"Lost Lock\n");
-			}
-		}
-
-		//map to SDP_MAP_1
-		reg.reg_addr = ADV7481_SDP_MAP_SEL_ADDR;
-		reg.reg_data = ADV7481_SDP_MAP_SEL_SDP_MAP_1;
-		rc = msm_cci_i2c_write(&reg,
-								1,
-								ADV7481_SDP_MAP_SLAVE_ADDR,
-								queue_id,
-								0,
-								1,
-								1,
-								0,cci_master);
-
-		if (rc != 0)
-		{
-			goto EXIT_FLAG;
-		}
-
-		//clear interrupt
-		reg.reg_addr = ADV7481_SDP_MAP_1_USER_SUB_MAP_1_RW_REG_43_ADDR;
-		reg.reg_data = ADV7481_SDP_MAP_1_USER_SUB_MAP_1_RW_REG_43_SD_UNLOCK_CLR_BMSK
-						| ADV7481_SDP_MAP_1_USER_SUB_MAP_1_RW_REG_43_SD_LOCK_CLR_BMSK;
-
-		rc = msm_cci_i2c_write(&reg,
-								1,
-								ADV7481_SDP_MAP_SLAVE_ADDR,
-								queue_id,
-								0,
-								1,
-								1,
-								0,cci_master);
+	} else {
+		lock = 0;
+		CDBG("UnLocked\n");
+		debounce_count = INT_DEBOUNCE_NUM;
 	}
 
-	if (sd_h_v_lock_q_info
-		& (ADV7481_SDP_RO_MAP_1_USER_SUB_MAP_1_R_REG_4A_SD_H_LOCK_CHNG_Q_BMSK
-			| ADV7481_SDP_RO_MAP_1_USER_SUB_MAP_1_R_REG_4A_SD_V_LOCK_CHNG_Q_BMSK))
-	{
-		if (sd_h_v_lock_q_info & ADV7481_SDP_RO_MAP_1_USER_SUB_MAP_1_R_REG_4A_SD_H_LOCK_CHNG_Q_BMSK)
-		{
-			dprintf(CRITICAL,"H Lock changed\n");
-		}
+	// restore SDP register map
+	reg.reg_addr = ADV7481_SDP_MAP_SEL_ADDR;
+	reg.reg_data = ADV7481_SDP_MAP_SEL_SDP_MAIN_MAP;
 
-		if (sd_h_v_lock_q_info & ADV7481_SDP_RO_MAP_1_USER_SUB_MAP_1_R_REG_4A_SD_V_LOCK_CHNG_Q_BMSK)
-		{
-			dprintf(CRITICAL,"V Lock changed\n");
-		}
-
-		//map to SDP_MAP_1
-		reg.reg_addr = ADV7481_SDP_MAP_SEL_ADDR;
-		reg.reg_data = ADV7481_SDP_MAP_SEL_SDP_MAP_1;
-		rc = msm_cci_i2c_write(&reg,
-								1,
-								ADV7481_SDP_MAP_SLAVE_ADDR,
-								queue_id,
-								0,
-								1,
-								1,
-								0,cci_master);
-
-		if (rc != 0)
-		{
-			goto EXIT_FLAG;
-		}
-
-		//clear interrupt
-		reg.reg_addr = ADV7481_SDP_MAP_1_USER_SUB_MAP_1_RW_REG_4B_ADDR;
-		reg.reg_data = ADV7481_SDP_MAP_1_USER_SUB_MAP_1_RW_REG_4B_SD_H_LOCK_CHNG_CLR_BMSK
-						| ADV7481_SDP_MAP_1_USER_SUB_MAP_1_RW_REG_4B_SD_V_LOCK_CHNG_CLR_BMSK;
-
-		rc = msm_cci_i2c_write(&reg,
-								1,
-								ADV7481_SDP_MAP_SLAVE_ADDR,
-								queue_id,
-								0,
-								1,
-								1,
-								0,cci_master);
-	}
-
-
-// restore SDP register map
-
-  reg.reg_addr = ADV7481_SDP_MAP_SEL_ADDR;
-  reg.reg_data = ADV7481_SDP_MAP_SEL_SDP_MAIN_MAP;
-
-  rc = msm_cci_i2c_write(&reg,
-						  1,
-						  ADV7481_SDP_MAP_SLAVE_ADDR,
-						  queue_id,
-						  0,
-						  1,
-						  1,
-						  0,cci_master);
+	rc = msm_cci_i2c_write(&reg,
+							1,
+							ADV7481_SDP_MAP_SLAVE_ADDR,
+							queue_id,
+							0,
+							1,
+							1,
+							0,cci_master);
+	return lock;
 
 EXIT_FLAG:
 	return rc;
 
 }
 
-void adv7481_isr(void)
-{
-	int rc;
-	int cci_master = 0, queue_id = 1;
-	struct camera_i2c_reg_array int_clear[1];
-	uint32_t read_val = 0;
-
-	//check intrq1 status
-	rc = msm_cci_i2c_read(ADV7481_IO_MAP_INT_RAW_STATUS_ADDR,
-							1,
-							&read_val,
-							ADV7481_IO_MAP_SLAVE_ADDR,
-							cci_master,
-							queue_id,
-							1,
-							1);
-
-	if (read_val & ADV7481_IO_MAP_INT_RAW_STATUS_INTRQ_RAW_BMSK)
-	{
-		//check datapath sd interrupt
-		rc = msm_cci_i2c_read(ADV7481_IO_MAP_DATAPATH_RAW_STATUS_ADDR,
-								1,
-								&read_val,
-								ADV7481_IO_MAP_SLAVE_ADDR,
-								cci_master,
-								queue_id,
-								1,
-								1);
-
-		if (read_val & ADV7481_IO_MAP_DATAPATH_RAW_STATUS_INT_SD_RAW_BMSK)
-		{
-			adv7481_sdp_isr();
-		}
-
-		//check datapath interrupt
-		rc = msm_cci_i2c_read(ADV7481_IO_MAP_DATAPATH_INT_STATUS_ADDR,
-								1,
-								&read_val,
-								ADV7481_IO_MAP_SLAVE_ADDR,
-								cci_master,
-								queue_id,
-								1,
-								1);
-
-		//clear datapath interrupt
-		int_clear[0].reg_addr = ADV7481_IO_MAP_DATAPATH_INT_CLR_ADDR;
-		int_clear[0].reg_data = ADV7481_IO_MAP_DATAPATH_INT_CLR_INT_SD_CLR_BMSK | 0x40;
-		int_clear[0].delay = 0;
-
-		rc = msm_cci_i2c_write(&int_clear[0],
-							1,
-							ADV7481_IO_MAP_SLAVE_ADDR,
-							queue_id,
-							0,
-							1,
-							1,
-							0,cci_master);
-	}
-	if(rc != 0)
-		dprintf(CRITICAL,"Error rc = %x", rc);
-}
 #endif
-
 
 static int get_cam_data_digital(struct i2c_config_data **cam_data)
 {
