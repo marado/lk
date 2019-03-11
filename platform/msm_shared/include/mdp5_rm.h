@@ -65,10 +65,11 @@ struct source_pipe {
 	uint32_t base;
 	bool valid;
 	uint32_t dest_disp_id;
+	char pipe_name[MAX_PIPE_NAME_LEN];
 };
 
 int mdp_rm_search_pipe(uint32_t pipe_type, uint32_t dest_display_id,
-	uint32_t *index);
+	uint32_t *index, char *pipe_name);
 
 int mdp_rm_update_pipe_status(uint32_t index, uint32_t dest_display_id,
 	uint32_t zorder, uint32_t right_mixer, uint32_t *pipe_base);

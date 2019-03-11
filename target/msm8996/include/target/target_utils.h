@@ -38,7 +38,6 @@ IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #define LAYER_FOR_EARLY_RVC     0x2
 #define LAYER_LEFT_STAGED       0x1
 #define LAYER_RIGHT_STAGED      0x2
-#define MAX_PIPE_NUM		12
 
 enum display_type {
 	RVC_DISPLAY,
@@ -46,15 +45,17 @@ enum display_type {
 };
 
 struct layer_property {
-	char *sspp_name;        //RGB0~RGB3, VIG0~VIG3, DMA0~DMA1
-	uint32_t sspp_stage;    //Layer stage
-	uint32_t intf_type;     //hdmi, dsi0, dsi1
+	char  pipe_name[MAX_PIPE_NAME_LEN]; //RGB0~RGB3, VIG0~VIG3, DMA0~DMA1
+	uint32_t zorder;    //zorder
 	uint32_t flag;          //indicator for RVC layer or splash layer
 	uint32_t position;      //layer stage position
+	bool yuv;
+	uint32_t dest_display_id;
+	char display_name[MAX_PANEL_ID_LEN];
 };
 
 struct early_display_property {
-	struct layer_property reserved_layer[MAX_PIPE_NUM];
+	struct layer_property reserved_layer[MAX_TARGET_LAYERS];
 	bool bootloader_rvc;
 	uint32_t intermediate_status;
 };
@@ -74,6 +75,14 @@ struct common_config {
 	char display_type_name[MAX_PANEL_ID_LEN];
 };
 
+struct layer_format {
+	char name[MAX_PIPE_NAME_LEN];
+	bool yuv;
+};
+
+int target_utils_add_early_app_layer(const char *panel_name,
+	const char *early_layer_setup);
+
 void target_utils_set_input_config(bool enable,
 	const char * rvc_display_name, enum display_type disp_type);
 
@@ -81,4 +90,9 @@ bool target_utils_validate_input_config(const char *panel_name,
 	uint32_t *disp_id, enum display_type disp_type);
 
 void target_utils_set_orientation(bool rotation_180);
+uint32_t target_utils_get_early_app_layer_cnt(uint32_t disp_id,
+	uint32_t *single, uint32_t *total, uint32_t *index_mask);
+
+char *target_utils_translate_layer_to_fb(struct fbcon_config *fb,
+	uint32_t cached_fb_index);
 #endif
