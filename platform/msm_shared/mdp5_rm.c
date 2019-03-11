@@ -32,21 +32,26 @@ IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include <msm_panel.h>
 #include <platform/iomap.h>
 #include <err.h>
+#include <string.h>
 
 static struct resource_req display_req[MAX_NUM_DISPLAY];
 static bool ctl_lm_allocated;
 
 static struct source_pipe pipe_req[] = {
-	{1 << MDSS_MDP_PIPE_TYPE_RGB, MDP_VP_0_RGB_0_BASE, false, MAX_NUM_DISPLAY},
-	{1 << MDSS_MDP_PIPE_TYPE_RGB, MDP_VP_0_RGB_1_BASE, false, MAX_NUM_DISPLAY},
-	{1 << MDSS_MDP_PIPE_TYPE_RGB, MDP_VP_0_RGB_2_BASE, false, MAX_NUM_DISPLAY},
-	{1 << MDSS_MDP_PIPE_TYPE_RGB, MDP_VP_0_RGB_3_BASE, false, MAX_NUM_DISPLAY},
-	{1 << MDSS_MDP_PIPE_TYPE_RGB, MDP_VP_0_DMA_0_BASE, false, MAX_NUM_DISPLAY},
-	{1 << MDSS_MDP_PIPE_TYPE_RGB, MDP_VP_0_DMA_1_BASE, false, MAX_NUM_DISPLAY},
-	{1 << MDSS_MDP_PIPE_TYPE_RGB | 1 << MDSS_MDP_PIPE_TYPE_VIG, MDP_VP_0_VIG_0_BASE, false, MAX_NUM_DISPLAY},
-	{1 << MDSS_MDP_PIPE_TYPE_RGB | 1 << MDSS_MDP_PIPE_TYPE_VIG, MDP_VP_0_VIG_1_BASE, false, MAX_NUM_DISPLAY},
-	{1 << MDSS_MDP_PIPE_TYPE_RGB | 1 << MDSS_MDP_PIPE_TYPE_VIG, MDP_VP_0_VIG_2_BASE, false, MAX_NUM_DISPLAY},
-	{1 << MDSS_MDP_PIPE_TYPE_RGB | 1 << MDSS_MDP_PIPE_TYPE_VIG, MDP_VP_0_VIG_3_BASE, false, MAX_NUM_DISPLAY},
+	{1 << MDSS_MDP_PIPE_TYPE_RGB, MDP_VP_0_RGB_0_BASE, false, MAX_NUM_DISPLAY, "rgb0"},
+	{1 << MDSS_MDP_PIPE_TYPE_RGB, MDP_VP_0_RGB_1_BASE, false, MAX_NUM_DISPLAY, "rgb1"},
+	{1 << MDSS_MDP_PIPE_TYPE_RGB, MDP_VP_0_RGB_2_BASE, false, MAX_NUM_DISPLAY, "rgb2"},
+	{1 << MDSS_MDP_PIPE_TYPE_RGB, MDP_VP_0_RGB_3_BASE, false, MAX_NUM_DISPLAY, "rgb3"},
+	{1 << MDSS_MDP_PIPE_TYPE_RGB, MDP_VP_0_DMA_0_BASE, false, MAX_NUM_DISPLAY, "dma0"},
+	{1 << MDSS_MDP_PIPE_TYPE_RGB, MDP_VP_0_DMA_1_BASE, false, MAX_NUM_DISPLAY, "dma1"},
+	{1 << MDSS_MDP_PIPE_TYPE_RGB | 1 << MDSS_MDP_PIPE_TYPE_VIG, MDP_VP_0_VIG_0_BASE,
+		false, MAX_NUM_DISPLAY, "vig0"},
+	{1 << MDSS_MDP_PIPE_TYPE_RGB | 1 << MDSS_MDP_PIPE_TYPE_VIG, MDP_VP_0_VIG_1_BASE,
+		false, MAX_NUM_DISPLAY, "vig1"},
+	{1 << MDSS_MDP_PIPE_TYPE_RGB | 1 << MDSS_MDP_PIPE_TYPE_VIG, MDP_VP_0_VIG_2_BASE,
+		false, MAX_NUM_DISPLAY, "vig2"},
+	{1 << MDSS_MDP_PIPE_TYPE_RGB | 1 << MDSS_MDP_PIPE_TYPE_VIG, MDP_VP_0_VIG_3_BASE,
+		false, MAX_NUM_DISPLAY, "vig3"},
 };
 
 static void _mdp_rm_init(void)
@@ -110,6 +115,29 @@ static void _mdp_rm_update_dsi_display(struct msm_panel_info *pinfo, bool use_se
 		display_req[pinfo->dest - DISPLAY_1].primary_dsi = true;
 }
 
+static bool _mdp_rm_search_pipe_by_name(
+	char *pipe_name, uint32_t *index)
+{
+	uint32_t i = 0;
+
+	*index = ARRAY_SIZE(pipe_req);
+
+	for (i = 0; i < ARRAY_SIZE(pipe_req); i++) {
+		if (!strncmp(pipe_req[i].pipe_name,
+				pipe_name, sizeof(pipe_req[i].pipe_name))) {
+			if ((pipe_req[i].valid == false) &&
+				(pipe_req[i].dest_disp_id == MAX_NUM_DISPLAY)) {
+				*index = i;
+				return true;
+			}
+			else
+				dprintf(INFO, "target %s pipe is occupied\n", pipe_name);
+		}
+	}
+
+	return false;
+}
+
 void mdp_rm_update_resource(struct msm_panel_info *pinfo, bool use_second_dsi)
 {
 	if (pinfo->dest < DISPLAY_1 || pinfo->dest > DISPLAY_3)
@@ -153,13 +181,20 @@ void mdp_rm_reset_resource_manager(bool reseted)
 }
 
 int mdp_rm_search_pipe(uint32_t pipe_type,
-	uint32_t dest_display_id, uint32_t *index)
+	uint32_t dest_display_id, uint32_t *index, char *pipe_name)
 {
 	uint32_t i = 0;
+	bool found = false;
 
 	*index = ARRAY_SIZE(pipe_req);
 
 	for (i = 0; i < ARRAY_SIZE(pipe_req); i++) {
+		if (pipe_name)
+			found = _mdp_rm_search_pipe_by_name(pipe_name, index);
+
+		if (found)
+			break;
+
 		if (1 << pipe_type & pipe_req[i].format_mask) {
 			/* get the unused pipes available to all displays */
 			if ((pipe_req[i].valid == false) &&

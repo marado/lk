@@ -41,6 +41,7 @@ typedef struct device_info device_info;
 #define SHA256_DIGEST_LENGTH 32
 #define DEVICE_MEMORY_SIZE 7
 #define MAX_CAMERA_TYPE_LEN 8
+#define MAX_EDRM_PIPE_SETUP_LEN 128
 
 enum unlock_type {
 	UNLOCK = 0,
@@ -74,5 +75,6 @@ struct device_info
 	uint32_t rvc_gpio;
 	char camera_type[MAX_CAMERA_TYPE_LEN];
 	bool rotation_180;
+	char early_app_layer_setup[MAX_EDRM_PIPE_SETUP_LEN];
 };
 #endif

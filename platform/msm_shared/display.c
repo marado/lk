@@ -43,6 +43,7 @@
 #include <target/scalar.h>
 #endif
 #include "mdp5_rm.h"
+#include "target/target_utils.h"
 
 static struct msm_fb_panel_data *panel;
 static struct msm_fb_panel_data panel_array[MAX_NUM_DISPLAY];
@@ -86,6 +87,72 @@ static int msm_fb_alloc(struct fbcon_config *fb)
 void msm_display_set_orientation(uint32_t rot_mask)
 {
 	orientation_mask = rot_mask;
+}
+static void _msm_display_attach_external_layer(
+	struct msm_panel_info *pinfo, struct fbcon_config *fb,
+	uint32_t fb_cnt, uint32_t total_fb_cnt, uint32_t index_mask)
+{
+	int ret = 0;
+	char *pipe_name = NULL;
+	uint32_t i = 0, index = 0, j =0;
+
+	index = index_mask;
+
+	for (i = 0; i < fb_cnt; i++) {
+		for (j = 0; j < total_fb_cnt; j++) {
+			if ((1 << j) & index)
+				break;
+		}
+		index &= ~(1 << j);
+
+		pipe_name = target_utils_translate_layer_to_fb(&fb[i], j);
+		dprintf(INFO, "pipe_name(%d)=%s\n", i, pipe_name);
+
+		if (!pipe_name)
+			continue;
+
+		ret = mdp_config_external_pipe(pinfo, &fb[i], pipe_name);
+		if (ret) {
+			dprintf(CRITICAL, "config early app fb(%s) failed", pipe_name);
+			continue;
+		}
+	}
+}
+
+static int msm_display_attach_external_layer(struct msm_panel_info *pinfo)
+{
+	struct fbcon_config *early_app_fb = NULL;
+	uint32_t fb_cnt_on_single_display = 0, index_mask = 0;
+	uint32_t total_early_app_fb_cnt = 0;
+	int ret = NO_ERROR;
+
+	target_utils_get_early_app_layer_cnt(pinfo->dest,
+			&fb_cnt_on_single_display, &total_early_app_fb_cnt, &index_mask);
+
+	dprintf(INFO, "single_cnt=%d, total=%d, mask=0x%x\n",
+		fb_cnt_on_single_display, total_early_app_fb_cnt, index_mask);
+	if ((fb_cnt_on_single_display > 0) &&
+		(fb_cnt_on_single_display < MAX_STAGE_FB)) {
+		early_app_fb = (struct fbcon_config *)malloc(
+			fb_cnt_on_single_display * sizeof(struct fbcon_config));
+
+		if (!early_app_fb) {
+			ret = ERR_NOT_VALID;
+			dprintf(CRITICAL, "allocate early app fb failed\n");
+		} else
+			_msm_display_attach_external_layer(pinfo,
+				early_app_fb,
+				fb_cnt_on_single_display,
+				total_early_app_fb_cnt,
+				index_mask);
+	}
+
+	if (early_app_fb) {
+		free(early_app_fb);
+		early_app_fb = NULL;
+	}
+
+	return ret;
 }
 
 int msm_display_config()
@@ -362,6 +429,16 @@ int msm_display_update(struct fbcon_config *fb, uint32_t fb_cnt,
 
 	mdp_rm_reset_resource_manager(reseted);
 	reseted = true;
+
+	if (firstframe) {
+		/*
+		 * When failing to attach external layer, no impact for
+		 * normal splash/animation setup, and continue current process.
+		 */
+		ret = msm_display_attach_external_layer(pinfo);
+		if (ret)
+			dprintf(CRITICAL, "Attach external layer failed\n");
+	}
 
 	switch (pinfo->type) {
 		case MIPI_VIDEO_PANEL:

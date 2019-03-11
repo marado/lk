@@ -282,9 +282,9 @@ static uint32_t recovery_dtbo_size = 0;
 
 /* Assuming unauthorized kernel image by default */
 static int auth_kernel_img = 0;
-static device_info device = {DEVICE_MAGIC,0,0,0,0,0,{0},{0},{0},1,
-	0,"none",0,"none",0,{0},0,{0},0,0,{0},0,0,{0},0};
 
+static device_info device = {DEVICE_MAGIC,0,0,0,0,0,{0},{0},{0},1,0,"none",0,
+				"none",0,{0},0,{0},0,0,{0},0,0,{0},0,"none"};
 static char *vbcmdline;
 
 static bool is_allow_unlock = 0;
@@ -4687,6 +4687,19 @@ void cmd_oem_disable_early_audio(const char *arg, void *data, unsigned size)
        fastboot_okay("");
 }
 
+void cmd_oem_setup_early_app_layer(const char *arg, void *data, unsigned size)
+{
+	if (arg) {
+		strlcpy(device.early_app_layer_setup, arg,
+			sizeof(device.early_app_layer_setup));
+
+		write_device_info(&device);
+		fastboot_okay("");
+
+		dprintf(INFO, "Setup early app layer:%s\n", arg);
+	}
+}
+
 void cmd_oem_enable_shared_display(const char *arg, void *data, unsigned size)
 {
 	if (arg) {
@@ -4772,6 +4785,10 @@ void cmd_oem_enable_early_audio(const char *arg, void *data, unsigned size)
 }
 
 void cmd_oem_disable_early_audio(const char *arg, void *data, unsigned size)
+{
+}
+
+void cmd_oem_setup_early_app_layer(const char *arg, void *data, unsigned size)
 {
 }
 
@@ -5317,6 +5334,7 @@ void aboot_fastboot_register_commands(void)
 						{"oem disable-shared-display", cmd_oem_disable_shared_display},
 						{"oem off-mode-charge", cmd_oem_off_mode_charger},
 						{"oem select-display-panel", cmd_oem_select_display_panel},
+						{"oem early-app-layer", cmd_oem_setup_early_app_layer},
 						{"set_active",cmd_set_active},
 						{"oem rvc-timeout", cmd_oem_rvc_timeout},
 						{"oem rvc-gpio", cmd_oem_rvc_gpio},
@@ -5488,6 +5506,12 @@ void aboot_init(const struct app_descriptor *app)
 	target_utils_set_input_config(device.shared_display_enabled,
 				device.shared_display_name, SHARE_DISPLAY);
 	target_utils_set_orientation(device.rotation_180);
+
+#if EARLYDOMAIN_SUPPORT
+	if (device.early_domain_enabled)
+		target_utils_add_early_app_layer(device.display_panel,
+			device.early_app_layer_setup);
+#endif
 
 	/* Display splash screen if enabled */
 	place_marker("Display init start");

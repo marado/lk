@@ -48,6 +48,8 @@
 
 #define MDSS_MDP_MAX_PREFILL_FETCH	25
 
+static uint32_t external_fb_offset = 0;
+
 int restore_secure_cfg(uint32_t id);
 
 static int mdp_rev;
@@ -411,7 +413,7 @@ static inline void _mdp_fill_border_rect(uint32 left, uint32_t right,
 }
 
 /* find the pipe in resource manager with the same zorder and pipe_type */
-static int _mdp_get_pipe(struct resource_req *res_mgr,
+static uint32_t _mdp_get_pipe(struct resource_req *res_mgr,
 	uint32_t search_start, uint32_t zorder,
 	uint32_t pipe_type, uint32_t *pipe_idx)
 {
@@ -426,7 +428,24 @@ static int _mdp_get_pipe(struct resource_req *res_mgr,
 	}
 
 	dprintf(CRITICAL, "not get pipe base\n");
+	dprintf(INFO, "input zorder=%d, pipe_type=%d\n", zorder, pipe_type);
+	for (i = search_start; i < MDP_STAGE_6; i++)
+		dprintf(INFO, "pp_state[%d]: zorder=%d, type=%d, base=0x%x\n", i,
+		res_mgr->pp_state[i].zorder, res_mgr->pp_state[i].type, res_mgr->pp_state[i].base);
 	return 0;
+}
+
+static void _mdp_get_external_fb_offset(struct resource_req *res_mgr)
+{
+	uint32_t i = 0;
+
+	for (i = 0; i < MDP_STAGE_6; i++) {
+		/* a pipe base != 0 means the pipe is filled by external layer */
+		if (res_mgr->pp_state[i].base == 0) {
+			external_fb_offset = i;
+			break;
+		}
+	}
 }
 
 #if ENABLE_QSEED_SCALAR
@@ -795,7 +814,7 @@ static void mdss_mdp_set_flush(struct msm_panel_info *pinfo,
 }
 
 static void mdss_source_pipe_config(struct fbcon_config *fb, struct msm_panel_info
-		*pinfo, uint32_t pipe_base, struct border_rect *rect)
+		*pinfo, uint32_t pipe_base, struct border_rect *rect, uint32_t offset_pp_index)
 {
 	uint32_t img_size, roi_size, out_size, stride;
 	uint32_t fb_off = 0;
@@ -839,7 +858,7 @@ static void mdss_source_pipe_config(struct fbcon_config *fb, struct msm_panel_in
 #endif
 
 	if (pinfo->lcdc.dual_pipe && !pinfo->splitter_is_enabled) {
-		if (rm->pp_state[SPLIT_DISPLAY_0].base == pipe_base){
+		if (rm->pp_state[offset_pp_index].base == pipe_base){
 			//Left pipe
 			fb_off = 0;
 		} else {
@@ -876,7 +895,7 @@ static void mdss_source_pipe_config(struct fbcon_config *fb, struct msm_panel_in
 			src_xy = 0;
 
 			if (pinfo->splitter_is_enabled &&
-				(rm->pp_state[SPLIT_DISPLAY_1].base == pipe_base)) {
+				(rm->pp_state[offset_pp_index + 1].base == pipe_base)) {
 				/*
 				 * for shared display case, dst_xy of pipe should move to
 				 * right part with one offset lm_split[0].
@@ -1396,7 +1415,7 @@ static void mdss_intf_fetch_start_config(struct msm_panel_info *pinfo,
 }
 
 static int mdp_acquire_pipe(uint32_t dest_display_id, struct fbcon_config *fb,
-	uint32_t *pipe_base, bool right_stage)
+	uint32_t *pipe_base, bool right_stage, char *explicit_pipe_name)
 {
 	uint32_t index;
 	uint32_t pipe_type;
@@ -1407,7 +1426,8 @@ static int mdp_acquire_pipe(uint32_t dest_display_id, struct fbcon_config *fb,
 	else
 		pipe_type = MDSS_MDP_PIPE_TYPE_RGB;
 
-	ret = mdp_rm_search_pipe(pipe_type, dest_display_id, &index);
+	ret = mdp_rm_search_pipe(pipe_type, dest_display_id,
+			&index, explicit_pipe_name);
 	if (ret) {
 		dprintf(CRITICAL, "%s: pipe search failed\n", __func__);
 		return ret;
@@ -1442,6 +1462,7 @@ int mdp_setup_pipe(struct msm_panel_info *pinfo,
 	uint32_t ret = 0, real_fb_cnt = 0;
 	bool pipe_on_right = false;
 	struct resource_req *res_mgr = NULL;
+	uint32_t search_start = 0, pp_index = 0, pipe_type;
 
 	dprintf(INFO, "%s:input fb_cnt=%d\n", __func__, fb_cnt);
 	real_fb_cnt = fb_cnt;
@@ -1451,6 +1472,8 @@ int mdp_setup_pipe(struct msm_panel_info *pinfo,
 		dprintf(CRITICAL, "%s:get hardware resource failed\n", __func__);
 		return ERR_NOT_VALID;
 	}
+
+	_mdp_get_external_fb_offset(res_mgr);
 
 	/*
 	* In dual pipe & non-spliiter case like 4K or DSI split case, as each fb
@@ -1468,44 +1491,74 @@ int mdp_setup_pipe(struct msm_panel_info *pinfo,
 	for (fb_index = SPLIT_DISPLAY_0; fb_index < real_fb_cnt; fb_index++) {
 		dprintf(INFO, "%s: fb_index=%d", __func__, fb_index);
 		pipe_on_right = false;
-		ret = mdp_acquire_pipe(pinfo->dest, &fb[fb_index],
-				&pipe_base, pipe_on_right);
-		if (ret) {
-			dprintf(CRITICAL, "Acquire pipe for fb%d failed\n", fb_index);
-			continue;
-		}
+		search_start = 0;
 
 		/* If one fb's format is invalid, continue for next fb */
 		if (!target_format_is_valid(fb[fb_index].format))
 			continue;
 
+		ret = mdp_acquire_pipe(pinfo->dest, &fb[fb_index],
+				&pipe_base, pipe_on_right, NULL);
+		if (ret) {
+			dprintf(CRITICAL, "Acquire pipe for fb%d failed\n", fb_index);
+			continue;
+		}
+		dprintf(INFO, "Acquire pipe base=0x%x\n", pipe_base);
+		if (target_is_yuv_format(fb[fb_index].format))
+			pipe_type = MDSS_MDP_PIPE_TYPE_VIG;
+		else
+			pipe_type = MDSS_MDP_PIPE_TYPE_RGB;
+
+		if (pipe_base != _mdp_get_pipe(res_mgr, search_start,
+			fb[fb_index].z_order, pipe_type, &pp_index)) {
+			dprintf(CRITICAL, "pipe_base is not the same, aborted\n");
+			continue;
+		}
+
 		if ((fb[fb_index].base == NULL) &&
 			target_format_is_valid(fb[fb_index].format)) {
 			/* set layer to be transparent */
+			dprintf(INFO, "transparent base=0x%x\n", pipe_base);
 			mdss_mdp_set_layer_transparent(pinfo, pipe_base,
 				target_is_yuv_format(fb[fb_index].format));
 		} else {
 			/* normal layer */
+			dprintf(INFO, "normal base=0x%x\n", pipe_base);
 			_mdp_fill_border_rect(pinfo->border_left[fb_index],
 						pinfo->border_right[fb_index],
 						pinfo->border_top[fb_index],
 						pinfo->border_bottom[fb_index],
 						&rect);
 
-			mdss_source_pipe_config(&fb[fb_index], pinfo, pipe_base, &rect);
+			mdss_source_pipe_config(&fb[fb_index], pinfo,
+				pipe_base, &rect, external_fb_offset);
 		}
 
-		mdp_rm_update_pipe_pending_mask(res_mgr, fb_index);
+		mdp_rm_update_pipe_pending_mask(res_mgr, pp_index);
 
 		/* For dual pipe & non-splitter case, fetch from the same FB */
 		if (pinfo->lcdc.dual_pipe & !pinfo->splitter_is_enabled) {
+			/*
+			 * For dual pipe & non-splitter case fetching from the same FB,
+			 * there are two pipes allocated in resource manager. So when searching
+			 * it, it's needed to exclude the the former pipe who has the same zorder
+			 * and pipe_type. So the search start will start from actual position + 1.
+			 */
+			search_start = pp_index + 1;
+
 			pipe_on_right = mdp_check_pipe_right_mixer(pinfo);
 
 			ret = mdp_acquire_pipe(pinfo->dest, &fb[fb_index],
-					&pipe_base, pipe_on_right);
+					&pipe_base, pipe_on_right, NULL);
 			if (ret) {
-				dprintf(INFO,
+				dprintf(CRITICAL,
 					"Acquire pipe for fb%d failed in dual pipe case\n", fb_index);
+				continue;
+			}
+
+			if (pipe_base != _mdp_get_pipe(res_mgr, search_start,
+				fb[fb_index].z_order, pipe_type, &pp_index)) {
+				dprintf(INFO, "pipe_base is not the same in dual pipe case\n");
 				continue;
 			}
 
@@ -1516,17 +1569,20 @@ int mdp_setup_pipe(struct msm_panel_info *pinfo,
 					target_is_yuv_format(fb[fb_index].format));
 			} else {
 				/* normal layer */
-				mdss_source_pipe_config(&fb[fb_index], pinfo, pipe_base, &rect);
+				mdss_source_pipe_config(&fb[fb_index], pinfo,
+					pipe_base, &rect, external_fb_offset);
 			}
 
+			mdp_rm_update_pipe_pending_mask(res_mgr, pp_index);
 			++fb_index;
-			mdp_rm_update_pipe_pending_mask(res_mgr, fb_index);
 		}
 	}
 
 	/* to backward compatible with legacy code */
-	*left_pipe = res_mgr->pp_state[SPLIT_DISPLAY_0].base;
-	*right_pipe = res_mgr->pp_state[SPLIT_DISPLAY_1].base;
+	if ((external_fb_offset + 1) < MDP_STAGE_6) {
+		*left_pipe = res_mgr->pp_state[external_fb_offset].base;
+		*right_pipe = res_mgr->pp_state[external_fb_offset + 1].base;
+	}
 
 	dprintf(INFO, "%s:left_pipe=0x%x, right_pipe=0x%x\n", __func__, *left_pipe, *right_pipe);
 
@@ -2140,6 +2196,54 @@ int mdp_edp_config(struct msm_panel_info *pinfo, struct fbcon_config *fb)
 	return 0;
 }
 
+int mdp_config_external_pipe(struct msm_panel_info *pinfo,
+	struct fbcon_config *fb, char *actual_pipe_name)
+{
+	struct resource_req *rm = NULL;
+	bool pipe_on_right = false;
+	int ret = NO_ERROR;
+	uint32_t pipe_base = 0, pp_index = 0;
+	uint32_t search_start = 0;
+	uint32_t pipe_type;
+
+	/* When entering this function, FB will only be configured as transparent. */
+	if (fb->base != NULL || !target_format_is_valid(fb->format))
+		return ERR_NOT_VALID;
+
+	rm = mdp_rm_retrieve_resource(pinfo->dest);
+	if (!rm) {
+		dprintf(CRITICAL, "%s:get hardware resource failed\n", __func__);
+		return ERR_NOT_VALID;
+	}
+
+	ret = mdp_acquire_pipe(pinfo->dest, fb, &pipe_base,
+		pipe_on_right, actual_pipe_name);
+	if (ret) {
+		dprintf(CRITICAL, "acquire %s pipe failed\n", actual_pipe_name);
+		return ret;
+	}
+
+	if (target_is_yuv_format(fb->format))
+		pipe_type = MDSS_MDP_PIPE_TYPE_VIG;
+	else
+		pipe_type = MDSS_MDP_PIPE_TYPE_RGB;
+
+	if (pipe_base != _mdp_get_pipe(rm, search_start,
+		fb->z_order, pipe_type, &pp_index)) {
+		dprintf(CRITICAL, "pipe_base is not the same, aborted\n");
+		ret = ERR_NOT_VALID;
+		return ret;
+	}
+
+	/* set layer to be transparent */
+	mdss_mdp_set_layer_transparent(pinfo, pipe_base,
+		target_is_yuv_format(fb->format));
+
+	mdp_rm_update_pipe_pending_mask(rm, pp_index);
+
+	return ret;
+}
+
 int mdp_config_pipe(struct msm_panel_info *pinfo,
 	struct fbcon_config *fb, uint32_t fb_cnt)
 {
@@ -2198,7 +2302,7 @@ int mdp_config_pipe(struct msm_panel_info *pinfo,
 					&rect);
 
 			mdss_source_pipe_config(&fb[fb_index],
-				pinfo, pipe_base, &rect);
+				pinfo, pipe_base, &rect, external_fb_offset);
 		}
 
 		mdp_rm_update_pipe_pending_mask(rm, pp_index);
@@ -2229,7 +2333,7 @@ int mdp_config_pipe(struct msm_panel_info *pinfo,
 						&rect);
 
 				mdss_source_pipe_config(&fb[fb_index],
-					pinfo, pipe_base, &rect);
+					pinfo, pipe_base, &rect, external_fb_offset);
 			}
 
 			mdp_rm_update_pipe_pending_mask(rm, pp_index);
@@ -2276,7 +2380,7 @@ int mdp_trigger_flush(struct msm_panel_info *pinfo,
 int mdss_hdmi_config(struct msm_panel_info *pinfo,
 	struct fbcon_config *fb, uint32_t fb_cnt)
 {
-	uint32_t left_pipe, right_pipe, out_size;
+	uint32_t left_pipe = 0, right_pipe = 0, out_size;
 	uint32_t old_intf_sel, prg_fetch_start_en;
 	struct resource_req *rm = NULL;
 

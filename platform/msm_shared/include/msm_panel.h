@@ -41,6 +41,7 @@
 #define MAX_TARGET_LAYERS 10
 
 #define MAX_STAGE_FB 6
+#define MAX_PIPE_NAME_LEN 8
 
 enum layer_mixer {
 	LM_LEFT,

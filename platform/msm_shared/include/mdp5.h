@@ -393,4 +393,6 @@ int mdp_config_pipe(struct msm_panel_info *pinfo,
 int mdp_trigger_flush(struct msm_panel_info *pinfo,
 	struct fbcon_config *fb, uint32_t fb_cnt,
 	uint32_t *left_ctl_reg_mask, uint32_t *right_ctl_reg_mask);
+int mdp_config_external_pipe(struct msm_panel_info *pinfo,
+	struct fbcon_config *fb, char *actual_pipe_name);
 #endif
