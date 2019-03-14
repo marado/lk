@@ -1,4 +1,4 @@
-/* Copyright (c) 2015-2016, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2015-2016, 2019 The Linux Foundation. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -34,5 +34,5 @@ void hdmi_phy_reset(void);
 int hdmi_pll_config(uint32_t tmds_clk_rate);
 int hdmi_vco_enable(void);
 int hdmi_vco_disable(void);
-void mdss_hdmi_display_init(uint32_t rev, void *base);
+void mdss_hdmi_display_init(uint32_t rev, void *base, bool splitter_display_is_enabled);
 #endif

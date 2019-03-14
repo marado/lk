@@ -1,4 +1,4 @@
-/* Copyright (c) 2012-2018, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2012-2019, The Linux Foundation. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -39,27 +39,44 @@
 #define DFPS_PLL_CODES_SIZE 0x1000 /* One page */
 
 /* panel type list */
-#define NO_PANEL		0xffff	/* No Panel */
-#define MDDI_PANEL		1	/* MDDI */
-#define EBI2_PANEL		2	/* EBI2 */
-#define LCDC_PANEL		3	/* internal LCDC type */
-#define EXT_MDDI_PANEL		4	/* Ext.MDDI */
-#define TV_PANEL		5	/* TV */
-#define HDMI_PANEL		6	/* HDMI TV */
-#define DTV_PANEL		7	/* DTV */
-#define MIPI_VIDEO_PANEL	8	/* MIPI */
-#define MIPI_CMD_PANEL		9	/* MIPI */
-#define WRITEBACK_PANEL		10	/* Wifi display */
-#define LVDS_PANEL		11	/* LVDS */
-#define EDP_PANEL		12	/* EDP */
-#define QPIC_PANEL		13	/* QPIC */
-#define SPI_PANEL		14
+enum panel_type {
+	NO_PANEL,
+	MDDI_PANEL,             /* MDDI */
+	EBI2_PANEL,             /* EBI2 */
+	LCDC_PANEL,             /* internal LCDC type */
+	EXT_MDDI_PANEL,         /* Ext.MDDI */
+	TV_PANEL,               /* TV */
+	HDMI_PANEL,             /* HDMI TV */
+	DTV_PANEL,              /* DTV */
+	MIPI_VIDEO_PANEL,       /* MIPI video */
+	MIPI_CMD_PANEL,         /* MIPI cmd */
+	WRITEBACK_PANEL,        /* Wifi display */
+	LVDS_PANEL,             /* LVDS */
+	EDP_PANEL,              /* EDP */
+	QPIC_PANEL,             /* QPIC */
+	SPI_PANEL,              /* SPI */
+	MAX_PANEL_TYPE = 255,
+};
 
-#define MAX_NUM_DISPLAY 3
-#define DISPLAY_UNKNOWN		0
-#define DISPLAY_1		1
-#define DISPLAY_2		2
-#define DISPLAY_3		3
+enum display_id {
+	DISPLAY_UNKNOWN = 0,
+	DISPLAY_1,
+	DISPLAY_2,
+	DISPLAY_3,
+	MAX_NUM_DISPLAY = 3,
+};
+
+enum split_framebuffer_index {
+	SPLIT_DISPLAY_0 = 0,		/* default FB index */
+	SPLIT_DISPLAY_1,		/* active in splitter case */
+	MAX_SPLIT_DISPLAY,
+};
+
+enum layer_zorder {
+	SPLASH_SPLIT_0_LAYER_ZORDER = 2,	/* default layer zorder */
+	SPLASH_SPLIT_1_LAYER_ZORDER = 3,	/* active in spliiter case */
+	RVC_LAYER_ZORDER = 7,			/* rvc layer zorder */
+};
 
 enum mdss_mdp_pipe_type {
 	MDSS_MDP_PIPE_TYPE_VIG,
@@ -137,6 +154,8 @@ struct lcdc_panel_info {
 	uint8_t split_display;
 	uint8_t pipe_swap;
 	uint8_t dst_split;
+	/* to determine the layer mixer number in shared display case */
+	uint8_t force_merge;
 };
 
 enum {
@@ -414,15 +433,15 @@ struct msm_panel_info {
 	uint32_t pipe_id;
 	uint32_t lm_id;
 	uint32_t ctl_id;
-	uint32_t zorder;
+	uint32_t zorder[MAX_SPLIT_DISPLAY];
 	char     lowpowerstop;
 	char     lcd_reg_en;
-	uint32_t border_top;
-	uint32_t border_bottom;
-	uint32_t border_left;
-	uint32_t border_right;
+	uint32_t border_top[MAX_SPLIT_DISPLAY];
+	uint32_t border_bottom[MAX_SPLIT_DISPLAY];
+	uint32_t border_left[MAX_SPLIT_DISPLAY];
+	uint32_t border_right[MAX_SPLIT_DISPLAY];
 
-	int lm_split[2];
+	int lm_split[MAX_SPLIT_DISPLAY];
 	int num_dsc_enc;
 
 	struct lcd_panel_info lcd;
@@ -455,13 +474,16 @@ struct msm_panel_info {
 
 	char autorefresh_enable;
 	uint32_t autorefresh_framenum;
+
+	bool splitter_is_enabled;
 };
 
 struct msm_fb_panel_data {
 	struct msm_panel_info panel_info;
-	struct fbcon_config fb;
+	struct fbcon_config fb[MAX_SPLIT_DISPLAY];
 	int mdp_rev;
 	int rotate;
+	bool splitter_is_enabled;
 
 	/* function entry chain */
 	int (*power_func) (uint8_t enable, struct msm_panel_info *);
@@ -471,7 +493,7 @@ struct msm_fb_panel_data {
 	int (*dfps_func)(struct msm_panel_info *);
 	int (*post_power_func)(int enable);
 	int (*pre_init_func)(void);
-	int (*update_panel_info) (void);
+	int (*update_panel_info) (bool splitter_is_enabled);
 	int (*dsi2HDMI_config) (struct msm_panel_info *);
 };
 

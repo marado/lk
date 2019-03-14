@@ -40,8 +40,9 @@ static struct resource_req display_req[MAX_NUM_DISPLAY] = {
 
 static void _mdp_rm_update_hdmi_display(struct msm_panel_info *pinfo)
 {
-	if (pinfo->lcdc.dual_pipe) {
+	if (pinfo->lcdc.dual_pipe && !pinfo->lcdc.force_merge) {
 		display_req[pinfo->dest - DISPLAY_1].needs_split_display = true;
+		/* layer mixer number is 2 for wide resolution case */
 		display_req[pinfo->dest - DISPLAY_1].num_lm = 2;
 	}
 

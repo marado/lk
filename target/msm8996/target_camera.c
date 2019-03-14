@@ -72,8 +72,7 @@
 struct i2c_config_data *cam_data;
 void *disp_ptr, *layer_cam_ptr;
 struct target_display_update update_cam;
-struct target_layer layer_cam;
-struct target_display * disp;
+struct target_display *disp;
 struct fbcon_config *fb;
 int num_configs = 0;
 bool firstframe = true;
@@ -107,7 +106,6 @@ int gpio_triggered = 0;
 int toggle =0;
 int delay_to_attach_t32 = 0;
 static bool early_camera_enabled = FALSE;
-int pingpong_buffer_updated = 0;
 
 enum msm_camera_i2c_reg_addr_type {
 	MSM_CAMERA_I2C_BYTE_ADDR = 1,
@@ -2077,56 +2075,58 @@ int early_camera_check_rev(unsigned int *pExpected_rev_id, unsigned int num_id, 
 	return -1;
 }
 
-static void early_camera_setup_layer(int display_id)
+static void early_camera_setup_layer(int display_id, struct target_layer *cam_layer)
 {
 	uint32_t rvc_display_id = 0;
+	uint32_t fb_index = SPLIT_DISPLAY_0;
 
-	if(!layer_cam_ptr)
-		layer_cam_ptr = target_display_acquire_layer(disp_ptr, "as", kFormatYCbCr422H2V1Packed);
-
-
-	if (layer_cam_ptr == NULL){
-		pr_err(CRITICAL, "Camera Layer acquire failed\n");
-		layer_cam.layer = NULL;
+	cam_layer->layer = target_display_acquire_layer(disp_ptr, "as", kFormatYCbCr422H2V1Packed);
+	if (!cam_layer->layer) {
+		dprintf(CRITICAL, "Camera Layer acquire failed\n");
+		cam_layer->layer = NULL;
 		return;
 	}
 
+	/* RVC FB usually uses FB0 */
 	rvc_display_id = target_display_get_rvc_display_id();
-	fb = target_display_get_fb(rvc_display_id);
+	fb = target_display_get_fb(rvc_display_id, fb_index);
 	if (fb == NULL){
-		pr_err(CRITICAL, "Display FB acquire failed\n");
-		layer_cam.fb = NULL;
+		dprintf(CRITICAL, "Display FB acquire failed\n");
 		return;
 	}
-	layer_cam.layer = layer_cam_ptr;
-	layer_cam.z_order = 7;
+
+	cam_layer->z_order[fb_index] = RVC_LAYER_ZORDER;
 	update_cam.disp = disp_ptr;
-	update_cam.layer_list = &layer_cam;
+	update_cam.layer_list = cam_layer;
+
 	update_cam.num_layers = 1;
-	layer_cam.fb = fb;
 	fb->bpp = 16;
 	fb->format = kFormatYCbCr422H2V1Packed;
-	layer_cam.src_rect_x = 0;
-	layer_cam.src_rect_y = 0;
-	layer_cam.dst_rect_x = 0;
-	layer_cam.dst_rect_y = 0;
+	cam_layer->fb[fb_index] = *fb;
+
+	cam_layer->src_rect_x[fb_index] = 0;
+	cam_layer->src_rect_y[fb_index] = 0;
+	cam_layer->dst_rect_x[fb_index] = 0;
+	cam_layer->dst_rect_y[fb_index] = 0;
 
 #ifdef ADV7481
-	layer_cam.src_width =  720;
-	layer_cam.src_height =  240;
-	layer_cam.dst_width =   1920;
-	layer_cam.dst_height =  1080;
+	cam_layer->src_width[fb_index] =  720;
+	cam_layer->src_height[fb_index] =  240;
+	cam_layer->dst_width[fb_index] =   1920;
+	cam_layer->dst_height[fb_index] =  1080;
 #else
-	layer_cam.src_width  = 1280;
-	layer_cam.src_height = 720;
-	layer_cam.dst_width  = 1920;
-	layer_cam.dst_height = 1080;
+	cam_layer->src_width[fb_index]  = 1280;
+	cam_layer->src_height[fb_index] = 720;
+	cam_layer->dst_width[fb_index]  = 1920;
+	cam_layer->dst_height[fb_index] = 1080;
 #endif
 
+	if (disp->splitter_display_enabled)
+		cam_layer->dst_width[fb_index] /= 2;
 }
-static void early_camera_remove_layer(void)
+static void early_camera_remove_layer(struct target_layer *cam_layer)
 {
-	target_release_layer(&layer_cam);
+	target_release_layer(cam_layer);
 }
 
 static int early_camera_setup_display(void)
@@ -2455,10 +2455,16 @@ static int early_camera_start(void *arg) {
 }
 
 #define SENSOR_STOP_IDX 3
-void early_camera_stop(void) {
+void early_camera_stop(void *cam_layer) {
+	struct target_layer *camera_layer;
 	unsigned int csid_irq = 0;
 	unsigned int irq_cci = 0;
 
+	if (!cam_layer) {
+		dprintf(CRITICAL, "Invalid cam_layer\n");
+		return;
+	}
+	camera_layer = (struct target_layer *)cam_layer;
 #ifdef ADV7481
 	struct camera_i2c_reg_array reg_stop[1] = {{ 0x0, 0x81, 0}};
 #endif
@@ -2493,7 +2499,7 @@ void early_camera_stop(void) {
 					cci_master);
 #endif
 
-	target_release_layer(&layer_cam);
+	target_release_layer(camera_layer);
 	firstframe = true;  // reset firstframe for next cycle
 
 	// Clear any interrupt status registers before exit.
@@ -2540,8 +2546,7 @@ void early_camera_clear_buffers(void)
 	memset((void *)VFE_PONG_ADDR, EARLY_CAMERA_FILL_PATTERN, raw_size);
 }
 
-
-int early_camera_flip(void)
+int early_camera_flip(void *cam_layer)
 {
 	static int buffer_cleared = 0;
 	uint32_t rvc_display_id;
@@ -2551,14 +2556,19 @@ int early_camera_flip(void)
 	struct camera_i2c_reg_array reg_stop[1] = {{ 0x0, 0x81, 0}};
 	struct camera_i2c_reg_array reg_start[1] = {{ 0x0, 0x21, 0}};
 #endif
-
+	struct target_layer *camera_layer;
 #ifdef DEBUG_T32
-	while(delay_to_attach_t32 != 1)
-	{
+	while(delay_to_attach_t32 != 1) {
 		mdelay_optimal(1000);
 		pr_err(CRITICAL, "Waiting to attach to t.32\n");
 	}
 #endif
+
+	if (!cam_layer) {
+		dprintf(CRITICAL, "Input invalid\n");
+		return -1;
+	}
+	camera_layer = (struct target_layer *)cam_layer;
 
 #ifdef ADV7481
 	camera_lock_status = adv7481_lock_status();
@@ -2649,44 +2659,35 @@ int early_camera_flip(void)
 		if (gpio_triggered) {
 			if(toggle ==0) {
 				toggle = 1;
-				early_camera_setup_layer(rvc_display_id);
+				early_camera_setup_layer(rvc_display_id, camera_layer);
 			}
 
-			if (layer_cam.fb) {
+			if (camera_layer->fb) {
 #ifdef ADV7481
 				if(ping)
-					layer_cam.fb->base = (void *)(VFE_PING_ADDR+CVBS_HEADER_SIZE);
-				else
-					layer_cam.fb->base = (void *)(VFE_PONG_ADDR+CVBS_HEADER_SIZE);
+					camera_layer->fb[SPLIT_DISPLAY_0].base = (void *)(VFE_PING_ADDR+CVBS_HEADER_SIZE);
+				else {
+					camera_layer->fb[SPLIT_DISPLAY_0].base = (void *)(VFE_PONG_ADDR+CVBS_HEADER_SIZE);
+				}
 #else
-					if(ping)
-						layer_cam.fb->base = (void *)VFE_PING_ADDR;
-					else
-						layer_cam.fb->base = (void *)VFE_PONG_ADDR;
+				if(ping)
+					camera_layer->fb[SPLIT_DISPLAY_0].base = (void *)VFE_PING_ADDR;
+				else
+					camera_layer->fb[SPLIT_DISPLAY_0].base = (void *)VFE_PONG_ADDR;
 #endif
 
-				layer_cam.z_order = 7;
-				layer_cam.fb->format = kFormatYCbCr422H2V1Packed;
-				if (pingpong_buffer_updated < 2) {
+				if (firstframe)
 					target_display_update(&update_cam, 1, rvc_display_id);
-					pingpong_buffer_updated++;
-				} else {
-					if (firstframe)
-						target_display_update(&update_cam, 1,
-								rvc_display_id);
-					else
-						target_display_update_pipe(&update_cam, 1,
-								rvc_display_id);
-				}
+				else
+					target_display_update_pipe(&update_cam, 1, rvc_display_id);
 			}
 		} else {
 			if(toggle ==1) {
-				layer_cam.z_order = 0;
-				early_camera_remove_layer();
-				layer_cam_ptr = NULL;
-				layer_cam.layer = layer_cam_ptr;
+				camera_layer->z_order[SPLIT_DISPLAY_0] = SPLASH_SPLIT_0_LAYER_ZORDER;
+				early_camera_remove_layer(camera_layer);
+				camera_layer->layer = NULL;
 				toggle = 0;
-				pingpong_buffer_updated = 0;
+				firstframe = true;
 			}
 		}
 		if (firstframe == true) {

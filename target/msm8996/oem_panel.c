@@ -1,4 +1,4 @@
-/* Copyright (c) 2013-2016, 2018, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2013-2016, 2018-2019, The Linux Foundation. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -683,7 +683,8 @@ static bool init_panel_data(struct panel_struct *panelstruct,
 		pinfo->adv7533.num_of_cfg_i2c_cmds = ADV7533_1080P_CONFIG_COMMANDS;
 		pinfo->pipe_type = MDSS_MDP_PIPE_TYPE_RGB;
 		pinfo->pipe_id = 0;
-		pinfo->zorder = 2;
+		pinfo->zorder[SPLIT_DISPLAY_0] = SPLASH_SPLIT_0_LAYER_ZORDER;
+		pinfo->zorder[SPLIT_DISPLAY_1] = SPLASH_SPLIT_0_LAYER_ZORDER;
 		memcpy(phy_db->timing,
 				adv7533_1080p_thulium_video_timings,
 				MAX_TIMING_CONFIG * sizeof(uint32_t));
@@ -705,7 +706,8 @@ static bool init_panel_data(struct panel_struct *panelstruct,
 		pinfo->adv7533.num_of_cfg_i2c_cmds = ADV7533_1080P_CONFIG_COMMANDS;
 		pinfo->pipe_type = MDSS_MDP_PIPE_TYPE_RGB;
 		pinfo->pipe_id = 0;
-		pinfo->zorder = 2;
+		pinfo->zorder[SPLIT_DISPLAY_0] = SPLASH_SPLIT_0_LAYER_ZORDER;
+		pinfo->zorder[SPLIT_DISPLAY_1] = SPLASH_SPLIT_0_LAYER_ZORDER;
 		memcpy(phy_db->timing,
 				adv7533_1080p_thulium_video_timings,
 				MAX_TIMING_CONFIG * sizeof(uint32_t));
@@ -728,7 +730,8 @@ static bool init_panel_data(struct panel_struct *panelstruct,
 		pinfo->adv7533.num_of_cfg_i2c_cmds = ADV7533_1080P_CONFIG_COMMANDS;
 		pinfo->pipe_type = MDSS_MDP_PIPE_TYPE_RGB;
 		pinfo->pipe_id = 1;
-		pinfo->zorder = 2;
+		pinfo->zorder[SPLIT_DISPLAY_0] = SPLASH_SPLIT_0_LAYER_ZORDER;
+		pinfo->zorder[SPLIT_DISPLAY_1] = SPLASH_SPLIT_0_LAYER_ZORDER;
 		memcpy(phy_db->timing,
 				adv7533_1080p_thulium_video_timings,
 				MAX_TIMING_CONFIG * sizeof(uint32_t));
@@ -751,7 +754,8 @@ static bool init_panel_data(struct panel_struct *panelstruct,
 		pinfo->adv7533.num_of_cfg_i2c_cmds = ADV7533_720P_CONFIG_COMMANDS;
 		pinfo->pipe_type = MDSS_MDP_PIPE_TYPE_RGB;
 		pinfo->pipe_id = 0;
-		pinfo->zorder = 2;
+		pinfo->zorder[SPLIT_DISPLAY_0] = SPLASH_SPLIT_0_LAYER_ZORDER;
+		pinfo->zorder[SPLIT_DISPLAY_1] = SPLASH_SPLIT_0_LAYER_ZORDER;
 		memcpy(phy_db->timing,
 				adv7533_720p_thulium_video_timings,
 				MAX_TIMING_CONFIG * sizeof(uint32_t));
@@ -773,7 +777,8 @@ static bool init_panel_data(struct panel_struct *panelstruct,
 		pinfo->adv7533.num_of_cfg_i2c_cmds = ADV7533_720P_CONFIG_COMMANDS;
 		pinfo->pipe_type = MDSS_MDP_PIPE_TYPE_RGB;
 		pinfo->pipe_id = 0;
-		pinfo->zorder = 2;
+		pinfo->zorder[SPLIT_DISPLAY_0] = SPLASH_SPLIT_0_LAYER_ZORDER;
+		pinfo->zorder[SPLIT_DISPLAY_1] = SPLASH_SPLIT_0_LAYER_ZORDER;
 		memcpy(phy_db->timing,
 				adv7533_720p_thulium_video_timings,
 				MAX_TIMING_CONFIG * sizeof(uint32_t));
@@ -824,7 +829,8 @@ static bool init_panel_data(struct panel_struct *panelstruct,
 		pinfo->adv7533.num_of_cfg_i2c_cmds = ADV7533_720P_CONFIG_COMMANDS;
 		pinfo->pipe_type = MDSS_MDP_PIPE_TYPE_RGB;
 		pinfo->pipe_id = 1;
-		pinfo->zorder = 2;
+		pinfo->zorder[SPLIT_DISPLAY_0] = SPLASH_SPLIT_0_LAYER_ZORDER;
+		pinfo->zorder[SPLIT_DISPLAY_1] = SPLASH_SPLIT_0_LAYER_ZORDER;
 		memcpy(phy_db->timing,
 				adv7533_720p_thulium_video_timings,
 				MAX_TIMING_CONFIG * sizeof(uint32_t));
@@ -846,7 +852,8 @@ static bool init_panel_data(struct panel_struct *panelstruct,
 		pinfo->adv7533.num_of_cfg_i2c_cmds = ADV7533_720P_CONFIG_COMMANDS;
 		pinfo->pipe_type = MDSS_MDP_PIPE_TYPE_RGB;
 		pinfo->pipe_id = 0;
-		pinfo->zorder = 2;
+		pinfo->zorder[SPLIT_DISPLAY_0] = SPLASH_SPLIT_0_LAYER_ZORDER;
+		pinfo->zorder[SPLIT_DISPLAY_1] = SPLASH_SPLIT_0_LAYER_ZORDER;
 		pinfo->lcdc.split_display = true;
 		memcpy(phy_db->timing,
 				adv7533_720p_thulium_video_timings,
@@ -872,7 +879,8 @@ static bool init_panel_data(struct panel_struct *panelstruct,
 		pinfo->adv7533.num_of_cfg_i2c_cmds = ADV7533_1080P_CONFIG_COMMANDS;
 		pinfo->pipe_type = MDSS_MDP_PIPE_TYPE_RGB;
 		pinfo->pipe_id = 0;
-		pinfo->zorder = 2;
+		pinfo->zorder[SPLIT_DISPLAY_0] = SPLASH_SPLIT_0_LAYER_ZORDER;
+		pinfo->zorder[SPLIT_DISPLAY_1] = SPLASH_SPLIT_0_LAYER_ZORDER;
 		pinfo->lcdc.split_display = true;
 		memcpy(phy_db->timing,
 				adv7533_1080p_thulium_video_timings,
@@ -898,7 +906,8 @@ static bool init_panel_data(struct panel_struct *panelstruct,
                 pinfo->adv7533.num_of_cfg_i2c_cmds = ADV7533_1080P_CONFIG_COMMANDS;
                 pinfo->pipe_type = MDSS_MDP_PIPE_TYPE_RGB;
                 pinfo->pipe_id = 0;
-                pinfo->zorder = 2;
+		pinfo->zorder[SPLIT_DISPLAY_0] = SPLASH_SPLIT_0_LAYER_ZORDER;
+		pinfo->zorder[SPLIT_DISPLAY_1] = SPLASH_SPLIT_0_LAYER_ZORDER;
                 pinfo->lcdc.split_display = true;
                 memcpy(phy_db->timing,
                                 adv7533_1080p_thulium_video_timings,
@@ -924,7 +933,8 @@ static bool init_panel_data(struct panel_struct *panelstruct,
 		pinfo->adv7533.num_of_cfg_i2c_cmds = ADV7533_1024_600P_CONFIG_COMMANDS;
 		pinfo->pipe_type = MDSS_MDP_PIPE_TYPE_RGB;
 		pinfo->pipe_id = 0;
-		pinfo->zorder = 2;
+		pinfo->zorder[SPLIT_DISPLAY_0] = SPLASH_SPLIT_0_LAYER_ZORDER;
+		pinfo->zorder[SPLIT_DISPLAY_1] = SPLASH_SPLIT_0_LAYER_ZORDER;
 		memcpy(phy_db->timing,
 				adv7533_1024_600p_thulium_video_timings,
 				MAX_TIMING_CONFIG * sizeof(uint32_t));

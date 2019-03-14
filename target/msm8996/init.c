@@ -1042,8 +1042,7 @@ typedef struct animated_img_header {
 	uint8_t reserved[];
 } animated_img_header;
 
-#define NUM_DISPLAYS 3
-void **buffers[NUM_DISPLAYS];
+void **buffers[MAX_NUM_DISPLAY];
 struct animated_img_header *img_header = NULL;
 
 int animated_splash_screen_mmc()
@@ -1079,7 +1078,7 @@ int animated_splash_screen_mmc()
 		return -1;
 	}
 	// Assume it is always for display ID 0
-	fb_display = target_display_get_fb(0);
+	fb_display = target_display_get_fb(0, SPLIT_DISPLAY_0);
 
 	if (!fb_display) {
 		dprintf(CRITICAL, "ERROR: fb config is not allocated\n");
@@ -1090,14 +1089,14 @@ int animated_splash_screen_mmc()
 			(fb_display->width * fb_display->height * (fb_display->bpp/8));
 
 	// dynamical allocaton for img header structure based on blocksize
-	img_header = (animated_img_header *)malloc(NUM_DISPLAYS * (blocksize * sizeof(uint8_t)));
+	img_header = (animated_img_header *)malloc(MAX_NUM_DISPLAY * (blocksize * sizeof(uint8_t)));
 	if (!img_header) {
 		dprintf(CRITICAL, "ERROR: dynamical allocaton splash img header failed\n");
 		return -1;
 	}
 
 	buffer = (void *)ANIMATED_SPLASH_BUFFER;
-	for (j = 0; j < NUM_DISPLAYS; j++)
+	for (j = 0; j < MAX_NUM_DISPLAY; j++)
 	{
 		head = (void *)&(img_header[j]);
 		if (mmc_read(ptn, (uint32_t *)(head), blocksize)) {
@@ -1243,11 +1242,11 @@ bool is_reverse_camera_on() {
 
 int animated_splash() {
 	void *disp_ptr, *layer_ptr;
-	uint32_t ret = 0, k = 0, j = 0;
-	uint32_t frame_cnt[NUM_DISPLAYS];
-	struct target_display_update update[NUM_DISPLAYS];
-	struct target_layer layer_list[NUM_DISPLAYS];
-	struct target_display * disp;
+	uint32_t ret = 0, k = 0, j = 0, i = 0;
+	uint32_t frame_cnt[MAX_NUM_DISPLAY];
+	struct target_display_update update[MAX_NUM_DISPLAY];
+	struct target_layer layer_list[MAX_NUM_DISPLAY];
+        struct target_display * disp;
 	struct fbcon_config *fb;
 	uint32_t sleep_time = 0;
 	uint32_t disp_cnt = target_display_init_count();
@@ -1262,17 +1261,20 @@ int animated_splash() {
 	uint32_t frame_count = 0;
 #endif
 	int32_t *scratch_pad = NULL;
-	uint32_t rvc_display_id = 0;
+	uint32_t rvc_display_id = MAX_NUM_DISPLAY;
+	uint32_t shared_display_id = MAX_NUM_DISPLAY;
+	uint32_t fb_index = 0;
+	bool animation_layer_on_rvc = true;
 
 	if (!buffers[0]) {
 		dprintf(CRITICAL, "Unexpected error in read\n");
 		return 0;
 	}
 
-	/* Ensure inited display number by user is not greater than NUM_DISPLAYS. */
-	if (disp_cnt > NUM_DISPLAYS) {
+	/* Ensure inited display number by user is not greater than MAX_NUM_DISPLAY. */
+	if (disp_cnt > MAX_NUM_DISPLAY) {
 		dprintf(CRITICAL, "Inited display number exceeds\n");
-		disp_cnt = NUM_DISPLAYS;
+		disp_cnt = MAX_NUM_DISPLAY;
 	}
 
 	for (j = 0; j < disp_cnt; j ++) {
@@ -1289,36 +1291,47 @@ int animated_splash() {
 			return -1;
 		}
 
-		if (disp->has_rvc)
-			rvc_display_id = j;
-
 		layer_ptr = target_display_acquire_layer(disp_ptr, "as", kFormatRGB888);
 		if (layer_ptr == NULL){
 			dprintf(CRITICAL, "Layer acquire failed\n");
 			return -1;
 		}
-		fb = target_display_get_fb(j);
-		if (fb == NULL){
-			dprintf(CRITICAL, "frame buffer acquire failed\n");
-			return -1;
-		}
+
 		layer_list[j].layer = layer_ptr;
-		layer_list[j].z_order = 2;
 		update[j].disp = disp_ptr;
 		update[j].layer_list = &layer_list[j];
 		update[j].num_layers = 1;
-		layer_list[j].fb = fb;
 		sleep_time = 1000 / img_header[j].fps;
-		layer_list[j].src_width = img_header[j].width;
-		layer_list[j].src_height = img_header[j].height;
-		layer_list[j].dst_width = img_header[j].width;
-		layer_list[j].dst_height = img_header[j].height;
-		layer_list[j].src_rect_x = 0;
-		layer_list[j].src_rect_y = 0;
-		layer_list[j].dst_rect_x = (disp->width - layer_list[j].dst_width)/2;
-		layer_list[j].dst_rect_y = (disp->height - layer_list[j].dst_height)/2;
+
+		for (i = SPLIT_DISPLAY_0; i < MAX_SPLIT_DISPLAY; i++) {
+			layer_list[j].z_order[i] = SPLASH_SPLIT_0_LAYER_ZORDER + i;
+			layer_list[j].src_width[i] = img_header[j].width;
+			layer_list[j].src_height[i] = img_header[j].height;
+			layer_list[j].dst_width[i] = img_header[j].width;
+			layer_list[j].dst_height[i] = img_header[j].height;
+			layer_list[j].src_rect_x[i] = 0;
+			layer_list[j].src_rect_y[i] = 0;
+			layer_list[j].dst_rect_x[i] = (disp->width - layer_list[j].dst_width[i]) / 2;
+			layer_list[j].dst_rect_y[i] = (disp->height - layer_list[j].dst_height[i]) / 2;
+		}
+
+		do {
+			fb = target_display_get_fb(j, fb_index);
+			if (fb == NULL){
+				dprintf(CRITICAL, "frame buffer acquire failed\n");
+				return -1;
+			}
+			layer_list[j].fb[fb_index] = *fb;
+		} while((++fb_index < MAX_SPLIT_DISPLAY) && disp->splitter_display_enabled);
+
+		if (disp->has_rvc)
+			rvc_display_id = j;
+		if (disp->splitter_display_enabled)
+			shared_display_id = j;
+		fb_index = 0;
 	}
 
+	/* main animation loop */
 	while (1) {
 		if(early_audio_enabled == 1) {
 			if (early_audio_check_dma_playback())
@@ -1357,18 +1370,33 @@ int animated_splash() {
 		for (j = 0; j < disp_cnt; j++) {
 			if (j == rvc_display_id && early_camera_enabled == 1) {
 				if (early_camera_on()) {
-					if(layer_list[j].layer) {
+					if(animation_layer_on_rvc) {
 						target_release_layer(&layer_list[j]);
 						firstframe[j] = true; // reset firstframe for the RVC display
-						layer_list[j].layer = NULL;
+						animation_layer_on_rvc = false;
 					}
+
+					/* if RVC display is shared, RVC FB stays on the left, and on right
+					 * display, it's animation FB. Othwise, the address of right FB needs
+					 * to be set to NULL.
+					 */
+					if (rvc_display_id == shared_display_id) {
+						layer_list[j].fb[SPLIT_DISPLAY_1].base = buffers[j][frame_cnt[j]];
+						layer_list[j].fb[SPLIT_DISPLAY_1].format = kFormatRGB888;
+						layer_list[j].fb[SPLIT_DISPLAY_1].bpp = 24;
+						frame_cnt[j]++;
+						if (frame_cnt[j] >= img_header[j].num_frames)
+							frame_cnt[j] = 0;
+					} else
+						layer_list[j].fb[SPLIT_DISPLAY_1].base = NULL;
+
 					camera_frame_on = true;
 					continue;
 				} else {
 					if(!layer_list[j].layer) {
 						layer_ptr = target_display_acquire_layer(update[j].disp, "as", kFormatRGB888);
 						layer_list[j].layer = layer_ptr;
-						layer_list[j].z_order = 2;
+						layer_list[j].z_order[SPLIT_DISPLAY_0] = SPLASH_SPLIT_0_LAYER_ZORDER;
 						camera_frame_on = false;
 					}
 				}
@@ -1383,15 +1411,22 @@ int animated_splash() {
 				continue;
 			}
 
-			layer_list[j].fb->base = buffers[j][frame_cnt[j]];
-			layer_list[j].fb->format = kFormatRGB888;
-			layer_list[j].fb->bpp = 24;
-			if (firstframe[j] == true) {
-				ret = target_display_update(&update[j],1, j);
-				firstframe[j] = false;
-			} else {
-				ret = target_display_update_pipe(&update[j],1, j);
+			layer_list[j].fb[SPLIT_DISPLAY_0].base = buffers[j][frame_cnt[j]];
+			layer_list[j].fb[SPLIT_DISPLAY_0].format = kFormatRGB888;
+			layer_list[j].fb[SPLIT_DISPLAY_0].bpp = 24;
+
+			if (j == shared_display_id) {
+				layer_list[j].fb[SPLIT_DISPLAY_1].base = buffers[j][frame_cnt[j]];
+				layer_list[j].fb[SPLIT_DISPLAY_1].format = kFormatRGB888;
+				layer_list[j].fb[SPLIT_DISPLAY_1].bpp = 24;
 			}
+
+			if (firstframe[j] == true) {
+				ret = target_display_update(&update[j], 1, j);
+				firstframe[j] = false;
+			} else
+				ret = target_display_update_pipe(&update[j], 1, j);
+
 			frame_cnt[j]++;
 			if (frame_cnt[j] >= img_header[j].num_frames) {
 				frame_cnt[j] = 0;
@@ -1400,7 +1435,7 @@ int animated_splash() {
 
 		if(early_camera_enabled == 1) {
 			// Rely on camera timing to flip.
-			camera_status = early_camera_flip();
+			camera_status = early_camera_flip(&layer_list[rvc_display_id]);
 			if(camera_status ==-1) {
 				camera_error_count++;
 				mdelay_optimal(16);
@@ -1410,12 +1445,12 @@ int animated_splash() {
 			if(camera_error_count > MAX_CAM_ERROR_EXIT) {
 				//Force an early exit for early camera.
 				frame_count = EARLYCAM_NO_GPIO_FRAME_LIMIT +1;
-				early_camera_stop();
+				early_camera_stop(&layer_list[rvc_display_id]);
 				early_camera_enabled = 0;
 				layer_ptr = target_display_acquire_layer(
 				update[rvc_display_id].disp, "as", kFormatRGB888);
 				layer_list[rvc_display_id].layer = layer_ptr;
-				layer_list[rvc_display_id].z_order = 2;
+				layer_list[rvc_display_id].z_order[SPLIT_DISPLAY_0] = SPLASH_SPLIT_0_LAYER_ZORDER;
 				camera_frame_on = false;
 			}
 		} else {
@@ -1428,14 +1463,14 @@ int animated_splash() {
 			if ((get_early_service_shutdown_request(EARLY_CAMERA)) ||
 			    (EARLYCAM_NO_GPIO_FRAME_LIMIT < frame_count)) {
 				if (early_camera_enabled) {
-					early_camera_stop();
+					early_camera_stop(&layer_list[rvc_display_id]);
 					early_camera_enabled = 0;
 				}
 				if(camera_frame_on) {
 					layer_ptr = target_display_acquire_layer(
 						update[rvc_display_id].disp, "as", kFormatRGB888);
 					layer_list[rvc_display_id].layer = layer_ptr;
-					layer_list[rvc_display_id].z_order = 2;
+					layer_list[rvc_display_id].z_order[SPLIT_DISPLAY_0] = SPLASH_SPLIT_0_LAYER_ZORDER;
 					camera_frame_on = false;
 				}
 			}
@@ -1446,18 +1481,18 @@ int animated_splash() {
 		    (get_early_service_shutdown_request(EARLY_CAMERA)))
 		{
 			early_camera_enabled = 0;
-			early_camera_stop();
+			early_camera_stop(&layer_list[rvc_display_id]);
 			if(camera_frame_on) {
 				layer_ptr = target_display_acquire_layer(
 				update[rvc_display_id].disp, "as", kFormatRGB888);
 				layer_list[rvc_display_id].layer = layer_ptr;
-				layer_list[rvc_display_id].z_order = 2;
+				layer_list[rvc_display_id].z_order[SPLIT_DISPLAY_0] = SPLASH_SPLIT_0_LAYER_ZORDER;
 				camera_frame_on = false;
 			}
 		}
 	}
 	if (early_camera_enabled == 1)
-		early_camera_stop();
+		early_camera_stop(&layer_list[rvc_display_id]);
 
 	if (img_header) {
 		free(img_header);
