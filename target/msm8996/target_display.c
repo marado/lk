@@ -1323,6 +1323,7 @@ int target_display_update(struct target_display_update *update, uint32_t size, u
 	struct Scale right_scale_setting;
 	struct LayerInfo layer;
 #endif
+	uint32_t fb_index = SPLIT_DISPLAY_0;
 
 	if (update == NULL) {
 		dprintf(CRITICAL, "Error: Invalid argument\n");
@@ -1350,32 +1351,64 @@ int target_display_update(struct target_display_update *update, uint32_t size, u
 		layer.left_pipe.id = 1;
 		layer.right_pipe.id = 0;
 		// call Qseed function to get the scaling data
-		if (cur_disp->dual_pipe && !cur_disp->splitter_display_enabled) {
+		if (cur_disp->dual_pipe) {
+			/* left pipe */
 			layer.left_pipe.horz_deci = 0;
 			layer.left_pipe.vert_deci = 0;
-			layer.left_pipe.src_width = update[i].layer_list[0].src_width[SPLIT_DISPLAY_0];
-			layer.left_pipe.src_height = update[i].layer_list[0].src_height[SPLIT_DISPLAY_0];
-			layer.left_pipe.src_rect.x = 0;
-			layer.left_pipe.src_rect.y = 0;
-			layer.left_pipe.src_rect.w = update[i].layer_list[0].src_width[SPLIT_DISPLAY_0] / 2;
-			layer.left_pipe.src_rect.h = update[i].layer_list[0].src_height[SPLIT_DISPLAY_0];
-			layer.left_pipe.dst_rect.x = (cur_disp->width - update[i].layer_list[0].dst_width[SPLIT_DISPLAY_0]) / 2;
-			layer.left_pipe.dst_rect.y = (cur_disp->height - update[i].layer_list[0].dst_height[SPLIT_DISPLAY_0]) / 2;
-			layer.left_pipe.dst_rect.w = update[i].layer_list[0].dst_width[SPLIT_DISPLAY_0] / 2;
-			layer.left_pipe.dst_rect.h = update[i].layer_list[0].dst_height[SPLIT_DISPLAY_0];
+			layer.left_pipe.src_width = update[i].layer_list[0].src_width[fb_index];
+			layer.left_pipe.src_height = update[i].layer_list[0].src_height[fb_index];
+
+			if (cur_disp->splitter_display_enabled) {
+				/* In split case, left pipe owns the whole left fb */
+				layer.left_pipe.src_rect.x = update[i].layer_list[0].src_rect_x[fb_index];
+				layer.left_pipe.src_rect.y = update[i].layer_list[0].src_rect_y[fb_index];
+				layer.left_pipe.src_rect.w = update[i].layer_list[0].src_width[fb_index];
+				layer.left_pipe.src_rect.h = update[i].layer_list[0].src_height[fb_index];
+				layer.left_pipe.dst_rect.x = update[i].layer_list[0].dst_rect_x[fb_index];
+				layer.left_pipe.dst_rect.y = update[i].layer_list[0].dst_rect_y[fb_index];
+				layer.left_pipe.dst_rect.w = update[i].layer_list[0].dst_width[fb_index];
+				layer.left_pipe.dst_rect.h = update[i].layer_list[0].dst_height[fb_index];
+			} else {
+				layer.left_pipe.src_rect.x = 0;
+				layer.left_pipe.src_rect.y = 0;
+				layer.left_pipe.src_rect.w = update[i].layer_list[0].src_width[fb_index] / 2;
+				layer.left_pipe.src_rect.h = update[i].layer_list[0].src_height[fb_index];
+				layer.left_pipe.dst_rect.x = (cur_disp->width - update[i].layer_list[0].dst_width[fb_index]) / 2;
+				layer.left_pipe.dst_rect.y = (cur_disp->height - update[i].layer_list[0].dst_height[fb_index]) / 2;
+				layer.left_pipe.dst_rect.w = update[i].layer_list[0].dst_width[fb_index] / 2;
+				layer.left_pipe.dst_rect.h = update[i].layer_list[0].dst_height[fb_index];
+			}
+
+			/* right pipe */
+			if (cur_disp->splitter_display_enabled)
+				++fb_index;
 
 			layer.right_pipe.horz_deci = 0;
 			layer.right_pipe.vert_deci = 0;
-			layer.right_pipe.src_width = update[i].layer_list[0].src_width[SPLIT_DISPLAY_0];
-			layer.right_pipe.src_height = update[i].layer_list[0].src_height[SPLIT_DISPLAY_0];
-			layer.right_pipe.src_rect.x = (update[i].layer_list[0].src_width[SPLIT_DISPLAY_0] / 2);
-			layer.right_pipe.src_rect.y = 0;
-			layer.right_pipe.src_rect.w = update[i].layer_list[0].src_width[SPLIT_DISPLAY_0] / 2;
-			layer.right_pipe.src_rect.h = update[i].layer_list[0].src_height[SPLIT_DISPLAY_0];
-			layer.right_pipe.dst_rect.x = cur_disp->width / 2;
-			layer.right_pipe.dst_rect.y = (cur_disp->height - update[i].layer_list[0].dst_height[SPLIT_DISPLAY_0]) / 2;
-			layer.right_pipe.dst_rect.w = update[i].layer_list[0].dst_width[SPLIT_DISPLAY_0] / 2;
-			layer.right_pipe.dst_rect.h = update[i].layer_list[0].dst_height[SPLIT_DISPLAY_0];
+			layer.right_pipe.src_width = update[i].layer_list[0].src_width[fb_index];
+			layer.right_pipe.src_height = update[i].layer_list[0].src_height[fb_index];
+
+			if (cur_disp->splitter_display_enabled) {
+				/* In split case, right pipe owns the whole right fb */
+				layer.left_pipe.src_rect.x = update[i].layer_list[0].src_rect_x[fb_index];
+				layer.left_pipe.src_rect.y = update[i].layer_list[0].src_rect_y[fb_index];
+				layer.left_pipe.src_rect.w = update[i].layer_list[0].src_width[fb_index];
+				layer.left_pipe.src_rect.h = update[i].layer_list[0].src_height[fb_index];
+				layer.left_pipe.dst_rect.x = update[i].layer_list[0].dst_rect_x[fb_index];
+				layer.left_pipe.dst_rect.y = update[i].layer_list[0].dst_rect_y[fb_index];
+				layer.left_pipe.dst_rect.w = update[i].layer_list[0].dst_width[fb_index];
+				layer.left_pipe.dst_rect.h = update[i].layer_list[0].dst_height[fb_index];
+			} else {
+				layer.right_pipe.src_rect.x = update[i].layer_list[0].src_width[fb_index] / 2;
+				layer.right_pipe.src_rect.y = 0;
+				layer.right_pipe.src_rect.w = update[i].layer_list[0].src_width[fb_index] / 2;
+				layer.right_pipe.src_rect.h = update[i].layer_list[0].src_height[fb_index];
+				layer.right_pipe.dst_rect.x = cur_disp->width / 2;
+				layer.right_pipe.dst_rect.y = (cur_disp->height - update[i].layer_list[0].dst_height[fb_index]) / 2;
+				layer.right_pipe.dst_rect.w = update[i].layer_list[0].dst_width[fb_index] / 2;
+				layer.right_pipe.dst_rect.h = update[i].layer_list[0].dst_height[fb_index];
+			}
+
 			layer.left_pipe.flags = SCALAR_DUAL_PIPE;
 			layer.right_pipe.flags = SCALAR_DUAL_PIPE;
 			if (pipe_type == MDSS_MDP_PIPE_TYPE_VIG) {
@@ -1390,16 +1423,16 @@ int target_display_update(struct target_display_update *update, uint32_t size, u
 		} else {
 			layer.left_pipe.horz_deci = 0;
 			layer.left_pipe.vert_deci = 0;
-			layer.left_pipe.src_width = update[i].layer_list[0].src_width[SPLIT_DISPLAY_0];
-			layer.left_pipe.src_height = update[i].layer_list[0].src_height[SPLIT_DISPLAY_0];
-			layer.left_pipe.src_rect.x = update[i].layer_list[0].src_rect_x[SPLIT_DISPLAY_0];
-			layer.left_pipe.src_rect.y = update[i].layer_list[0].src_rect_y[SPLIT_DISPLAY_0];
-			layer.left_pipe.src_rect.w = update[i].layer_list[0].src_width[SPLIT_DISPLAY_0];
-			layer.left_pipe.src_rect.h = update[i].layer_list[0].src_height[SPLIT_DISPLAY_0];
-			layer.left_pipe.dst_rect.x = update[i].layer_list[0].dst_rect_x[SPLIT_DISPLAY_0];
-			layer.left_pipe.dst_rect.y = update[i].layer_list[0].dst_rect_y[SPLIT_DISPLAY_0];
-			layer.left_pipe.dst_rect.w = update[i].layer_list[0].dst_width[SPLIT_DISPLAY_0];
-			layer.left_pipe.dst_rect.h = update[i].layer_list[0].dst_height[SPLIT_DISPLAY_0];
+			layer.left_pipe.src_width = update[i].layer_list[0].src_width[fb_index];
+			layer.left_pipe.src_height = update[i].layer_list[0].src_height[fb_index];
+			layer.left_pipe.src_rect.x = update[i].layer_list[0].src_rect_x[fb_index];
+			layer.left_pipe.src_rect.y = update[i].layer_list[0].src_rect_y[fb_index];
+			layer.left_pipe.src_rect.w = update[i].layer_list[0].src_width[fb_index];
+			layer.left_pipe.src_rect.h = update[i].layer_list[0].src_height[fb_index];
+			layer.left_pipe.dst_rect.x = update[i].layer_list[0].dst_rect_x[fb_index];
+			layer.left_pipe.dst_rect.y = update[i].layer_list[0].dst_rect_y[fb_index];
+			layer.left_pipe.dst_rect.w = update[i].layer_list[0].dst_width[fb_index];
+			layer.left_pipe.dst_rect.h = update[i].layer_list[0].dst_height[fb_index];
 			/* make sure the right pipe is empty for single pipe case */
 			memset((void*)&layer.right_pipe, 0, sizeof (struct PipeInfo));
 			if (pipe_type == MDSS_MDP_PIPE_TYPE_VIG) {

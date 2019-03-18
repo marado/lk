@@ -38,6 +38,22 @@ static struct resource_req display_req[MAX_NUM_DISPLAY] = {
     {0,0,0,0, {0,0}, {0,0}, {0,0}}
 };
 
+/* Define one glabal pipe related arrary like below for pipe resource allocation.
+ * Each set has one pair of two pipes, this will help cover the dual pipe cases
+ * like 4K display case, HDMI/DSI split display case.
+ */
+static struct pipe_usage pipe_rm[] = {
+	{MDSS_MDP_PIPE_TYPE_RGB, MDP_VP_0_RGB_0_BASE, MDP_VP_0_RGB_1_BASE, false},
+	{MDSS_MDP_PIPE_TYPE_RGB, MDP_VP_0_RGB_1_BASE, MDP_VP_0_RGB_2_BASE, false},
+	{MDSS_MDP_PIPE_TYPE_RGB, MDP_VP_0_RGB_2_BASE, MDP_VP_0_RGB_3_BASE, false},
+	{MDSS_MDP_PIPE_TYPE_RGB, MDP_VP_0_RGB_3_BASE, MDP_VP_0_RGB_0_BASE, false},
+	{MDSS_MDP_PIPE_TYPE_VIG, MDP_VP_0_VIG_0_BASE, MDP_VP_0_VIG_1_BASE, false},
+	{MDSS_MDP_PIPE_TYPE_VIG, MDP_VP_0_VIG_1_BASE, MDP_VP_0_VIG_2_BASE, false},
+	{MDSS_MDP_PIPE_TYPE_VIG, MDP_VP_0_VIG_2_BASE, MDP_VP_0_VIG_3_BASE, false},
+	{MDSS_MDP_PIPE_TYPE_VIG, MDP_VP_0_VIG_3_BASE, MDP_VP_0_VIG_0_BASE, false},
+	{MDSS_MDP_PIPE_TYPE_DMA, MDP_VP_0_DMA_0_BASE, MDP_VP_0_DMA_1_BASE, false},
+};
+
 static void _mdp_rm_update_hdmi_display(struct msm_panel_info *pinfo)
 {
 	if (pinfo->lcdc.dual_pipe && !pinfo->lcdc.force_merge) {
@@ -86,6 +102,40 @@ void mdp_rm_update_resource(struct msm_panel_info *pinfo, bool use_second_dsi)
 	}
 }
 
+void mdp_rm_select_pipe(struct msm_panel_info *pinfo, uint32_t *left_pipe, uint32_t *right_pipe)
+{
+	uint32_t i = 0;
+	bool pipe_used = false;
+	uint32_t pipe_start_index = 0;
+	uint32_t pipe_select_index = 0;
+
+	for (i = 0; i < ARRAY_SIZE(pipe_rm); i++) {
+		if (pipe_rm[i].type == pinfo->pipe_type) {
+			pipe_start_index = i;
+			break;
+		}
+	}
+
+	for (i = pipe_start_index; i < pipe_start_index + pinfo->pipe_id; i++) {
+		if (pipe_rm[i].valid) {
+			pipe_used = true;
+			break;
+		}
+	}
+
+	if (pipe_used)
+		pipe_select_index = pipe_start_index + pinfo->pipe_id;
+	else
+		pipe_select_index = pipe_start_index;
+
+	*left_pipe = pipe_rm[pipe_select_index].left_base;
+	*right_pipe = pipe_rm[pipe_select_index].right_base;
+	pipe_rm[pipe_select_index].valid = true;
+
+	display_req[pinfo->dest - DISPLAY_1].pipe_base[SPLIT_DISPLAY_0] = *left_pipe;
+	display_req[pinfo->dest - DISPLAY_1].pipe_base[SPLIT_DISPLAY_1] = *right_pipe;
+}
+
 void mdp_rm_select_mixer(struct msm_panel_info *pinfo)
 {
 	if (pinfo->dest == DISPLAY_1){
@@ -126,13 +176,6 @@ void mdp_rm_select_mixer(struct msm_panel_info *pinfo)
 		if (display_req[pinfo->dest - DISPLAY_1].num_lm == 2)
 			display_req[pinfo->dest - DISPLAY_1].lm_base[1] = MDP_VP_0_MIXER_5_BASE;
 	}
-}
-
-void mdp_rm_update_pipe_base(struct msm_panel_info *pinfo,
-		uint32_t *left_pipe, uint32_t *right_pipe)
-{
-	display_req[pinfo->dest - DISPLAY_1].pipe_base[0] = *left_pipe;
-	display_req[pinfo->dest - DISPLAY_1].pipe_base[1] = *right_pipe;
 }
 
 struct resource_req *mdp_rm_retrieve_resource(uint32_t display_id)

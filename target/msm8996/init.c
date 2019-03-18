@@ -1380,7 +1380,7 @@ int animated_splash() {
 					 * display, it's animation FB. Othwise, the address of right FB needs
 					 * to be set to NULL.
 					 */
-					if (rvc_display_id == shared_display_id) {
+					if ((rvc_display_id == shared_display_id) && !stop_display_splash) {
 						layer_list[j].fb[SPLIT_DISPLAY_1].base = buffers[j][frame_cnt[j]];
 						layer_list[j].fb[SPLIT_DISPLAY_1].format = kFormatRGB888;
 						layer_list[j].fb[SPLIT_DISPLAY_1].bpp = 24;
