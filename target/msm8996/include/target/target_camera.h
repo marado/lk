@@ -38,7 +38,7 @@
 
 // Enable ADV7481 early camera on CSI1
 // If not defined TI 964 on CSI2 is used.
-#define ADV7481
+// #define ADV7481
 
 #define MAX_REV_ID 2
 
