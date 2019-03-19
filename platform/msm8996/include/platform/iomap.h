@@ -299,6 +299,7 @@ unsigned int usb_phy_bcr();
 #define TLMM_BASE_ADDR              0x1010000
 #define GPIO_CONFIG_ADDR(x)         (TLMM_BASE_ADDR + (x)*0x1000)
 #define GPIO_IN_OUT_ADDR(x)         (TLMM_BASE_ADDR + 0x4 + (x)*0x1000)
+#define MAX_GPIO_COUNT              0x96
 
 #define MPM2_MPM_CTRL_BASE                   0x4A1000
 #define MPM2_MPM_PS_HOLD                     0x4AB000

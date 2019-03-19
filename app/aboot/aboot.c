@@ -268,7 +268,7 @@ static unsigned long long int blank_img_header_mmc;
 
 /* Assuming unauthorized kernel image by default */
 static int auth_kernel_img = 0;
-static device_info device = {DEVICE_MAGIC,0,0,0,0,0,{0},{0},{0},1,0,0,{0},0,{0},{0}};
+static device_info device = {DEVICE_MAGIC,0,0,0,0,0,{0},{0},{0},1,0,0,{0},0,{0},{0},0,0,{0}};
 static char *vbcmdline;
 static bootinfo info = {0};
 
@@ -4311,50 +4311,95 @@ void cmd_oem_select_display_panel(const char *arg, void *data, unsigned size)
 #if EARLYDOMAIN_SUPPORT
 void cmd_oem_enable_early_domain(const char *arg, void *data, unsigned size)
 {
-       dprintf(INFO, "Enabling early domain check\n");
-       device.early_domain_enabled = 1;
-       write_device_info(&device);
-       fastboot_okay("");
+	dprintf(INFO, "Enabling early domain check\n");
+	device.early_domain_enabled = 1;
+	write_device_info(&device);
+	fastboot_okay("");
 }
 
 void cmd_oem_disable_early_domain(const char *arg, void *data, unsigned size)
 {
-       dprintf(INFO, "Disabling early domain check\n");
-       device.early_domain_enabled = 0;
-       write_device_info(&device);
-       fastboot_okay("");
+	dprintf(INFO, "Disabling early domain check\n");
+	device.early_domain_enabled = 0;
+	write_device_info(&device);
+	fastboot_okay("");
 }
 
 void cmd_oem_enable_early_camera(const char *arg, void *data, unsigned size)
 {
-       dprintf(INFO, "Enabling early camera\n");
-       device.early_camera_enabled = 1;
-       write_device_info(&device);
-       fastboot_okay("");
+	dprintf(INFO, "Enabling early camera\n");
+	device.early_camera_enabled = 1;
+	strlcpy(device.camera_type, "digital", sizeof(device.camera_type));
+	write_device_info(&device);
+	fastboot_okay("");
 }
 
 void cmd_oem_disable_early_camera(const char *arg, void *data, unsigned size)
 {
-       dprintf(INFO, "Disabling early camera\n");
-       device.early_camera_enabled = 0;
-       write_device_info(&device);
-       fastboot_okay("");
+	dprintf(INFO, "Disabling early camera\n");
+	device.early_camera_enabled = 0;
+	write_device_info(&device);
+	fastboot_okay("");
 }
 
 void cmd_oem_enable_early_audio(const char *arg, void *data, unsigned size)
 {
-       dprintf(INFO, "Enabling early audio\n");
-       device.early_audio_enabled = 1;
-       write_device_info(&device);
-       fastboot_okay("");
+	dprintf(INFO, "Enabling early audio\n");
+	device.early_audio_enabled = 1;
+	write_device_info(&device);
+	fastboot_okay("");
 }
 
 void cmd_oem_disable_early_audio(const char *arg, void *data, unsigned size)
 {
-       dprintf(INFO, "Disabling early audio\n");
-       device.early_audio_enabled = 0;
-       write_device_info(&device);
-       fastboot_okay("");
+	dprintf(INFO, "Disabling early audio\n");
+	device.early_audio_enabled = 0;
+	write_device_info(&device);
+	fastboot_okay("");
+}
+
+void cmd_oem_rvc_timeout(const char *arg, void *data, unsigned size)
+{
+	char *token = NULL;
+	token = strtok((char *)arg, " ");
+	device.rvc_timeout = (uint32_t)atoul(token);
+	dprintf(CRITICAL, "Setting RVC Timeout Value to : %u\n",device.rvc_timeout);
+	device.rvc_gpio = MAX_GPIO_COUNT; // Reset Tlmm GPIO Invalid value.
+	write_device_info(&device);
+	fastboot_okay("");
+}
+
+void cmd_oem_rvc_gpio(const char *arg, void *data, unsigned size)
+{
+	char *token = NULL;
+	int gpio_num = 0;
+	token = strtok((char *)arg, " ");
+	gpio_num = (int)atoul(token);
+
+	if( gpio_num >= 0 && gpio_num < MAX_GPIO_COUNT) {
+		device.rvc_gpio = gpio_num;
+		device.rvc_timeout = 0; // Reset time out value to Zero.
+	} else {
+		fastboot_fail("Enter a Valid TLMM GPIO Value for this SOC");
+	}
+
+	device.rvc_timeout = 0; // Reset time out value to Zero.
+	dprintf(CRITICAL, "Setting RVC Gpio Value to : %d\n",device.rvc_gpio);
+	write_device_info(&device);
+	fastboot_okay("");
+}
+
+
+void cmd_oem_select_camera_type(const char *arg, void *data, unsigned size)
+{
+	char *token = NULL;
+	token = strtok((char *)arg, " ");
+	dprintf(INFO, "Selecting camera type %s\n", token);
+	if (token)
+		strlcpy(device.camera_type, token,
+			sizeof(device.camera_type));
+	write_device_info(&device);
+	fastboot_okay("");
 }
 
 #else
@@ -4379,6 +4424,18 @@ void cmd_oem_enable_early_audio(const char *arg, void *data, unsigned size)
 }
 
 void cmd_oem_disable_early_audio(const char *arg, void *data, unsigned size)
+{
+}
+
+void cmd_oem_rvc_timeout(const char *arg, void *data, unsigned size)
+{
+}
+
+void cmd_oem_rvc_gpio(const char *arg, void *data, unsigned size)
+{
+}
+
+void cmd_oem_select_camera_type(const char *arg, void *data, unsigned size)
 {
 }
 
@@ -4904,6 +4961,9 @@ void aboot_fastboot_register_commands(void)
 						{"oem select-display-panel", cmd_oem_select_display_panel},
 						{"set_active",cmd_set_active},
 						{"oem boot-memory", cmd_oem_boot_memory},
+						{"oem rvc-timeout", cmd_oem_rvc_timeout},
+						{"oem rvc-gpio", cmd_oem_rvc_gpio},
+						{"oem select-camera-type", cmd_oem_select_camera_type},
 #if UNITTEST_FW_SUPPORT
 						{"oem run-tests", cmd_oem_runtests},
 #endif
@@ -5030,8 +5090,8 @@ void aboot_init(const struct app_descriptor *app)
 	if (device.early_domain_enabled) {
 		bs_set_timestamp(BS_EARLY_DOMAIN_START);
 		if (device.early_camera_enabled) {
-			set_early_camera_enabled(TRUE);
-			target_early_camera_init();
+			set_early_camera_enabled(TRUE, device.rvc_timeout, device.rvc_gpio);
+			target_early_camera_init(device.camera_type);
 		}
 		if (device.early_audio_enabled) {
 			set_early_audio_enabled(TRUE);
