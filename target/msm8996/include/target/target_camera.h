@@ -37,11 +37,6 @@
 // Pattern used to fill buffer displayed during error
 #define EARLY_CAMERA_FILL_PATTERN 0
 
-// Enable ADV7481 early camera on CSI1
-// If not defined TI 964 on CSI2 is used.
-#define ADV7481
-
-
 #define MAX_REV_ID 2
 
 struct camera_i2c_reg_array {
@@ -63,13 +58,13 @@ struct i2c_config_data {
 
 int get_cam_data(int csi, struct i2c_config_data **cam_data);
 int early_camera_init(void);
-void target_early_camera_init(void);
+void target_early_camera_init(const char *camera_type);
 int early_camera_flip(void);
 int early_camera_on(void);
 
 void early_camera_stop(void);
 
-void set_early_camera_enabled(bool enabled);
+void set_early_camera_enabled(bool enabled, uint32_t rvc_timeout, uint32_t rvc_gpio);
 int msm_cci_i2c_read(uint32_t address,
 						 int32_t length,
 						 uint32_t *read_val,
@@ -90,13 +85,9 @@ int32_t msm_cci_i2c_write(struct camera_i2c_reg_array *pArray,
 						  int master);
 
 
-#ifdef ADV7481
 int adv7481_intr_enable(void);
 int adv7481_sdp_isr(void);
 void adv7481_isr(void);
 int adv7481_lock_status(void);
-
-
-#endif
 
 #endif

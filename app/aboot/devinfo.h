@@ -40,6 +40,7 @@ typedef struct device_info device_info;
 #define MAX_USER_KEY_SIZE 2048
 #define SHA256_DIGEST_LENGTH 32
 #define DEVICE_MEMORY_SIZE 7
+#define MAX_CAMERA_TYPE_LEN 8
 
 enum unlock_type {
 	UNLOCK = 0,
@@ -64,5 +65,8 @@ struct device_info
 	uint32_t user_public_key_length;
 	uint8_t user_public_key[MAX_USER_KEY_SIZE];
 	unsigned char boot_memory[DEVICE_MEMORY_SIZE];
+	uint32_t rvc_timeout;
+	uint32_t rvc_gpio;
+	char camera_type[MAX_CAMERA_TYPE_LEN];
 };
 #endif

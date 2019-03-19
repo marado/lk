@@ -47,9 +47,8 @@
 #include <platform/gpio.h>
 #include <regulator.h>
 
-
 #include <target/target_camera.h>
-
+#include <platform/iomap.h>
 
 //#define DEBUG_LOGS
 #ifdef DEBUG_LOGS
@@ -86,25 +85,24 @@ int num_configs = 0;
 bool firstframe = true;
 #define VFE_TIME_OUT_POLL_NUM 33 * 3
 int queue_id = 1;
-#ifdef ADV7481
+
 #define MAX_POLL_COUNT 100
 #define CVBS_HEADER_SIZE 13*720*2
-int raw_size = 720*507*2;
-int csi = 1;
-int cci_master = 0;
-int msg_count = 0;
-#define settle_time 0x10
-#define EARLY_CAM_CSI_PORT_NUM 1
-#else
-#define MAX_POLL_COUNT 100
-int raw_size = 1280*720*2;
-int csi = 2;
-int cci_master = 1;
-#define settle_time 0x1a
-#define EARLY_CAM_CSI_PORT_NUM 2
-#endif
+int raw_size;
+int csi;
+int cci_master;
+int msg_count;
+#define settle_time_analog 0x10
+#define EARLY_CAM_CSI_PORT_NUM_ANALOG 1
+#define settle_time_digital 0x1a
+#define EARLY_CAM_CSI_PORT_NUM_DIGITAL 2
 
+enum camera_type {
+	ANALOG = 1,
+	DIGITAL,
+};
 
+enum camera_type cam_type;
 
 
 int early_cam_on = 1;
@@ -116,6 +114,8 @@ int toggle =0;
 int delay_to_attach_t32 = 0;
 static bool early_camera_enabled = FALSE;
 int pingpong_buffer_updated = 0;
+uint32_t early_rvc_timeout = 0;
+uint32_t early_rvc_gpio = 0;
 
 enum msm_camera_i2c_reg_addr_type {
 	MSM_CAMERA_I2C_BYTE_ADDR = 1,
@@ -420,11 +420,10 @@ struct sensor_id_info_t {
 #define ISPIF_BASE 0x00A31000
 #define ISPIF_CLK_MUX_BASE 0x00A00020
 
-#ifdef ADV7481
-#define CSI_PHY_INIT(_csi_phy_base_, _csi_clk_mux_base_) \
+#define CSI_PHY_INIT_ADV7481(_csi_phy_base_, _csi_clk_mux_base_) \
 	{_csi_phy_base_+0x800,0x1,10}, \
 	{_csi_phy_base_+0x800,0x0,0}, \
-	{_csi_clk_mux_base_+0x0,EARLY_CAM_CSI_PORT_NUM,0}, \
+	{_csi_clk_mux_base_+0x0,EARLY_CAM_CSI_PORT_NUM_ANALOG,0}, \
 	{_csi_phy_base_+0x814,0x00000081,0}, \
 	{_csi_phy_base_+0x818,0x1,0}, \
 	{_csi_phy_base_+0x030,0x2,0}, \
@@ -433,7 +432,7 @@ struct sensor_id_info_t {
 	{_csi_phy_base_+0x028,0x0,0}, \
 	{_csi_phy_base_+0x03c,0x000000b8,0}, \
 	{_csi_phy_base_+0x004,0x8,0}, \
-	{_csi_phy_base_+0x008,settle_time,0}, \
+	{_csi_phy_base_+0x008,settle_time_analog,0}, \
 	{_csi_phy_base_+0x000,0x000000d7,0}, \
 	{_csi_phy_base_+0x010,0x50,0}, \
 	{_csi_phy_base_+0x038,0x1,0}, \
@@ -444,7 +443,7 @@ struct sensor_id_info_t {
 	{_csi_phy_base_+0x728,0x4,0}, \
 	{_csi_phy_base_+0x73c,0x000000b8,0}, \
 	{_csi_phy_base_+0x704,0x8,0}, \
-	{_csi_phy_base_+0x708,settle_time,0}, \
+	{_csi_phy_base_+0x708,settle_time_analog,0}, \
 	{_csi_phy_base_+0x700,0x000000c0,0}, \
 	{_csi_phy_base_+0x70c,0x000000ff,0}, \
 	{_csi_phy_base_+0x710,0x50,0}, \
@@ -492,7 +491,7 @@ struct sensor_id_info_t {
 	{_csi_phy_base_+0x850,0x000000ff,0}, \
 	{_csi_phy_base_+0x854,0x000000ff,0},
 
-#define CSI_D_INIT(_csid_base_) \
+#define CSI_D_INIT_ADV7481(_csid_base_) \
 	{_csid_base_+0x10,0x00007fff,10}, \
 	{_csid_base_+0x64,0x800,0}, \
 	{_csid_base_+0x04,0x32100,0}, \
@@ -506,7 +505,7 @@ struct sensor_id_info_t {
 	{_csid_base_+0x20,0x00000,0}, \
 	{_csid_base_+0x54,0x0,0},
 
-#define VFE_INIT(_vfe_base_, _vfe_vbif_base_) \
+#define VFE_INIT_ADV7481(_vfe_base_, _vfe_vbif_base_) \
 	{_vfe_base_ +0x05c,0x80000000,0}, \
 	{_vfe_base_ +0x060,0x0,0,}, \
 	{_vfe_base_ +0x064,0xffffffff,0}, \
@@ -573,7 +572,7 @@ struct sensor_id_info_t {
 	{_vfe_base_ +0x4ac,0x2,0}, \
 	{_vfe_base_ +0x080,0x1,0},
 
-#define ISPIF_INIT(_ispif_base_, _ispif_clk_mux_base_) \
+#define ISPIF_INIT_ADV7481(_ispif_base_, _ispif_clk_mux_base_) \
 	{_ispif_base_ +0x008,0xfe7f1fff,10}, \
 	{_ispif_base_ +0x230,0x8000000,0}, \
 	{_ispif_base_ +0x234,0x0,0}, \
@@ -646,11 +645,11 @@ struct sensor_id_info_t {
 	{_ispif_base_ +0x01c,0x1,0}, \
 	{_ispif_base_ +0x248,0xfffffdff,0}
 
-#else
+
 #define CSI_PHY_INIT(_csi_phy_base_, _csi_clk_mux_base_) \
 	{_csi_phy_base_+0x800,0x1,10}, \
 	{_csi_phy_base_+0x800,0x0,0}, \
-	{_csi_clk_mux_base_+0x0,EARLY_CAM_CSI_PORT_NUM,0}, \
+	{_csi_clk_mux_base_+0x0,EARLY_CAM_CSI_PORT_NUM_DIGITAL,0}, \
 	{_csi_phy_base_+0x814,0x000000d5,0}, \
 	{_csi_phy_base_+0x818,0x1,0}, \
 	{_csi_phy_base_+0x030,0x2,0}, \
@@ -659,7 +658,7 @@ struct sensor_id_info_t {
 	{_csi_phy_base_+0x028,0x0,0}, \
 	{_csi_phy_base_+0x03c,0x000000b8,0}, \
 	{_csi_phy_base_+0x004,0x8,0}, \
-	{_csi_phy_base_+0x008,settle_time,0}, \
+	{_csi_phy_base_+0x008,settle_time_digital,0}, \
 	{_csi_phy_base_+0x000,0x000000d7,0}, \
 	{_csi_phy_base_+0x010,0x52,0}, \
 	{_csi_phy_base_+0x038,0x1,0}, \
@@ -670,7 +669,7 @@ struct sensor_id_info_t {
 	{_csi_phy_base_+0x728,0x4,0}, \
 	{_csi_phy_base_+0x73c,0x000000b8,0}, \
 	{_csi_phy_base_+0x704,0x8,0}, \
-	{_csi_phy_base_+0x708,settle_time,0}, \
+	{_csi_phy_base_+0x708,settle_time_digital,0}, \
 	{_csi_phy_base_+0x700,0x000000c0,0}, \
 	{_csi_phy_base_+0x70c,0x000000a5,0}, \
 	{_csi_phy_base_+0x710,0x52,0}, \
@@ -682,7 +681,7 @@ struct sensor_id_info_t {
 	{_csi_phy_base_+0x228,0x0,0}, \
 	{_csi_phy_base_+0x23c,0x000000b8,0}, \
 	{_csi_phy_base_+0x204,0x8,0}, \
-	{_csi_phy_base_+0x208,settle_time,0}, \
+	{_csi_phy_base_+0x208,settle_time_digital,0}, \
 	{_csi_phy_base_+0x200,0x000000d7,0}, \
 	{_csi_phy_base_+0x210,0x52,0}, \
 	{_csi_phy_base_+0x238,0x1,0}, \
@@ -693,7 +692,7 @@ struct sensor_id_info_t {
 	{_csi_phy_base_+0x428,0x0,0}, \
 	{_csi_phy_base_+0x43c,0x000000b8,0}, \
 	{_csi_phy_base_+0x404,0x8,0}, \
-	{_csi_phy_base_+0x408,settle_time,0}, \
+	{_csi_phy_base_+0x408,settle_time_digital,0}, \
 	{_csi_phy_base_+0x400,0x000000d7,0}, \
 	{_csi_phy_base_+0x410,0x52,0}, \
 	{_csi_phy_base_+0x438,0x1,0}, \
@@ -704,7 +703,7 @@ struct sensor_id_info_t {
 	{_csi_phy_base_+0x628,0x0,0}, \
 	{_csi_phy_base_+0x63c,0x000000b8,0}, \
 	{_csi_phy_base_+0x604,0x8,0}, \
-	{_csi_phy_base_+0x608,settle_time,0}, \
+	{_csi_phy_base_+0x608,settle_time_digital,0}, \
 	{_csi_phy_base_+0x600,0x000000d7,0}, \
 	{_csi_phy_base_+0x610,0x52,0}, \
 	{_csi_phy_base_+0x638,0x1,0}, \
@@ -872,7 +871,6 @@ struct sensor_id_info_t {
 	{_ispif_base_ +0x438,0x1249,0}, \
 	{_ispif_base_ +0x01c,0x1,0}, \
 	{_ispif_base_ +0x248,0xfffffdff,0}
-#endif
 
 #define MMSS_HLOS1_VOTE_ALL_MMSS_SMMU_GDS 0x008C8104
 #define MMSS_HLOS2_VOTE_ALL_MMSS_SMMU_GDS 0x008C9104
@@ -926,19 +924,25 @@ struct camera_hw_reg_array other_init_regs[] ={
 
 
 struct camera_hw_reg_array hw_csi1_phy_init_regs[] = {
-	CSI_PHY_INIT(CSI1_PHY_BASE,CSI1_CLK_MUX_BASE) };
-
+	CSI_PHY_INIT_ADV7481(CSI1_PHY_BASE,CSI1_CLK_MUX_BASE) };
 
 
 struct camera_hw_reg_array hw_csi2_phy_init_regs[] = {
 	CSI_PHY_INIT(CSI2_PHY_BASE,CSI2_CLK_MUX_BASE) };
 
 struct camera_hw_reg_array hw_csi1_d_init_regs[] = {
-	CSI_D_INIT(CSI1_D_BASE) };
+	CSI_D_INIT_ADV7481(CSI1_D_BASE) };
 
 
 struct camera_hw_reg_array hw_csi2_d_init_regs[] = {
 	CSI_D_INIT(CSI2_D_BASE) };
+
+
+struct camera_hw_reg_array hw_vfe0_init_regs_adv7481[] = {
+	VFE_INIT_ADV7481(VFE0_BASE, VBIF0_BASE) };
+
+struct camera_hw_reg_array hw_ispif_init_regs_adv7481[] = {
+	ISPIF_INIT_ADV7481(ISPIF_BASE,ISPIF_CLK_MUX_BASE) };
 
 struct camera_hw_reg_array hw_vfe0_init_regs[] = {
 	VFE_INIT(VFE0_BASE, VBIF0_BASE) };
@@ -1022,17 +1026,6 @@ void camera_gpio_init(void) {
 	// Cam VIO
 	rpm_send_data(&lvs1[0][0], 36, RPM_REQUEST_TYPE);
 
-	//Toggle reset GPIO
-	gpio_set(CAM_RESET_GPIO, GPIO_LOW_VAL);
-	gpio_tlmm_config(CAM_RESET_GPIO, 0, GPIO_OUTPUT, GPIO_NO_PULL,
-						GPIO_2MA, GPIO_ENABLE);
-	mdelay_optimal(3);
-
-	gpio_set(CAM_RESET_GPIO, GPIO_HIGH_VAL);
-	gpio_tlmm_config(CAM_RESET_GPIO, 0, GPIO_OUTPUT, GPIO_NO_PULL,
-		GPIO_2MA, GPIO_ENABLE);
-	mdelay_optimal(30);
-
 	// Turn on mipi rail.
 	rpm_send_data(&ldo2[0][0], 36, RPM_REQUEST_TYPE);
 }
@@ -1049,24 +1042,11 @@ void camera_adv_gpio_init(void) {
 	gpio_tlmm_config(20, 1, GPIO_OUTPUT, GPIO_PULL_UP,
 		GPIO_2MA, GPIO_ENABLE);
 
-	//Toggle reset GPIO
-		gpio_set(CAM_RESET_GPIO, GPIO_LOW_VAL);
-		gpio_tlmm_config(CAM_RESET_GPIO, 0, GPIO_OUTPUT, GPIO_NO_PULL,
-							GPIO_2MA, GPIO_ENABLE);
-
-
 	// Cam vana
 	rpm_send_data(&ldo17[0][0], 36, RPM_REQUEST_TYPE);
 	// Cam VIO
 	rpm_send_data(&lvs1[0][0], 36, RPM_REQUEST_TYPE);
 	rpm_send_data(&smps3[0][0], 36, RPM_REQUEST_TYPE);
-
-	mdelay_optimal(3);
-
-	gpio_set(CAM_RESET_GPIO, GPIO_HIGH_VAL);
-	gpio_tlmm_config(CAM_RESET_GPIO, 0, GPIO_OUTPUT, GPIO_NO_PULL,
-		GPIO_2MA, GPIO_ENABLE);
-	mdelay_optimal(30);
 
 	// Turn on mipi rail.
 	rpm_send_data(&ldo2[0][0], 36, RPM_REQUEST_TYPE);
@@ -2055,9 +2035,26 @@ static void msm_cci_flush_queue(int master)
 	msm_cci_init(master);
 }
 
-void target_early_camera_init(void)
+void target_early_camera_init(const char *camera_type)
 {
 #ifdef EARLYDOMAIN_SUPPORT
+
+	if (!strcmp(camera_type,"analog")) {
+		dprintf(CRITICAL, "camera is %s\n", camera_type);
+		cam_type = ANALOG;
+		raw_size = 720*507*2;
+		csi = 1;
+		cci_master = 0;
+		msg_count = 0;
+
+	} else if (!strcmp(camera_type,"digital")) {
+		dprintf(CRITICAL, "camera is %s\n", camera_type);
+		cam_type = DIGITAL;
+		raw_size = 1280*720*2;
+		csi = 2;
+		cci_master = 1;
+	}
+
 	num_configs = get_cam_data(csi, &cam_data);
 	if (num_configs) {
 		camera_gdsc_enable(1);
@@ -2117,17 +2114,17 @@ static void early_camera_setup_layer(int display_id)
 	layer_cam.dst_rect_x = 0;
 	layer_cam.dst_rect_y = 0;
 
-#ifdef ADV7481
-	layer_cam.src_width =  720;
-	layer_cam.src_height =  240;
-	layer_cam.dst_width =   1920;
-	layer_cam.dst_height =  1080;
-#else
-	layer_cam.src_width  = 1280;
-	layer_cam.src_height = 720;
-	layer_cam.dst_width  = 1920;
-	layer_cam.dst_height = 1080;
-#endif
+	if (cam_type == ANALOG) {
+		layer_cam.src_width =  720;
+		layer_cam.src_height =  240;
+		layer_cam.dst_width =   1920;
+		layer_cam.dst_height =  1080;
+	} else if (cam_type == DIGITAL) {
+		layer_cam.src_width  = 1280;
+		layer_cam.src_height = 720;
+		layer_cam.dst_width  = 1920;
+		layer_cam.dst_height = 1080;
+	}
 
 }
 static void early_camera_remove_layer(void)
@@ -2166,10 +2163,17 @@ static int early_camera_start(void *arg) {
 
 	early_camera_setup_display();
 
-	hw_vfe0_init_regs[46].reg_data = (unsigned int)VFE_PING_ADDR;
-	hw_vfe0_init_regs[47].reg_data = hw_vfe0_init_regs[46].reg_data +raw_size;
-	hw_vfe0_init_regs[48].reg_data = (unsigned int)VFE_PONG_ADDR;
-	hw_vfe0_init_regs[49].reg_data = hw_vfe0_init_regs[48].reg_data+ raw_size;
+	if (cam_type == ANALOG) {
+		hw_vfe0_init_regs_adv7481[46].reg_data = (unsigned int)VFE_PING_ADDR;
+		hw_vfe0_init_regs_adv7481[47].reg_data = hw_vfe0_init_regs_adv7481[46].reg_data +raw_size;
+		hw_vfe0_init_regs_adv7481[48].reg_data = (unsigned int)VFE_PONG_ADDR;
+		hw_vfe0_init_regs_adv7481[49].reg_data = hw_vfe0_init_regs_adv7481[48].reg_data+ raw_size;
+	} else if (cam_type == DIGITAL) {
+		hw_vfe0_init_regs[46].reg_data = (unsigned int)VFE_PING_ADDR;
+		hw_vfe0_init_regs[47].reg_data = hw_vfe0_init_regs[46].reg_data +raw_size;
+		hw_vfe0_init_regs[48].reg_data = (unsigned int)VFE_PONG_ADDR;
+		hw_vfe0_init_regs[49].reg_data = hw_vfe0_init_regs[48].reg_data+ raw_size;
+	}
 	read_val = 0;
 	while(rc != 0) {
 		rc = msm_cci_i2c_read(cam_data[0].i2c_revision_id_reg,
@@ -2207,11 +2211,10 @@ static int early_camera_start(void *arg) {
 		goto exit;
 	}
 
-#ifdef ADV7481
-	i2c_wr_iter = 1;
-#else
-	i2c_wr_iter = num_configs - 2;
-#endif
+	if (cam_type == ANALOG)
+		i2c_wr_iter = 1;
+	else if (cam_type == DIGITAL)
+		i2c_wr_iter = num_configs - 2;
 
 	// Write setup configs for i2c devices.
 	// Last config is for starting the camera.
@@ -2271,56 +2274,59 @@ static int early_camera_start(void *arg) {
 	msm_hw_init(&other_init_regs[0],
 		sizeof(other_init_regs) / sizeof(other_init_regs[0]),0);
 
-	if(csi ==1){
+	if (csi == 1) {
 		msm_hw_init(&hw_csi1_phy_init_regs[0],
 				sizeof(hw_csi1_phy_init_regs) / sizeof(hw_csi1_phy_init_regs[0]),0);
 		msm_hw_init(&hw_csi1_d_init_regs[0],
 				sizeof(hw_csi1_d_init_regs) / sizeof(hw_csi1_d_init_regs[0]),0);
+
+		msm_hw_init(&hw_vfe0_init_regs_adv7481[0],
+			sizeof(hw_vfe0_init_regs_adv7481) / sizeof(hw_vfe0_init_regs_adv7481[0]),0);
+		msm_hw_init(&hw_ispif_init_regs_adv7481[0],
+			sizeof(hw_ispif_init_regs_adv7481) / sizeof(hw_ispif_init_regs_adv7481[0]),0);
+
 	} else {
 		msm_hw_init(&hw_csi2_phy_init_regs[0],
 			sizeof(hw_csi2_phy_init_regs) / sizeof(hw_csi2_phy_init_regs[0]),0);
-
 		msm_hw_init(&hw_csi2_d_init_regs[0],
 			sizeof(hw_csi2_d_init_regs) / sizeof(hw_csi2_d_init_regs[0]),0);
+		msm_hw_init(&hw_vfe0_init_regs[0],
+			sizeof(hw_vfe0_init_regs) / sizeof(hw_vfe0_init_regs[0]),0);
+		msm_hw_init(&hw_ispif_init_regs[0],
+			sizeof(hw_ispif_init_regs) / sizeof(hw_ispif_init_regs[0]),0);
 	}
 
-	msm_hw_init(&hw_vfe0_init_regs[0],
-		sizeof(hw_vfe0_init_regs) / sizeof(hw_vfe0_init_regs[0]),0);
+	if (cam_type == ANALOG) {
+		// Select CVBS SDP in ADV Bridge chip
+		msm_cci_i2c_write(cam_data[1].i2c_regs,
+						cam_data[1].size,
+						cam_data[1].i2c_slave_address,
+						queue_id,
+						0,
+						cam_data[1].i2c_num_bytes_address,
+						cam_data[1].i2c_num_bytes_data,
+						0,cci_master);
 
-	msm_hw_init(&hw_ispif_init_regs[0],
-		sizeof(hw_ispif_init_regs) / sizeof(hw_ispif_init_regs[0]),0);
+		// Start CVBS Camera Port.
+		msm_cci_i2c_write(cam_data[2].i2c_regs,
+						cam_data[2].size,
+						cam_data[2].i2c_slave_address,
+						queue_id,
+						0,
+						cam_data[2].i2c_num_bytes_address,
+						cam_data[2].i2c_num_bytes_data,
+						0,cci_master);
 
-#ifdef ADV7481
-	// Select CVBS SDP in ADV Bridge chip
-	msm_cci_i2c_write(cam_data[1].i2c_regs,
-					cam_data[1].size,
-					cam_data[1].i2c_slave_address,
-					queue_id,
-					0,
-					cam_data[1].i2c_num_bytes_address,
-					cam_data[1].i2c_num_bytes_data,
-					0,cci_master);
+		msm_cci_i2c_write(cam_data[3].i2c_regs,
+						cam_data[3].size,
+						cam_data[3].i2c_slave_address,
+						queue_id,
+						0,
+						cam_data[3].i2c_num_bytes_address,
+						cam_data[3].i2c_num_bytes_data,
+						0,cci_master);
 
-	// Start CVBS Camera Port.
-	msm_cci_i2c_write(cam_data[2].i2c_regs,
-					cam_data[2].size,
-					cam_data[2].i2c_slave_address,
-					queue_id,
-					0,
-					cam_data[2].i2c_num_bytes_address,
-					cam_data[2].i2c_num_bytes_data,
-					0,cci_master);
-
-	msm_cci_i2c_write(cam_data[3].i2c_regs,
-					cam_data[3].size,
-					cam_data[3].i2c_slave_address,
-					queue_id,
-					0,
-					cam_data[3].i2c_num_bytes_address,
-					cam_data[3].i2c_num_bytes_data,
-					0,cci_master);
-
-	msm_cci_i2c_write(cam_data[4].i2c_regs,
+		msm_cci_i2c_write(cam_data[4].i2c_regs,
 						cam_data[4].size,
 						cam_data[4].i2c_slave_address,
 						queue_id,
@@ -2329,8 +2335,8 @@ static int early_camera_start(void *arg) {
 						cam_data[4].i2c_num_bytes_data,
 						0,cci_master);
 
-	// wait for lock 1
-	rc = -1;
+		// wait for lock 1
+		rc = -1;
 		while(rc==-1) {
 			msm_cci_i2c_read(cam_data[5].i2c_revision_id_reg,
 								1,
@@ -2346,8 +2352,7 @@ static int early_camera_start(void *arg) {
 
 
 			if(rc==-1 ) {
-				if
-(msg_count == 0)
+				if (msg_count == 0)
 					pr_err(CRITICAL,
 							"Early Camera - lock1 not detected %x doesn't match for this target %x retrying\n",
 							read_val,
@@ -2365,7 +2370,7 @@ static int early_camera_start(void *arg) {
 			}
 		}
 
-	msm_cci_i2c_write(cam_data[6].i2c_regs,
+		msm_cci_i2c_write(cam_data[6].i2c_regs,
 						cam_data[6].size,
 						cam_data[6].i2c_slave_address,
 						queue_id,
@@ -2375,10 +2380,10 @@ static int early_camera_start(void *arg) {
 						0,cci_master);
 
 
-	//////////////////////
-	msg_count = 0;
-	// wait for lock 2
-	rc = -1;
+		//////////////////////
+		msg_count = 0;
+		// wait for lock 2
+		rc = -1;
 		while(rc==-1) {
 			msm_cci_i2c_read(cam_data[7].i2c_revision_id_reg,
 								1,
@@ -2390,13 +2395,12 @@ static int early_camera_start(void *arg) {
 								cam_data[7].i2c_num_bytes_data);
 
 			rc = early_camera_check_rev(&cam_data[7].i2c_revision_id_val[0],
-				cam_data[7].i2c_revision_id_num, read_val);
+					cam_data[7].i2c_revision_id_num, read_val);
 
 
 			if(rc==-1) {
 				if(msg_count == 0)
-					pr_err(CRITICAL,
-							"Early Camera - lock2 not detected %x doesn't match for this target %x retrying\n",
+					pr_err(CRITICAL,"Early Camera - lock2 not detected %x doesn't match for this target %x retrying\n",
 							read_val,
 							cam_data[7].i2c_revision_id_val[0]);
 				msg_count++;
@@ -2410,45 +2414,45 @@ static int early_camera_start(void *arg) {
 						msg_count);
 				goto exit;
 			}
+		}
+
+		mdelay_optimal(100);
+
+		adv7481_intr_enable();
+
+
+
+		msm_cci_i2c_write(cam_data[8].i2c_regs,
+						cam_data[8].size,
+						cam_data[8].i2c_slave_address,
+						queue_id,
+						0,
+						cam_data[8].i2c_num_bytes_address,
+						cam_data[8].i2c_num_bytes_data,
+						0,cci_master);
+
+		msm_cci_i2c_write(cam_data[9].i2c_regs,
+						cam_data[9].size,
+						cam_data[9].i2c_slave_address,
+						queue_id,
+						0,
+						cam_data[9].i2c_num_bytes_address,
+						cam_data[9].i2c_num_bytes_data,
+						0,cci_master);
+	} else if (cam_type == DIGITAL) {
+		// Start cam
+		msm_cci_i2c_write(cam_data[num_configs-2].i2c_regs,
+						cam_data[num_configs-2].size,
+						cam_data[num_configs-2].i2c_slave_address,
+						queue_id,
+						0,
+						cam_data[num_configs-2].i2c_num_bytes_address,
+						cam_data[num_configs-2].i2c_num_bytes_data,
+						0,
+						cci_master);
 	}
 
-	mdelay_optimal(100);
-
-	adv7481_intr_enable();
-
-
-
-	msm_cci_i2c_write(cam_data[8].i2c_regs,
-					cam_data[8].size,
-					cam_data[8].i2c_slave_address,
-					queue_id,
-					0,
-					cam_data[8].i2c_num_bytes_address,
-					cam_data[8].i2c_num_bytes_data,
-					0,cci_master);
-
-	msm_cci_i2c_write(cam_data[9].i2c_regs,
-					cam_data[9].size,
-					cam_data[9].i2c_slave_address,
-					queue_id,
-					0,
-					cam_data[9].i2c_num_bytes_address,
-					cam_data[9].i2c_num_bytes_data,
-					0,cci_master);
-#else
-	// Start cam
-	msm_cci_i2c_write(cam_data[num_configs-2].i2c_regs,
-					cam_data[num_configs-2].size,
-					cam_data[num_configs-2].i2c_slave_address,
-					queue_id,
-					0,
-					cam_data[num_configs-2].i2c_num_bytes_address,
-					cam_data[num_configs-2].i2c_num_bytes_data,
-					0,
-					cci_master);
-#endif
-
-// Signal Kernel early camera is active.
+	// Signal Kernel early camera is active.
 	msm_camera_io_w_mb(EARLY_CAMERA_SIGNAL_ENABLED, MMSS_A_VFE_0_SPARE);
 
 	return 0;
@@ -2461,20 +2465,19 @@ void early_camera_stop(void) {
 	unsigned int csid_irq = 0;
 	unsigned int irq_cci = 0;
 
-#ifdef ADV7481
-	struct camera_i2c_reg_array reg_stop[1] = {{ 0x0, 0x81, 0}};
-#endif
 	// stop VFE writes to memory
 	msm_hw_init(&stop_vfe_stream[0],
 		sizeof(stop_vfe_stream) / sizeof(stop_vfe_stream[0]),0);
 
-#ifdef ADV7481
-	// Stop ispif
-	msm_camera_io_w_mb(0xaaaaaaaa,0x00a31248);
-	// Reset ping pong to top of buffer.
-	msm_camera_io_w_mb(1,0x00A10080);
-	//stop csi tx
-	msm_cci_i2c_write(&reg_stop[0],
+	if (cam_type == ANALOG) {
+		struct camera_i2c_reg_array reg_stop[1] = {{ 0x0, 0x81, 0}};
+
+		// Stop ispif
+		msm_camera_io_w_mb(0xaaaaaaaa,0x00a31248);
+		// Reset ping pong to top of buffer.
+		msm_camera_io_w_mb(1,0x00A10080);
+		//stop csi tx
+		msm_cci_i2c_write(&reg_stop[0],
 						1,
 						cam_data[9].i2c_slave_address,
 						queue_id,
@@ -2482,18 +2485,18 @@ void early_camera_stop(void) {
 						1,
 						1,
 						0,cci_master);
-#else
-	// Stop cam
-	msm_cci_i2c_write(cam_data[SENSOR_STOP_IDX].i2c_regs,
-					cam_data[SENSOR_STOP_IDX].size,
-					cam_data[SENSOR_STOP_IDX].i2c_slave_address,
-					0,
-					0,
-					cam_data[SENSOR_STOP_IDX].i2c_num_bytes_address,
-					cam_data[SENSOR_STOP_IDX].i2c_num_bytes_data,
-					0,
-					cci_master);
-#endif
+	} else if (cam_type == DIGITAL) {
+		// Stop cam
+		msm_cci_i2c_write(cam_data[SENSOR_STOP_IDX].i2c_regs,
+						cam_data[SENSOR_STOP_IDX].size,
+						cam_data[SENSOR_STOP_IDX].i2c_slave_address,
+						0,
+						0,
+						cam_data[SENSOR_STOP_IDX].i2c_num_bytes_address,
+						cam_data[SENSOR_STOP_IDX].i2c_num_bytes_data,
+						0,
+						cci_master);
+	}
 
 	target_release_layer(&layer_cam);
 	firstframe = true;  // reset firstframe for next cycle
@@ -2513,6 +2516,7 @@ void early_camera_stop(void) {
 	// Signal Kernel were done to allow camera daemon to start.
 	msm_camera_io_w_mb(EARLY_CAMERA_SIGNAL_DONE, MMSS_A_VFE_0_SPARE);
 }
+
 int early_camera_on(void)
 {
 #ifdef DEBUG_T32
@@ -2523,14 +2527,15 @@ int early_camera_on(void)
 	}
 #endif
 
-#if EARLYCAMERA_NO_GPIO
-	// when there is no GPIO present always set this to TRUE
-	// exit will be based on a scratch register inside
-	// the animated_splash loop
-	gpio_triggered = TRUE;
-#else
-	gpio_triggered = gpio_get(103);
-#endif
+	if(early_rvc_gpio < MAX_GPIO_COUNT) {
+		gpio_triggered = gpio_get(early_rvc_gpio);
+//		mdelay_optimal(10);
+//		dprintf(CRITICAL, "gpio_get(early_rvc_gpio) = %d\n", gpio_triggered);
+	} else if (early_rvc_timeout > 0) {
+		gpio_triggered = TRUE;
+	}
+	// else Neither RVC GPIO is set correctly nor RVC time out is set correctly.
+	// Exit with GPIO Triggered as False (default value)
 
 	return gpio_triggered;
 }
@@ -2544,14 +2549,6 @@ int early_camera_flip(void)
 {
 	static int buffer_cleared = 0;
 
-#ifdef ADV7481
-	//static int msg_count = 0;
-	static int camera_lock_status = 1;
-	struct camera_i2c_reg_array reg_stop[1] = {{ 0x0, 0x81, 0}};
-	struct camera_i2c_reg_array reg_start[1] = {{ 0x0, 0x21, 0}};
-#endif
-
-
 #ifdef DEBUG_T32
 	while(delay_to_attach_t32 != 1)
 	{
@@ -2560,21 +2557,24 @@ int early_camera_flip(void)
 	}
 #endif
 
+	if (cam_type == ANALOG) {
+		//static int msg_count = 0;
+		static int camera_lock_status = 1;
+		struct camera_i2c_reg_array reg_stop[1] = {{ 0x0, 0x81, 0}};
+		struct camera_i2c_reg_array reg_start[1] = {{ 0x0, 0x21, 0}};
 
-#ifdef ADV7481
-
-	camera_lock_status = adv7481_lock_status();
-	// There has been a change in lock status.
-	if(camera_lock_status == 0) {
-		// Stop vfe
-		msm_camera_io_w_mb(0,0x00A100a0);
-		msm_camera_io_w_mb(0xf,0x00A104ac);
-		// Stop ispif
-		msm_camera_io_w_mb(0xaaaaaaaa,0x00a31248);
-		// Reset ping pong to top of buffer.
-		msm_camera_io_w_mb(1,0x00A10080);
-		//stop csi tx
-		msm_cci_i2c_write(&reg_stop[0],
+		camera_lock_status = adv7481_lock_status();
+		// There has been a change in lock status.
+		if(camera_lock_status == 0) {
+			// Stop vfe
+			msm_camera_io_w_mb(0,0x00A100a0);
+			msm_camera_io_w_mb(0xf,0x00A104ac);
+			// Stop ispif
+			msm_camera_io_w_mb(0xaaaaaaaa,0x00a31248);
+			// Reset ping pong to top of buffer.
+			msm_camera_io_w_mb(1,0x00A10080);
+			//stop csi tx
+			msm_cci_i2c_write(&reg_stop[0],
 							1,
 							cam_data[9].i2c_slave_address,
 							queue_id,
@@ -2582,15 +2582,15 @@ int early_camera_flip(void)
 							1,
 							1,
 							0,cci_master);
-		if(buffer_cleared == 0) {
-			early_camera_clear_buffers();
-			buffer_cleared =1;
+			if(buffer_cleared == 0) {
+				early_camera_clear_buffers();
+				buffer_cleared =1;
+			}
+			goto ERROR;
 		}
-		goto ERROR;
-	}
-	if (camera_lock_status == 1) {
-		//start csi tx
-		msm_cci_i2c_write(&reg_start[0],
+		if (camera_lock_status == 1) {
+			//start csi tx
+			msm_cci_i2c_write(&reg_start[0],
 							1,
 							cam_data[9].i2c_slave_address,
 							queue_id,
@@ -2598,17 +2598,18 @@ int early_camera_flip(void)
 							1,
 							1,
 							0,cci_master);
-		// Start ispif on next frame.
-		msm_camera_io_w_mb(0xfffffdff,0x00a31248);
-		// Start vfe write masters.
-		//start vfe
-		msm_camera_io_w_mb(1,0x00A100a0);
-		// reg update
-		msm_camera_io_w_mb(0xf,0x00A104ac);
-	}
-	if(camera_lock_status==0)
+			// Start ispif on next frame.
+			msm_camera_io_w_mb(0xfffffdff,0x00a31248);
+			// Start vfe write masters.
+			//start vfe
+			msm_camera_io_w_mb(1,0x00A100a0);
+			// reg update
+			msm_camera_io_w_mb(0xf,0x00A104ac);
+		}
+		if(camera_lock_status==0)
 		goto ERROR;
-#endif
+	}
+
 	// wait for ping pong irq;
 	ping = msm_vfe_poll_irq(PING_PONG_IRQ_MASK,VFE_TIME_OUT_POLL_NUM);
 	if(ping==-1)
@@ -2651,17 +2652,17 @@ int early_camera_flip(void)
 			}
 
 			if (layer_cam.fb) {
-#ifdef ADV7481
-				if(ping)
-					layer_cam.fb->base = (void *)(VFE_PING_ADDR+CVBS_HEADER_SIZE);
-				else
-					layer_cam.fb->base = (void *)(VFE_PONG_ADDR+CVBS_HEADER_SIZE);
-#else
+				if (cam_type == ANALOG) {
+					if(ping)
+						layer_cam.fb->base = (void *)(VFE_PING_ADDR+CVBS_HEADER_SIZE);
+					else
+						layer_cam.fb->base = (void *)(VFE_PONG_ADDR+CVBS_HEADER_SIZE);
+				} else if (cam_type == DIGITAL) {
 					if(ping)
 						layer_cam.fb->base = (void *)VFE_PING_ADDR;
 					else
 						layer_cam.fb->base = (void *)VFE_PONG_ADDR;
-#endif
+				}
 
 				layer_cam.z_order = 1;
 				layer_cam.fb->format = kFormatYCbCr422H2V1Packed;
@@ -2715,9 +2716,13 @@ int early_camera_init(void)
 }
 
 /* Sets early camera enabled or disabled */
-void set_early_camera_enabled(bool enabled)
+void set_early_camera_enabled(bool enabled, uint32_t rvc_timeout, uint32_t rvc_gpio)
 {
 	early_camera_enabled = enabled;
 	pr_err(CRITICAL, "set_early_camera_enabled : %d\n", enabled);
+        // update the RVC Time out value in Seconds
+        early_rvc_timeout = rvc_timeout;
+        // Update the RVC TLMM GPIO value
+        early_rvc_gpio = rvc_gpio;
 }
 

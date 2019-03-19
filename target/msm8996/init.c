@@ -105,9 +105,12 @@
 #define PMIC_ARB_OWNER_ID       0
 
 /* As now early camera's handoff is supported, so
- * set frame limit to 2400 frames incase of no gpio
+ * set frame limit to (early_rvc_timeout x 30) frames
+ * incase of no gpio is enabled.
  */
-#define EARLYCAM_NO_GPIO_FRAME_LIMIT 2400
+extern uint32_t early_rvc_timeout;
+extern uint32_t early_rvc_gpio;
+#define EARLYCAM_NO_GPIO_FRAME_LIMIT (early_rvc_timeout * 30)
 
 static int early_camera_enabled = 1;
 static int early_audio_enabled = 1;
@@ -1102,21 +1105,11 @@ end:
 	return ret;
 }
 
-#if EARLYCAMERA_NO_GPIO
-
-inline bool get_reverse_camera_gpio() {
-	return TRUE;
-}
-
-#else
-
 inline bool get_reverse_camera_gpio() {
 	/* if gpio == 1, it is ON
 	   if gpio == 0, it is OFF */
-	return (1 == gpio_get(103));
+	return (1 == gpio_get(early_rvc_gpio));
 }
-
-#endif
 
 /* checks if GPIO or equivalent trigger to enable early camera is set to ON
    If this function retuns FALSE, only animated splash may be shown.
@@ -1148,9 +1141,7 @@ int animated_splash() {
 	bool firstframe[disp_cnt];
 	int camera_error_count = 0;
 	int camera_status = 0;
-#if EARLYCAMERA_NO_GPIO
 	uint32_t frame_count = 0;
-#endif
 
 	if (!buffers[0]) {
 		dprintf(CRITICAL, "Unexpected error in read\n");
@@ -1203,6 +1194,11 @@ int animated_splash() {
 		layer_list[j].dst_rect_y = (disp->height - layer_list[j].dst_height)/2;
 	}
 
+	gpio_set(early_rvc_gpio, 0x0);
+	gpio_tlmm_config(early_rvc_gpio, 0, GPIO_INPUT, GPIO_PULL_DOWN,
+		GPIO_2MA, GPIO_ENABLE);
+	dprintf(CRITICAL, "gpio_tlmm_config_read(early_rvc_gpio) = %d\n", gpio_tlmm_config_read(early_rvc_gpio));
+
 	while (1) {
 		if(early_audio_enabled == 1) {
 			if (early_audio_check_dma_playback())
@@ -1236,6 +1232,11 @@ int animated_splash() {
 				/* early RVC is still on while splash display needs to be stopped */
 				stop_display_splash = true;
 			}
+		}
+		else if (0xBEEFBEEF == reg_value) {
+			if ((1 == early_camera_enabled) &&
+					(FALSE == camera_on) && (false == camera_frame_on))
+				break;
 		}
 
 		for (j = 0; j < disp_cnt; j++) {
@@ -1292,8 +1293,10 @@ int animated_splash() {
 				camera_error_count = 0;
 			}
 			if(camera_error_count > MAX_CAM_ERROR_EXIT) {
-				//Force an early exit for early camera.
-				frame_count = EARLYCAM_NO_GPIO_FRAME_LIMIT +1;
+				if(EARLYCAM_NO_GPIO_FRAME_LIMIT) {
+					//Force an early exit for early camera.
+					frame_count = EARLYCAM_NO_GPIO_FRAME_LIMIT +1;
+				}
 				early_camera_stop();
 				early_camera_enabled = 0;
 				layer_ptr = target_display_acquire_layer(
@@ -1307,9 +1310,8 @@ int animated_splash() {
 			mdelay_optimal(sleep_time);
 		}
 		k++;
-#if EARLYCAMERA_NO_GPIO
 		if (early_camera_enabled) {
-			if (EARLYCAM_NO_GPIO_FRAME_LIMIT < frame_count) {
+			if (EARLYCAM_NO_GPIO_FRAME_LIMIT < frame_count && EARLYCAM_NO_GPIO_FRAME_LIMIT > 0) {
 				if(early_camera_enabled) {
 					early_camera_stop();
 					early_camera_enabled = 0;
@@ -1324,7 +1326,6 @@ int animated_splash() {
 			}
 			frame_count++;
 		}
-#endif
 	}
 	if (early_camera_enabled == 1)
 		early_camera_stop();

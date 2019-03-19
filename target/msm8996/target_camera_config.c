@@ -644,7 +644,6 @@ static struct camera_i2c_reg_array adv7481_sensor_start_regs[] = {
 // I2C config data where last set is for stream start.
 	// struct i2c_config_data config_data[4];
 // #endif
-#ifdef ADV7481
 
 #define ADV7481_IO_MAP_PAD_CTRL_1_ADDR                                      0x1D
 #define ADV7481_IO_MAP_SLAVE_ADDR                                           0xE0
@@ -956,9 +955,6 @@ EXIT_FLAG:
 	return rc;
 
 }
-
-#endif
-
 
 static int get_cam_data_digital(struct i2c_config_data **cam_data)
 {
