@@ -45,9 +45,23 @@ struct resource_req {
 	uint32_t lm_base[DUAL_HW_RESOURCE_PER_DISPLAY];
 };
 
+/**
+ * struct pipe_usage - define pipe allocation status
+ * @type: pipe type
+ * @left_base: base address of left pipe
+ * @right_base: base address of right pipe
+ * @valid: whether pipe is occuiped.
+ */
+struct pipe_usage {
+	uint32_t type;
+	uint32_t left_base;
+	uint32_t right_base;
+	bool valid;
+};
+
 void mdp_rm_update_resource(struct msm_panel_info *pinfo, bool use_second_dsi);
 
-void mdp_rm_update_pipe_base(struct msm_panel_info *pinfo, uint32_t *left_pipe, uint32_t *right_pipe);
+void mdp_rm_select_pipe(struct msm_panel_info *pinfo, uint32_t *left_pipe, uint32_t *right_pipe);
 
 void mdp_rm_select_mixer(struct msm_panel_info *pinfo);
 
