@@ -2900,16 +2900,16 @@ static void set_device_unlock(int type, bool status)
 		return;
 	}
 
-#if FBCON_DISPLAY_MSG
-	display_unlock_menu(type, status);
-	fastboot_okay("");
-	return;
-#else
+//#if FBCON_DISPLAY_MSG
+//	display_unlock_menu(type, status);
+//	fastboot_okay("");
+//	return;
+//#else
 	if (status && type == UNLOCK) {
 		fastboot_fail("Need wipe userdata. Do 'fastboot oem unlock-go'");
 		return;
 	}
-#endif
+//#endif
 
 	set_device_unlock_value(type, status);
 
