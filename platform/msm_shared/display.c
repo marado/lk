@@ -32,10 +32,18 @@
 #include <mdp4.h>
 #include <mipi_dsi.h>
 #include <boot_stats.h>
+#include <platform/gpio.h>
+#include <display_resource.h>
+#include <target/display.h>
 
+extern uint32_t panel_id;
 int msm_display_backlight_off();
 static struct msm_fb_panel_data *panel;
 extern int lvds_on(struct msm_fb_panel_data *pdata);
+
+static struct gpio_pin bl_gpio = {
+	"msmgpio", 61, 3, 1, 0, 1
+};
 
 int msm_display_backlight_off()
 {
@@ -322,6 +330,12 @@ int msm_display_init(struct msm_fb_panel_data *pdata)
 		goto msm_display_init_out;
 
 	/* Turn on backlight */
+	mdelay(100);
+
+	//init gpio13
+	gpio_tlmm_config(bl_gpio.pin_id, 0, bl_gpio.pin_direction, bl_gpio.pin_pull, bl_gpio.pin_strength, bl_gpio.pin_state);
+	gpio_set(bl_gpio.pin_id,0);	
+	
 	if (pdata->bl_func)
 		ret = pdata->bl_func(1);
 

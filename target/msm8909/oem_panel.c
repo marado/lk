@@ -51,8 +51,12 @@
 #include "include/panel_auo_qvga_cmd.h"
 #include "include/panel_auo_cx_qvga_cmd.h"
 #include "include/panel_hx8394f_720p_video.h"
+#include "include/panel_gc9305_qvga_spi_cmd.h" 
 #include "include/panel_gc9305_qvga_spi_cmd.h"
 #include "include/panel_st7789v2_qvga_spi_cmd.h"
+#include "include/panel_holitech_gc9305_id_qvga_spi_cmd.h"
+#include <platform/gpio.h>
+
 
 #define DISPLAY_MAX_PANEL_DETECTION 2
 #define ILI9806E_FWVGA_VIDEO_PANEL_POST_INIT_DELAY 68
@@ -74,7 +78,6 @@ enum {
 /*---------------------------------------------------------------------------*/
 /* static panel selection variable                                           */
 /*---------------------------------------------------------------------------*/
-static uint32_t auto_pan_loop = 0;
 
 enum {
 	HX8394D_480P_VIDEO_PANEL,
@@ -88,13 +91,15 @@ enum {
 	FL10802_FWVGA_VIDEO_PANEL,
 	AUO_QVGA_CMD_PANEL,
 	AUO_CX_QVGA_CMD_PANEL,
-    HX8394D_WVGA_VIDEO_PANEL,
+	HX8394D_WVGA_VIDEO_PANEL,
 	HX8394D_HVGA_VIDEO_PANEL,
 	HX8394F_720P_VIDEO_PANEL,
 	GC9305_QVGA_SPI_CMD_PANEL,
 	ST7789v2_QVGA_SPI_CMD_PANEL,
+	HOLITECH_GC9305_ID_QVGA_SPI_CMD_PANEL,
 	UNKNOWN_PANEL
 };
+
 
 /*
  * The list of panels that are supported on this target.
@@ -112,14 +117,15 @@ static struct panel_list supp_panels[] = {
 	{"fl10802_fwvga_video", FL10802_FWVGA_VIDEO_PANEL},
 	{"auo_qvga_cmd", AUO_QVGA_CMD_PANEL},
 	{"auo_cx_qvga_cmd", AUO_CX_QVGA_CMD_PANEL},
-    {"hx8394d_wvga_video", HX8394D_WVGA_VIDEO_PANEL},
+	{"hx8394d_wvga_video", HX8394D_WVGA_VIDEO_PANEL},
 	{"hx8394d_hvga_video", HX8394D_HVGA_VIDEO_PANEL},
 	{"hx8394f_720p_video", HX8394F_720P_VIDEO_PANEL},
 	{"gc9305_qvga_cmd", GC9305_QVGA_SPI_CMD_PANEL},
 	{"ST7789V2_qvga_cmd", ST7789v2_QVGA_SPI_CMD_PANEL},
+	{"holitech_gc9305_id_qvga_cmd", HOLITECH_GC9305_ID_QVGA_SPI_CMD_PANEL},
 };
 
-static uint32_t panel_id;
+uint32_t panel_id;
 
 int oem_panel_rotation()
 {
@@ -132,8 +138,7 @@ int oem_panel_on()
 	 * OEM can keep there panel specific on instructions in this
 	 * function
 	 */
-	if (panel_id == ILI9806E_FWVGA_VIDEO_PANEL)
-		mdelay(ILI9806E_FWVGA_VIDEO_PANEL_POST_INIT_DELAY);
+	mdelay(ILI9806E_FWVGA_VIDEO_PANEL_POST_INIT_DELAY);
 
 	return NO_ERROR;
 }
@@ -147,320 +152,314 @@ int oem_panel_off()
 	return NO_ERROR;
 }
 
-static int init_panel_data(struct panel_struct *panelstruct,
+int init_panel_data(struct panel_struct *panelstruct,
 			struct msm_panel_info *pinfo,
 			struct mdss_dsi_phy_ctrl *phy_db)
 {
 	int pan_type = PANEL_TYPE_DSI;
 
 	switch (panel_id) {
-	case HX8394D_480P_VIDEO_PANEL:
-		panelstruct->paneldata	  = &hx8394d_480p_video_panel_data;
-		panelstruct->panelres	  = &hx8394d_480p_video_panel_res;
+	case HX8394D_480P_VIDEO_PANEL:	 
+		panelstruct->paneldata	       = &hx8394d_480p_video_panel_data;
+		panelstruct->panelres	      = &hx8394d_480p_video_panel_res; 
 		panelstruct->color		  = &hx8394d_480p_video_color;
 		panelstruct->videopanel   = &hx8394d_480p_video_video_panel;
 		panelstruct->commandpanel = &hx8394d_480p_video_command_panel;
 		panelstruct->state		  = &hx8394d_480p_video_state;
 		panelstruct->laneconfig   = &hx8394d_480p_video_lane_config;
 		panelstruct->paneltiminginfo
-					 = &hx8394d_480p_video_timing_info;
+				      = &hx8394d_480p_video_timing_info;
 		panelstruct->panelresetseq
-					 = &hx8394d_480p_video_panel_reset_seq;
+				      = &hx8394d_480p_video_panel_reset_seq;
 		panelstruct->backlightinfo = &hx8394d_480p_video_backlight;
 		pinfo->mipi.panel_cmds
-					= hx8394d_480p_video_on_command;
+				     = hx8394d_480p_video_on_command;
 		pinfo->mipi.num_of_panel_cmds
-					= HX8394D_480P_VIDEO_ON_COMMAND;
+				     = HX8394D_480P_VIDEO_ON_COMMAND;
 		memcpy(phy_db->timing,
-				hx8394d_480p_video_timings, TIMING_SIZE);
+			      hx8394d_480p_video_timings, TIMING_SIZE);
 		pinfo->mipi.signature = HX8394D_480P_VIDEO_SIGNATURE;
 		break;
-	case HX8394D_720P_VIDEO_PANEL:
-		panelstruct->paneldata	  = &hx8394d_720p_video_panel_data;
-		panelstruct->panelres	  = &hx8394d_720p_video_panel_res;
-		panelstruct->color		  = &hx8394d_720p_video_color;
-		panelstruct->videopanel   = &hx8394d_720p_video_video_panel;
-		panelstruct->commandpanel = &hx8394d_720p_video_command_panel;
-		panelstruct->state		  = &hx8394d_720p_video_state;
-		panelstruct->laneconfig   = &hx8394d_720p_video_lane_config;
-		panelstruct->paneltiminginfo
-					 = &hx8394d_720p_video_timing_info;
-		panelstruct->panelresetseq
-					 = &hx8394d_720p_video_panel_reset_seq;
-		panelstruct->backlightinfo = &hx8394d_720p_video_backlight;
-		pinfo->mipi.panel_cmds
-					= hx8394d_720p_video_on_command;
-		pinfo->mipi.num_of_panel_cmds
-					= HX8394D_720P_VIDEO_ON_COMMAND;
-		memcpy(phy_db->timing,
-				hx8394d_720p_video_timings, TIMING_SIZE);
-		pinfo->mipi.signature = HX8394D_720P_VIDEO_SIGNATURE;
-		break;
-        case SHARP_QHD_VIDEO_PANEL:
-		panelstruct->paneldata    = &sharp_qhd_video_panel_data;
-		panelstruct->panelres     = &sharp_qhd_video_panel_res;
-		panelstruct->color        = &sharp_qhd_video_color;
-		panelstruct->videopanel   = &sharp_qhd_video_video_panel;
-		panelstruct->commandpanel = &sharp_qhd_video_command_panel;
-		panelstruct->state        = &sharp_qhd_video_state;
-		panelstruct->laneconfig   = &sharp_qhd_video_lane_config;
-		panelstruct->paneltiminginfo
-					= &sharp_qhd_video_timing_info;
-		panelstruct->panelresetseq
-					= &sharp_qhd_video_panel_reset_seq;
-		panelstruct->backlightinfo = &sharp_qhd_video_backlight;
-		pinfo->mipi.panel_cmds
-					= sharp_qhd_video_on_command;
-		pinfo->mipi.num_of_panel_cmds
-					= SHARP_QHD_VIDEO_ON_COMMAND;
-		memcpy(phy_db->timing, sharp_qhd_video_timings, TIMING_SIZE);
-		break;
-	case TRULY_WVGA_CMD_PANEL:
-		panelstruct->paneldata    = &truly_wvga_cmd_panel_data;
-		panelstruct->panelres     = &truly_wvga_cmd_panel_res;
-		panelstruct->color        = &truly_wvga_cmd_color;
-		panelstruct->videopanel   = &truly_wvga_cmd_video_panel;
-		panelstruct->commandpanel = &truly_wvga_cmd_command_panel;
-		panelstruct->state        = &truly_wvga_cmd_state;
-		panelstruct->laneconfig   = &truly_wvga_cmd_lane_config;
-		panelstruct->paneltiminginfo
-					= &truly_wvga_cmd_timing_info;
-		panelstruct->panelresetseq
-					= &truly_wvga_cmd_reset_seq;
-		panelstruct->backlightinfo = &truly_wvga_cmd_backlight;
-		pinfo->mipi.panel_cmds
-					= truly_wvga_cmd_on_command;
-		pinfo->mipi.num_of_panel_cmds
-					= TRULY_WVGA_CMD_ON_COMMAND;
-		memcpy(phy_db->timing,
-				truly_wvga_cmd_timings, TIMING_SIZE);
-               break;
-	case HX8379A_FWVGA_SKUA_VIDEO_PANEL:
-		panelstruct->paneldata	  = &hx8379a_fwvga_skua_video_panel_data;
-		panelstruct->panelres	  = &hx8379a_fwvga_skua_video_panel_res;
-		panelstruct->color	  = &hx8379a_fwvga_skua_video_color;
-		panelstruct->videopanel   = &hx8379a_fwvga_skua_video_video_panel;
-		panelstruct->commandpanel = &hx8379a_fwvga_skua_video_command_panel;
-		panelstruct->state	  = &hx8379a_fwvga_skua_video_state;
-		panelstruct->laneconfig   = &hx8379a_fwvga_skua_video_lane_config;
-		panelstruct->paneltiminginfo
-					 = &hx8379a_fwvga_skua_video_timing_info;
-		panelstruct->panelresetseq
-					 = &hx8379a_fwvga_skua_video_reset_seq;
-		panelstruct->backlightinfo = &hx8379a_fwvga_skua_video_backlight;
-		pinfo->mipi.panel_cmds
-					= hx8379a_fwvga_skua_video_on_command;
-		pinfo->mipi.num_of_panel_cmds
-					= HX8379A_FWVGA_SKUA_VIDEO_ON_COMMAND;
-		memcpy(phy_db->timing,
-				hx8379a_fwvga_skua_video_timings, TIMING_SIZE);
-		pinfo->mipi.signature = HX8379A_FWVGA_SKUA_VIDEO_SIGNATURE;
-		break;
-	case ILI9806E_FWVGA_VIDEO_PANEL:
-                panelstruct->paneldata    = &ili9806e_fwvga_video_panel_data;
-                panelstruct->panelres     = &ili9806e_fwvga_video_panel_res;
-                panelstruct->color        = &ili9806e_fwvga_video_color;
-                panelstruct->videopanel   = &ili9806e_fwvga_video_video_panel;
-                panelstruct->commandpanel = &ili9806e_fwvga_video_command_panel;
-                panelstruct->state        = &ili9806e_fwvga_video_state;
-                panelstruct->laneconfig   = &ili9806e_fwvga_video_lane_config;
-                panelstruct->paneltiminginfo
-                                         = &ili9806e_fwvga_video_timing_info;
-                panelstruct->panelresetseq
-                                         = &ili9806e_fwvga_video_reset_seq;
-                panelstruct->backlightinfo = &ili9806e_fwvga_video_backlight;
-                pinfo->mipi.panel_cmds
-                                        = ili9806e_fwvga_video_on_command;
-                pinfo->mipi.num_of_panel_cmds
-                                        = ILI9806E_FWVGA_VIDEO_ON_COMMAND;
-                memcpy(phy_db->timing,
-                                ili9806e_fwvga_video_timings, TIMING_SIZE);
-                pinfo->mipi.signature = ILI9806E_FWVGA_VIDEO_SIGNATURE;
-                break;
-	case HX8394D_QHD_VIDEO_PANEL:
-		panelstruct->paneldata	  = &hx8394d_qhd_video_panel_data;
-		panelstruct->panelres	  = &hx8394d_qhd_video_panel_res;
-		panelstruct->color		  = &hx8394d_qhd_video_color;
-		panelstruct->videopanel   = &hx8394d_qhd_video_video_panel;
-		panelstruct->commandpanel = &hx8394d_qhd_video_command_panel;
-		panelstruct->state		  = &hx8394d_qhd_video_state;
-		panelstruct->laneconfig   = &hx8394d_qhd_video_lane_config;
-		panelstruct->paneltiminginfo
-					 = &hx8394d_qhd_video_timing_info;
-		panelstruct->panelresetseq
-					 = &hx8394d_qhd_video_panel_reset_seq;
-		panelstruct->backlightinfo = &hx8394d_qhd_video_backlight;
-		pinfo->mipi.panel_cmds
-					= hx8394d_qhd_video_on_command;
-		pinfo->mipi.num_of_panel_cmds
-					= HX8394D_QHD_VIDEO_ON_COMMAND;
-		memcpy(phy_db->timing,
-				hx8394d_qhd_video_timings, TIMING_SIZE);
-		pinfo->mipi.signature = HX8394D_QHD_VIDEO_SIGNATURE;
-		break;
-	case HX8394D_HVGA_VIDEO_PANEL:
-		panelstruct->paneldata	  = &hx8394d_hvga_video_panel_data;
-		panelstruct->panelres	  = &hx8394d_hvga_video_panel_res;
-		panelstruct->color		  = &hx8394d_hvga_video_color;
-		panelstruct->videopanel   = &hx8394d_hvga_video_video_panel;
-		panelstruct->commandpanel = &hx8394d_hvga_video_command_panel;
-		panelstruct->state		  = &hx8394d_hvga_video_state;
-		panelstruct->laneconfig   = &hx8394d_hvga_video_lane_config;
-		panelstruct->paneltiminginfo
-					 = &hx8394d_hvga_video_timing_info;
-		panelstruct->panelresetseq
-					 = &hx8394d_hvga_video_panel_reset_seq;
-		panelstruct->backlightinfo = &hx8394d_hvga_video_backlight;
-		pinfo->mipi.panel_cmds
-					= hx8394d_hvga_video_on_command;
-		pinfo->mipi.num_of_panel_cmds
-					= HX8394D_HVGA_VIDEO_ON_COMMAND;
-		memcpy(phy_db->timing,
-				hx8394d_hvga_video_timings, TIMING_SIZE);
-		pinfo->mipi.signature = HX8394D_HVGA_VIDEO_SIGNATURE;
-		break;
-	case HX8394D_WVGA_VIDEO_PANEL:
-		panelstruct->paneldata	  = &hx8394d_wvga_video_panel_data;
-		panelstruct->panelres	  = &hx8394d_wvga_video_panel_res;
-		panelstruct->color		  = &hx8394d_wvga_video_color;
-		panelstruct->videopanel   = &hx8394d_wvga_video_video_panel;
-		panelstruct->commandpanel = &hx8394d_wvga_video_command_panel;
-		panelstruct->state		  = &hx8394d_wvga_video_state;
-		panelstruct->laneconfig   = &hx8394d_wvga_video_lane_config;
-		panelstruct->paneltiminginfo
-					 = &hx8394d_wvga_video_timing_info;
-		panelstruct->panelresetseq
-					 = &hx8394d_wvga_video_panel_reset_seq;
-		panelstruct->backlightinfo = &hx8394d_wvga_video_backlight;
-		pinfo->mipi.panel_cmds
-					= hx8394d_wvga_video_on_command;
-		pinfo->mipi.num_of_panel_cmds
-					= HX8394D_WVGA_VIDEO_ON_COMMAND;
-		memcpy(phy_db->timing,
-				hx8394d_wvga_video_timings, TIMING_SIZE);
-		pinfo->mipi.signature = HX8394D_WVGA_VIDEO_SIGNATURE;
-		break;
-	case HX8379C_FWVGA_VIDEO_PANEL:
-		panelstruct->paneldata    = &hx8379c_fwvga_video_panel_data;
-		panelstruct->panelres     = &hx8379c_fwvga_video_panel_res;
-		panelstruct->color        = &hx8379c_fwvga_video_color;
-		panelstruct->videopanel   = &hx8379c_fwvga_video_video_panel;
-		panelstruct->commandpanel = &hx8379c_fwvga_video_command_panel;
-		panelstruct->state        = &hx8379c_fwvga_video_state;
-		panelstruct->laneconfig   = &hx8379c_fwvga_video_lane_config;
-		panelstruct->paneltiminginfo
-					= &hx8379c_fwvga_video_timing_info;
-		panelstruct->panelresetseq
-					= &hx8379c_fwvga_video_reset_seq;
-		panelstruct->backlightinfo = &hx8379c_fwvga_video_backlight;
-		pinfo->mipi.panel_cmds
-					= hx8379c_fwvga_video_on_command;
-		pinfo->mipi.num_of_panel_cmds
-					= HX8379C_FWVGA_VIDEO_ON_COMMAND;
-		memcpy(phy_db->timing,
-					hx8379c_fwvga_video_timings, TIMING_SIZE);
-		pinfo->mipi.signature = HX8379C_FWVGA_VIDEO_SIGNATURE;
-		break;
-	case FL10802_FWVGA_VIDEO_PANEL:
-		panelstruct->paneldata	  = &fl10802_fwvga_video_panel_data;
-		panelstruct->panelres	  = &fl10802_fwvga_video_panel_res;
-		panelstruct->color		  = &fl10802_fwvga_video_color;
-		panelstruct->videopanel   = &fl10802_fwvga_video_video_panel;
-		panelstruct->commandpanel = &fl10802_fwvga_video_command_panel;
-		panelstruct->state		  = &fl10802_fwvga_video_state;
-		panelstruct->laneconfig   = &fl10802_fwvga_video_lane_config;
-		panelstruct->paneltiminginfo
-					 = &fl10802_fwvga_video_timing_info;
-		panelstruct->panelresetseq
-					 = &fl10802_fwvga_video_reset_seq;
-		panelstruct->backlightinfo = &fl10802_fwvga_video_backlight;
-		pinfo->mipi.panel_cmds
-					= fl10802_fwvga_video_on_command;
-		pinfo->mipi.num_of_panel_cmds
-					= FL10802_FWVGA_VIDEO_ON_COMMAND;
-		memcpy(phy_db->timing,
-				fl10802_fwvga_video_timings, TIMING_SIZE);
-		pinfo->mipi.signature = FL10802_FWVGA_VIDEO_SIGNATURE;
-		pinfo->mipi.cmds_post_tg = 1;
-		break;
-	case AUO_QVGA_CMD_PANEL:
-		panelstruct->paneldata    = &auo_qvga_cmd_panel_data;
-		panelstruct->panelres     = &auo_qvga_cmd_panel_res;
-		panelstruct->color        = &auo_qvga_cmd_color;
-		panelstruct->videopanel   = &auo_qvga_cmd_video_panel;
-		panelstruct->commandpanel = &auo_qvga_cmd_command_panel;
-		panelstruct->state        = &auo_qvga_cmd_state;
-		panelstruct->laneconfig   = &auo_qvga_cmd_lane_config;
-		panelstruct->paneltiminginfo
-					= &auo_qvga_cmd_timing_info;
-		panelstruct->panelresetseq
-					= &auo_qvga_cmd_panel_reset_seq;
-		panelstruct->backlightinfo
-					= &auo_qvga_cmd_backlight;
-		pinfo->mipi.panel_cmds
-					= auo_qvga_cmd_on_command;
-		pinfo->mipi.num_of_panel_cmds
-					= auo_QVGA_CMD_ON_COMMAND;
-		memcpy(phy_db->timing, auo_qvga_cmd_timings, TIMING_SIZE);
-		break;
-	case AUO_CX_QVGA_CMD_PANEL:
-		panelstruct->paneldata    = &auo_cx_qvga_cmd_panel_data;
-		panelstruct->panelres     = &auo_cx_qvga_cmd_panel_res;
-		panelstruct->color        = &auo_cx_qvga_cmd_color;
-		panelstruct->videopanel   = &auo_cx_qvga_cmd_video_panel;
-		panelstruct->commandpanel = &auo_cx_qvga_cmd_command_panel;
-		panelstruct->state        = &auo_cx_qvga_cmd_state;
-		panelstruct->laneconfig   = &auo_cx_qvga_cmd_lane_config;
-		panelstruct->paneltiminginfo
-					= &auo_cx_qvga_cmd_timing_info;
-		panelstruct->panelresetseq
-					= &auo_cx_qvga_cmd_panel_reset_seq;
-		panelstruct->backlightinfo
-					= &auo_cx_qvga_cmd_backlight;
-		pinfo->mipi.panel_cmds
-					= auo_cx_qvga_cmd_on_command;
-		pinfo->mipi.num_of_panel_cmds
-					= auo_cx_QVGA_CMD_ON_COMMAND;
-		memcpy(phy_db->timing, auo_cx_qvga_cmd_timings, TIMING_SIZE);
-		break;
-	case HX8394F_720P_VIDEO_PANEL:
-		panelstruct->paneldata    = &hx8394f_720p_video_panel_data;
-		panelstruct->panelres     = &hx8394f_720p_video_panel_res;
-		panelstruct->color        = &hx8394f_720p_video_color;
-		panelstruct->videopanel   = &hx8394f_720p_video_video_panel;
-		panelstruct->commandpanel = &hx8394f_720p_video_command_panel;
-		panelstruct->state        = &hx8394f_720p_video_state;
-		panelstruct->laneconfig   = &hx8394f_720p_video_lane_config;
-		panelstruct->paneltiminginfo
-					= &hx8394f_720p_video_timing_info;
-		panelstruct->panelresetseq
-					= &hx8394f_720p_video_reset_seq;
-		panelstruct->backlightinfo = &hx8394f_720p_video_backlight;
-		pinfo->mipi.panel_cmds
-					= hx8394f_720p_video_on_command;
-		pinfo->mipi.num_of_panel_cmds
-					= HX8394F_720P_VIDEO_ON_COMMAND;
-		memcpy(phy_db->timing,
-					hx8394f_720p_video_timings, TIMING_SIZE);
-		pinfo->mipi.signature = HX8394F_720P_VIDEO_SIGNATURE;
-		break;
-	case GC9305_QVGA_SPI_CMD_PANEL:
+	 case HX8394D_720P_VIDEO_PANEL:
+		panelstruct->paneldata	       = &hx8394d_720p_video_panel_data;   
+		panelstruct->panelres	      = &hx8394d_720p_video_panel_res;	 
+		panelstruct->color		  = &hx8394d_720p_video_color;	 
+		panelstruct->videopanel   = &hx8394d_720p_video_video_panel;   
+		panelstruct->commandpanel = &hx8394d_720p_video_command_panel;	 
+		panelstruct->state		  = &hx8394d_720p_video_state;	 
+		panelstruct->laneconfig   = &hx8394d_720p_video_lane_config;   
+		panelstruct->paneltiminginfo   
+				      = &hx8394d_720p_video_timing_info;   
+		panelstruct->panelresetseq   
+				      = &hx8394d_720p_video_panel_reset_seq;   
+		panelstruct->backlightinfo = &hx8394d_720p_video_backlight;   
+		pinfo->mipi.panel_cmds	 
+				     = hx8394d_720p_video_on_command;	
+		pinfo->mipi.num_of_panel_cmds	
+				     = HX8394D_720P_VIDEO_ON_COMMAND;	
+		memcpy(phy_db->timing,	 
+			      hx8394d_720p_video_timings, TIMING_SIZE);   
+		pinfo->mipi.signature = HX8394D_720P_VIDEO_SIGNATURE;	
+		break;	 
+	 case SHARP_QHD_VIDEO_PANEL:   
+		panelstruct->paneldata	  = &sharp_qhd_video_panel_data;   
+		panelstruct->panelres	  = &sharp_qhd_video_panel_res;   
+		panelstruct->color	  = &sharp_qhd_video_color;   
+		panelstruct->videopanel   = &sharp_qhd_video_video_panel;   
+		panelstruct->commandpanel = &sharp_qhd_video_command_panel;   
+		panelstruct->state	  = &sharp_qhd_video_state;   
+		panelstruct->laneconfig   = &sharp_qhd_video_lane_config;   
+		panelstruct->paneltiminginfo   
+				     = &sharp_qhd_video_timing_info;   
+		panelstruct->panelresetseq   
+				     = &sharp_qhd_video_panel_reset_seq;   
+		panelstruct->backlightinfo = &sharp_qhd_video_backlight;   
+		pinfo->mipi.panel_cmds	 
+				     = sharp_qhd_video_on_command;   
+		pinfo->mipi.num_of_panel_cmds	
+				     = SHARP_QHD_VIDEO_ON_COMMAND;   
+		memcpy(phy_db->timing, sharp_qhd_video_timings, TIMING_SIZE);	
+		break;	 
+	 case TRULY_WVGA_CMD_PANEL:   
+		panelstruct->paneldata	  = &truly_wvga_cmd_panel_data;   
+		panelstruct->panelres	  = &truly_wvga_cmd_panel_res;	 
+		panelstruct->color	  = &truly_wvga_cmd_color;   
+		panelstruct->videopanel   = &truly_wvga_cmd_video_panel;   
+		panelstruct->commandpanel = &truly_wvga_cmd_command_panel;   
+		panelstruct->state	  = &truly_wvga_cmd_state;   
+		panelstruct->laneconfig   = &truly_wvga_cmd_lane_config;   
+		panelstruct->paneltiminginfo   
+				     = &truly_wvga_cmd_timing_info;   
+		panelstruct->panelresetseq   
+				     = &truly_wvga_cmd_reset_seq;   
+		panelstruct->backlightinfo = &truly_wvga_cmd_backlight;   
+		pinfo->mipi.panel_cmds	 
+				     = truly_wvga_cmd_on_command;   
+		pinfo->mipi.num_of_panel_cmds	
+				     = TRULY_WVGA_CMD_ON_COMMAND;   
+		memcpy(phy_db->timing,	 
+			      truly_wvga_cmd_timings, TIMING_SIZE);   
+		break;	 
+	 case HX8379A_FWVGA_SKUA_VIDEO_PANEL:	
+		panelstruct->paneldata	       = &hx8379a_fwvga_skua_video_panel_data;	 
+		panelstruct->panelres	      = &hx8379a_fwvga_skua_video_panel_res;   
+		panelstruct->color	   = &hx8379a_fwvga_skua_video_color;	
+		panelstruct->videopanel   = &hx8379a_fwvga_skua_video_video_panel;   
+		panelstruct->commandpanel = &hx8379a_fwvga_skua_video_command_panel;   
+		panelstruct->state	   = &hx8379a_fwvga_skua_video_state;	
+		panelstruct->laneconfig   = &hx8379a_fwvga_skua_video_lane_config;   
+		panelstruct->paneltiminginfo   
+				      = &hx8379a_fwvga_skua_video_timing_info;	 
+		panelstruct->panelresetseq   
+				      = &hx8379a_fwvga_skua_video_reset_seq;   
+		panelstruct->backlightinfo = &hx8379a_fwvga_skua_video_backlight;   
+		pinfo->mipi.panel_cmds	 
+				     = hx8379a_fwvga_skua_video_on_command;   
+		pinfo->mipi.num_of_panel_cmds	
+				     = HX8379A_FWVGA_SKUA_VIDEO_ON_COMMAND;   
+		memcpy(phy_db->timing,	 
+			      hx8379a_fwvga_skua_video_timings, TIMING_SIZE);	
+		pinfo->mipi.signature = HX8379A_FWVGA_SKUA_VIDEO_SIGNATURE;   
+		break;	 
+	 case ILI9806E_FWVGA_VIDEO_PANEL:   
+		 panelstruct->paneldata    = &ili9806e_fwvga_video_panel_data;	 
+		 panelstruct->panelres	   = &ili9806e_fwvga_video_panel_res;	
+		 panelstruct->color	   = &ili9806e_fwvga_video_color;   
+		 panelstruct->videopanel   = &ili9806e_fwvga_video_video_panel;   
+		 panelstruct->commandpanel = &ili9806e_fwvga_video_command_panel;   
+		 panelstruct->state	   = &ili9806e_fwvga_video_state;   
+		 panelstruct->laneconfig   = &ili9806e_fwvga_video_lane_config;   
+		 panelstruct->paneltiminginfo	
+					  = &ili9806e_fwvga_video_timing_info;	 
+		 panelstruct->panelresetseq   
+					  = &ili9806e_fwvga_video_reset_seq;   
+		 panelstruct->backlightinfo = &ili9806e_fwvga_video_backlight;	 
+		 pinfo->mipi.panel_cmds   
+					 = ili9806e_fwvga_video_on_command;   
+		 pinfo->mipi.num_of_panel_cmds	 
+					 = ILI9806E_FWVGA_VIDEO_ON_COMMAND;   
+		 memcpy(phy_db->timing,   
+				 ili9806e_fwvga_video_timings, TIMING_SIZE);   
+		 pinfo->mipi.signature = ILI9806E_FWVGA_VIDEO_SIGNATURE;   
+		 break;   
+	 case HX8394D_QHD_VIDEO_PANEL:	 
+		panelstruct->paneldata	       = &hx8394d_qhd_video_panel_data;   
+		panelstruct->panelres	      = &hx8394d_qhd_video_panel_res;	
+		panelstruct->color		  = &hx8394d_qhd_video_color;	
+		panelstruct->videopanel   = &hx8394d_qhd_video_video_panel;   
+		panelstruct->commandpanel = &hx8394d_qhd_video_command_panel;	
+		panelstruct->state		  = &hx8394d_qhd_video_state;	
+		panelstruct->laneconfig   = &hx8394d_qhd_video_lane_config;   
+		panelstruct->paneltiminginfo   
+				      = &hx8394d_qhd_video_timing_info;   
+		panelstruct->panelresetseq   
+				      = &hx8394d_qhd_video_panel_reset_seq;   
+		panelstruct->backlightinfo = &hx8394d_qhd_video_backlight;   
+		pinfo->mipi.panel_cmds	 
+				     = hx8394d_qhd_video_on_command;   
+		pinfo->mipi.num_of_panel_cmds	
+				     = HX8394D_QHD_VIDEO_ON_COMMAND;   
+		memcpy(phy_db->timing,	 
+			      hx8394d_qhd_video_timings, TIMING_SIZE);	 
+		pinfo->mipi.signature = HX8394D_QHD_VIDEO_SIGNATURE;   
+		break;	 
+	 case HX8394D_HVGA_VIDEO_PANEL:   
+		panelstruct->paneldata	       = &hx8394d_hvga_video_panel_data;   
+		panelstruct->panelres	      = &hx8394d_hvga_video_panel_res;	 
+		panelstruct->color		  = &hx8394d_hvga_video_color;	 
+		panelstruct->videopanel   = &hx8394d_hvga_video_video_panel;   
+		panelstruct->commandpanel = &hx8394d_hvga_video_command_panel;	 
+		panelstruct->state		  = &hx8394d_hvga_video_state;	 
+		panelstruct->laneconfig   = &hx8394d_hvga_video_lane_config;   
+		panelstruct->paneltiminginfo   
+				      = &hx8394d_hvga_video_timing_info;   
+		panelstruct->panelresetseq   
+				      = &hx8394d_hvga_video_panel_reset_seq;   
+		panelstruct->backlightinfo = &hx8394d_hvga_video_backlight;   
+		pinfo->mipi.panel_cmds	 
+				     = hx8394d_hvga_video_on_command;	
+		pinfo->mipi.num_of_panel_cmds	
+				     = HX8394D_HVGA_VIDEO_ON_COMMAND;	
+		memcpy(phy_db->timing,	 
+			      hx8394d_hvga_video_timings, TIMING_SIZE);   
+		pinfo->mipi.signature = HX8394D_HVGA_VIDEO_SIGNATURE;	
+		break;	 
+	 case HX8394D_WVGA_VIDEO_PANEL:   
+		panelstruct->paneldata	       = &hx8394d_wvga_video_panel_data;   
+		panelstruct->panelres	      = &hx8394d_wvga_video_panel_res;	 
+		panelstruct->color		  = &hx8394d_wvga_video_color;	 
+		panelstruct->videopanel   = &hx8394d_wvga_video_video_panel;   
+		panelstruct->commandpanel = &hx8394d_wvga_video_command_panel;	 
+		panelstruct->state		  = &hx8394d_wvga_video_state;	 
+		panelstruct->laneconfig   = &hx8394d_wvga_video_lane_config;   
+		panelstruct->paneltiminginfo   
+				      = &hx8394d_wvga_video_timing_info;   
+		panelstruct->panelresetseq   
+				      = &hx8394d_wvga_video_panel_reset_seq;   
+		panelstruct->backlightinfo = &hx8394d_wvga_video_backlight;   
+		pinfo->mipi.panel_cmds	 
+				     = hx8394d_wvga_video_on_command;	
+		pinfo->mipi.num_of_panel_cmds	
+				     = HX8394D_WVGA_VIDEO_ON_COMMAND;	
+		memcpy(phy_db->timing,	 
+			      hx8394d_wvga_video_timings, TIMING_SIZE);   
+		pinfo->mipi.signature = HX8394D_WVGA_VIDEO_SIGNATURE;	
+		break;	 
+	 case HX8379C_FWVGA_VIDEO_PANEL:   
+		panelstruct->paneldata	  = &hx8379c_fwvga_video_panel_data;   
+		panelstruct->panelres	  = &hx8379c_fwvga_video_panel_res;   
+		panelstruct->color	  = &hx8379c_fwvga_video_color;   
+		panelstruct->videopanel   = &hx8379c_fwvga_video_video_panel;	
+		panelstruct->commandpanel = &hx8379c_fwvga_video_command_panel;   
+		panelstruct->state	  = &hx8379c_fwvga_video_state;   
+		panelstruct->laneconfig   = &hx8379c_fwvga_video_lane_config;	
+		panelstruct->paneltiminginfo   
+				     = &hx8379c_fwvga_video_timing_info;   
+		panelstruct->panelresetseq   
+				     = &hx8379c_fwvga_video_reset_seq;	 
+		panelstruct->backlightinfo = &hx8379c_fwvga_video_backlight;   
+		pinfo->mipi.panel_cmds	 
+				     = hx8379c_fwvga_video_on_command;	 
+		pinfo->mipi.num_of_panel_cmds	
+				     = HX8379C_FWVGA_VIDEO_ON_COMMAND;	 
+		memcpy(phy_db->timing,	 
+				     hx8379c_fwvga_video_timings, TIMING_SIZE);   
+		pinfo->mipi.signature = HX8379C_FWVGA_VIDEO_SIGNATURE;	 
+		break;	 
+	 case FL10802_FWVGA_VIDEO_PANEL:   
+		panelstruct->paneldata	       = &fl10802_fwvga_video_panel_data;   
+		panelstruct->panelres	      = &fl10802_fwvga_video_panel_res;   
+		panelstruct->color		  = &fl10802_fwvga_video_color;   
+		panelstruct->videopanel   = &fl10802_fwvga_video_video_panel;	
+		panelstruct->commandpanel = &fl10802_fwvga_video_command_panel;   
+		panelstruct->state		  = &fl10802_fwvga_video_state;   
+		panelstruct->laneconfig   = &fl10802_fwvga_video_lane_config;	
+		panelstruct->paneltiminginfo   
+				      = &fl10802_fwvga_video_timing_info;   
+		panelstruct->panelresetseq   
+				      = &fl10802_fwvga_video_reset_seq;   
+		panelstruct->backlightinfo = &fl10802_fwvga_video_backlight;   
+		pinfo->mipi.panel_cmds	 
+				     = fl10802_fwvga_video_on_command;	 
+		pinfo->mipi.num_of_panel_cmds	
+				     = FL10802_FWVGA_VIDEO_ON_COMMAND;	 
+		memcpy(phy_db->timing,	 
+			      fl10802_fwvga_video_timings, TIMING_SIZE);   
+		pinfo->mipi.signature = FL10802_FWVGA_VIDEO_SIGNATURE;	 
+		pinfo->mipi.cmds_post_tg = 1;	
+		break;	 
+	 case AUO_QVGA_CMD_PANEL:   
+		panelstruct->paneldata	  = &auo_qvga_cmd_panel_data;	
+		panelstruct->panelres	  = &auo_qvga_cmd_panel_res;   
+		panelstruct->color	  = &auo_qvga_cmd_color;   
+		panelstruct->videopanel   = &auo_qvga_cmd_video_panel;	 
+		panelstruct->commandpanel = &auo_qvga_cmd_command_panel;   
+		panelstruct->state	  = &auo_qvga_cmd_state;   
+		panelstruct->laneconfig   = &auo_qvga_cmd_lane_config;	 
+		panelstruct->paneltiminginfo   
+				     = &auo_qvga_cmd_timing_info;   
+		panelstruct->panelresetseq   
+				     = &auo_qvga_cmd_panel_reset_seq;	
+		panelstruct->backlightinfo   
+				     = &auo_qvga_cmd_backlight;   
+		pinfo->mipi.panel_cmds	 
+				     = auo_qvga_cmd_on_command;   
+		pinfo->mipi.num_of_panel_cmds	
+				     = auo_QVGA_CMD_ON_COMMAND;   
+		memcpy(phy_db->timing, auo_qvga_cmd_timings, TIMING_SIZE);   
+		break;	 
+	 case AUO_CX_QVGA_CMD_PANEL:   
+		panelstruct->paneldata	  = &auo_cx_qvga_cmd_panel_data;   
+		panelstruct->panelres	  = &auo_cx_qvga_cmd_panel_res;   
+		panelstruct->color	  = &auo_cx_qvga_cmd_color;   
+		panelstruct->videopanel   = &auo_cx_qvga_cmd_video_panel;   
+		panelstruct->commandpanel = &auo_cx_qvga_cmd_command_panel;   
+		panelstruct->state	  = &auo_cx_qvga_cmd_state;   
+		panelstruct->laneconfig   = &auo_cx_qvga_cmd_lane_config;   
+		panelstruct->paneltiminginfo   
+				     = &auo_cx_qvga_cmd_timing_info;   
+		panelstruct->panelresetseq   
+				     = &auo_cx_qvga_cmd_panel_reset_seq;   
+		panelstruct->backlightinfo   
+				     = &auo_cx_qvga_cmd_backlight;   
+		pinfo->mipi.panel_cmds	 
+				     = auo_cx_qvga_cmd_on_command;   
+		pinfo->mipi.num_of_panel_cmds	
+				     = auo_cx_QVGA_CMD_ON_COMMAND;   
+		memcpy(phy_db->timing, auo_cx_qvga_cmd_timings, TIMING_SIZE);	
+		break;	 
+	 case HX8394F_720P_VIDEO_PANEL:   
+		panelstruct->paneldata	  = &hx8394f_720p_video_panel_data;   
+		panelstruct->panelres	  = &hx8394f_720p_video_panel_res;   
+		panelstruct->color	  = &hx8394f_720p_video_color;	 
+		panelstruct->videopanel   = &hx8394f_720p_video_video_panel;   
+		panelstruct->commandpanel = &hx8394f_720p_video_command_panel;	 
+		panelstruct->state	  = &hx8394f_720p_video_state;	 
+		panelstruct->laneconfig   = &hx8394f_720p_video_lane_config;   
+		panelstruct->paneltiminginfo   
+				     = &hx8394f_720p_video_timing_info;   
+		panelstruct->panelresetseq   
+				     = &hx8394f_720p_video_reset_seq;	
+		panelstruct->backlightinfo = &hx8394f_720p_video_backlight;   
+		pinfo->mipi.panel_cmds	 
+				     = hx8394f_720p_video_on_command;	
+		pinfo->mipi.num_of_panel_cmds	
+				     = HX8394F_720P_VIDEO_ON_COMMAND;	
+		memcpy(phy_db->timing,	 
+				     hx8394f_720p_video_timings, TIMING_SIZE);	 
+		pinfo->mipi.signature = HX8394F_720P_VIDEO_SIGNATURE;	
+		break; 
+	 case GC9305_QVGA_SPI_CMD_PANEL:
 		panelstruct->paneldata    = &gc9305_qvga_cmd_panel_data;
 		panelstruct->panelres     = &gc9305_qvga_cmd_panel_res;
 		panelstruct->color        = &gc9305_qvga_cmd_color;
-		panelstruct->panelresetseq
-					= &gc9305_qvga_cmd_reset_seq;
+		panelstruct->panelresetseq           = &gc9305_qvga_cmd_reset_seq;
 		panelstruct->backlightinfo = &gc9305_qvga_cmd_backlight;
-		pinfo->spi.panel_cmds
-					= gc9305_qvga_cmd_on_command;
-		pinfo->spi.num_of_panel_cmds
-					= GC9305_QVGA_CMD_ON_COMMAND;
-		pinfo->spi.signature_addr
-					= &gc9305_signature_addr;
-		pinfo->spi.signature
-					= gc9305_signature;
-		pinfo->spi.signature_len
-					= gc9305_signature_len;
+		pinfo->spi.panel_cmds            = gc9305_qvga_cmd_on_command;
+		pinfo->spi.num_of_panel_cmds             = GC9305_QVGA_CMD_ON_COMMAND;
+		pinfo->spi.signature_addr              = &gc9305_signature_addr;
+		pinfo->spi.signature               = gc9305_signature;
+		pinfo->spi.signature_len               = gc9305_signature_len;
 		pan_type = PANEL_TYPE_SPI;
 		break;
 	case ST7789v2_QVGA_SPI_CMD_PANEL:
@@ -468,20 +467,34 @@ static int init_panel_data(struct panel_struct *panelstruct,
 		panelstruct->panelres     = &st7789v2_qvga_cmd_panel_res;
 		panelstruct->color        = &st7789v2_qvga_cmd_color;
 		panelstruct->panelresetseq
-					= &st7789v2_qvga_cmd_reset_seq;
+		                      = &st7789v2_qvga_cmd_reset_seq;
 		panelstruct->backlightinfo = &st7789v2_qvga_cmd_backlight;
 		pinfo->spi.panel_cmds
-					= st7789v2_qvga_cmd_on_command;
+		                      = st7789v2_qvga_cmd_on_command;
 		pinfo->spi.num_of_panel_cmds
-					= ST7789v2_QVGA_CMD_ON_COMMAND;
+		                      = ST7789v2_QVGA_CMD_ON_COMMAND;
 		pinfo->spi.signature_addr
-					= &st7789v2_signature_addr;
+		                      = &st7789v2_signature_addr;
 		pinfo->spi.signature
-					= st7789v2_signature;
+		                      = st7789v2_signature;
 		pinfo->spi.signature_len
-					= st7789v2_signature_len;
+		                      = st7789v2_signature_len;
 		pan_type = PANEL_TYPE_SPI;
 		break;
+	  case HOLITECH_GC9305_ID_QVGA_SPI_CMD_PANEL:
+		panelstruct->paneldata    = &holitech_gc9305_id_qvga_cmd_panel_data;
+		panelstruct->panelres     = &holitech_gc9305_id_qvga_cmd_panel_res;
+		panelstruct->color        = &holitech_gc9305_id_qvga_cmd_color;
+		panelstruct->panelresetseq
+					= &holitech_gc9305_id_qvga_cmd_reset_seq;
+		panelstruct->backlightinfo = &holitech_gc9305_id_qvga_cmd_backlight;
+		pinfo->spi.panel_cmds
+					= holitech_gc9305_id_qvga_cmd_on_command;
+		pinfo->spi.num_of_panel_cmds
+					= HOLITECH_GC9305_ID_QVGA_CMD_ON_COMMAND;
+		pan_type = PANEL_TYPE_SPI;
+		break;
+
 	case UNKNOWN_PANEL:
 	default:
 		memset(panelstruct, 0, sizeof(struct panel_struct));
@@ -553,33 +566,7 @@ int oem_panel_select(const char *panel_name, struct panel_struct *panelstruct,
 		switch (platform_subtype) {
 			case QRD_SKUA:
 				if (MSM8905 == board_platform_id()) {
-					if (plat_hw_ver_major > 0x10 && plat_hw_ver_major < 0x13) {
-						/* QRD8905 Nand SKU */
-						switch (auto_pan_loop) {
-							case 0:
-								dprintf(CRITICAL, "ST7789v2_QVGA_SPI_CMD_PANEL\n");
-								panel_id = ST7789v2_QVGA_SPI_CMD_PANEL;
-								break;
-							case 1:
-								dprintf(CRITICAL, "GC9305_QVGA_SPI_CMD_PANEL\n");
-								panel_id = GC9305_QVGA_SPI_CMD_PANEL;
-								break;
-							default:
-								dprintf(CRITICAL, "ST7789v2_QVGA_SPI_CMD_PANEL\n");
-								panel_id = ST7789v2_QVGA_SPI_CMD_PANEL;
-								break;
-						}
-						auto_pan_loop++;
-					} else {
-						switch (auto_pan_loop) {
-							case 0:
-							default:
-								dprintf(CRITICAL, "GC9305_QVGA_SPI_CMD_PANEL\n");
-								panel_id = GC9305_QVGA_SPI_CMD_PANEL;
-								break;
-						}
-						auto_pan_loop++;
-					}
+					panel_id = HOLITECH_GC9305_ID_QVGA_SPI_CMD_PANEL;
 				}
 				else
 					panel_id = HX8379A_FWVGA_SKUA_VIDEO_PANEL;

@@ -183,6 +183,21 @@ static uint32_t dsi_pll_enable_seq_8909(uint32_t pll_base)
 	return pll_locked;
 }
 
+static void enable_bl_to_level(uint8_t level)
+{
+	int i;
+
+	gpio_set(61,2);
+	udelay(40);
+	for(i = 1; i < level; i++)
+	{
+		gpio_set(61,0);
+		udelay(2);
+		gpio_set(61,2);
+		udelay(2);
+	}
+}
+
 int target_backlight_ctrl(struct backlight *bl, uint8_t enable)
 {
 	struct pm8x41_mpp mpp;
@@ -211,9 +226,12 @@ int target_backlight_ctrl(struct backlight *bl, uint8_t enable)
 		}
 		pm8x41_config_output_mpp(&mpp);
 		pm8x41_enable_mpp(&mpp, MPP_ENABLE);
+
+		enable_bl_to_level(1);
 	} else {
 		pm_pwm_enable(false);
 		pm8x41_enable_mpp(&mpp, MPP_DISABLE);
+		gpio_set(61,0);
 	}
 	mdelay(20);
 
