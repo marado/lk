@@ -2220,7 +2220,7 @@ static int early_camera_start(void *arg) {
 			while( rc != 0) {
 				mdelay_optimal(5);
 				// Check if sensor is present and exit if not
-				msm_cci_i2c_read(cam_data[index].i2c_revision_id_reg,
+				rc = msm_cci_i2c_read(cam_data[index].i2c_revision_id_reg,
 								1,
 								&read_val,
 								cam_data[index].i2c_slave_address,
