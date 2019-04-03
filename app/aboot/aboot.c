@@ -5310,14 +5310,15 @@ void aboot_fastboot_register_commands(void)
 
 	struct fastboot_cmd_desc cmd_list[] = {
 						/* By default the enabled list is empty. */
-						{"", NULL},
+						{"flashing unlock", cmd_oem_unlock},
+						{"flashing lock", cmd_oem_lock},
+						{"erase:", cmd_erase},
 						/* move commands enclosed within the below ifndef to here
 						 * if they need to be enabled in user build.
 						 */
 #ifndef DISABLE_FASTBOOT_CMDS
 						/* Register the following commands only for non-user builds */
 						{"flash:", cmd_flash},
-						{"erase:", cmd_erase},
 						{"boot", cmd_boot},
 						{"continue", cmd_continue},
 						{"reboot", cmd_reboot},
@@ -5325,8 +5326,6 @@ void aboot_fastboot_register_commands(void)
 						{"oem unlock", cmd_oem_unlock},
 						{"oem unlock-go", cmd_oem_unlock_go},
 						{"oem lock", cmd_oem_lock},
-						{"flashing unlock", cmd_oem_unlock},
-						{"flashing lock", cmd_oem_lock},
 						{"flashing lock_critical", cmd_flashing_lock_critical},
 						{"flashing unlock_critical", cmd_flashing_unlock_critical},
 						{"flashing get_unlock_ability", cmd_flashing_get_unlock_ability},
