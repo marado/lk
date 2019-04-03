@@ -155,8 +155,6 @@ ifeq ($(ENABLE_UNITTEST_FW),1)
 DEFINES += UNITTEST_FW_SUPPORT=1
 endif
 
-# Enable early camera without gpio
-DEFINES += EARLYCAMERA_NO_GPIO=1
 #Disable the dload mode
 DEFINES += DISABLE_DLOAD_MODE=0
 

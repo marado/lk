@@ -88,9 +88,9 @@
 #define ANIMATED_SPLASH_LOOPS    150
 
 #if MOUNT_EMMC_LE
-       #define ROOTFS_EMMC_PATH " root=/dev/mmcblk0p"
+#define ROOTFS_EMMC_PATH " root=/dev/mmcblk0p"
 #else
-       #define ROOTFS_EMMC_PATH " root=/dev/mmcblock0p"
+#define ROOTFS_EMMC_PATH " root=/dev/mmcblock0p"
 #endif
 
 #define CE_INSTANCE             1
@@ -106,9 +106,12 @@
 #define PMIC_ARB_OWNER_ID       0
 
 /* As now early camera's handoff is supported, so
- * set frame limit to 2400 frames incase of no gpio
+ * set frame limit to (early_rvc_timeout x 30) frames
+ * incase of no gpio is enabled.
  */
-#define EARLYCAM_NO_GPIO_FRAME_LIMIT 2400
+extern uint32_t early_rvc_timeout;
+extern uint32_t early_rvc_gpio;
+#define EARLYCAM_NO_GPIO_FRAME_LIMIT (early_rvc_timeout * 30)
 
 static int early_camera_enabled = 1;
 static int early_audio_enabled = 1;
@@ -173,11 +176,11 @@ unsigned int OPENSSL_armcap_P = ARMV8_SHA256;
 #if EARLYDOMAIN_SUPPORT
 static struct early_domain_header *early_domain_header;
 void *service_shm_address[NUM_SERVICES] =
-	{
+{
 	EARLY_DISPLAY_SHM_START,
 	EARLY_CAMERA_SHM_START,
 	EARLY_AUDIO_SHM_START,
-	};
+};
 
 #endif
 
@@ -249,7 +252,7 @@ void target_uninit(void)
 #if VERIFIED_BOOT || defined(SET_ROT_ONLY)
 #if VERIFIED_BOOT
 	if (target_get_vb_version() >= VB_M &&
-		is_sec_app_loaded())
+			is_sec_app_loaded())
 #endif
 	{
 		if (send_milestone_call_to_tz() < 0)
@@ -349,7 +352,7 @@ uint32_t target_is_pwrkey_pon_reason()
 	{
 		/* DC charger is present or USB charger is present */
 		if (((USBIN_UV_RT_STS | USBIN_OV_RT_STS) & pm8x41_reg_read(SMBCHG_USB_RT_STS)) == 0 ||
-			((DCIN_UV_RT_STS | DCIN_OV_RT_STS) & pm8x41_reg_read(SMBCHG_DC_RT_STS)) == 0)
+				((DCIN_UV_RT_STS | DCIN_OV_RT_STS) & pm8x41_reg_read(SMBCHG_DC_RT_STS)) == 0)
 			return 0;
 		else
 			return 1;
@@ -416,18 +419,18 @@ void *get_target_early_domain_shm_start()
 #if ENABLE_EARLY_ETHERNET
 void toggle_neutrino(void) {
 	struct pm8x41_gpio gpio = {
-                .direction = PM_GPIO_DIR_OUT,
-                .function = PM_GPIO_FUNC_HIGH,
-                .vin_sel = 2,   /* VIN_2 */
-                .output_buffer = PM_GPIO_OUT_CMOS,
-                .out_strength = PM_GPIO_OUT_DRIVE_LOW,
-    };
+		.direction = PM_GPIO_DIR_OUT,
+		.function = PM_GPIO_FUNC_HIGH,
+		.vin_sel = 2,   /* VIN_2 */
+		.output_buffer = PM_GPIO_OUT_CMOS,
+		.out_strength = PM_GPIO_OUT_DRIVE_LOW,
+	};
 
-    gpio_tlmm_config(69, 0, GPIO_OUTPUT, GPIO_PULL_DOWN,
-                        GPIO_8MA,GPIO_DISABLE );
-    gpio_set(69, 0);
+	gpio_tlmm_config(69, 0, GPIO_OUTPUT, GPIO_PULL_DOWN,
+			GPIO_8MA,GPIO_DISABLE );
+	gpio_set(69, 0);
 
-    pm8x41_gpio_config(13, &gpio);
+	pm8x41_gpio_config(13, &gpio);
 	pm8x41_gpio_set(13, 1);
 	mdelay(10);
 	pm8x41_gpio_set(13, 0);
@@ -605,7 +608,7 @@ int target_animated_splash_screen()
 
 void target_force_cont_splash_disable(uint8_t override)
 {
-        splash_override = override;
+	splash_override = override;
 }
 
 /* Detect the modem type */
@@ -627,7 +630,7 @@ void target_baseband_detect(struct board_data *board)
 	else if (platform_hardware == HW_PLATFORM_MTP)
 	{
 		if (platform_subtype == FUSION_I2S_MTP ||
-			platform_subtype == FUSION_SLIMBUS)
+				platform_subtype == FUSION_SLIMBUS)
 			board->baseband = BASEBAND_MDM;
 	}
 	/*
@@ -781,10 +784,10 @@ unsigned target_pause_for_battery_charge(void)
 		dprintf(INFO, "%s : pon_reason is %d cold_boot:%d charger path: %d\n", __func__,
 			pon_reason, is_cold_boot, charger_path);
 		/* In case of fastboot reboot,adb reboot or if we see the power key
-		* pressed we do not want go into charger mode.
-		* fastboot reboot is warm boot with PON hard reset bit not set
-		* adb reboot is a cold boot with PON hard reset bit set
-		*/
+		 * pressed we do not want go into charger mode.
+		 * fastboot reboot is warm boot with PON hard reset bit not set
+		 * adb reboot is a cold boot with PON hard reset bit set
+		 */
 		pm_smbchg_get_charger_path(1, &charger_path);
 		if (is_cold_boot &&
 				(!(pon_reason & HARD_RST)) &&
@@ -961,65 +964,65 @@ void clear_early_domain_status()
 /* calls psci to turn on the secondary core */
 void enable_secondary_core()
 {
-    cpu_on_ep = &cpu_on_asm;
+	cpu_on_ep = &cpu_on_asm;
 
-    if (psci_cpu_on(platform_get_secondary_cpu_num(), (paddr_t)cpu_on_ep))
-    {
-        dprintf(CRITICAL, "Failed to turn on secondary CPU: %x\n", platform_get_secondary_cpu_num());
-    }
-    dprintf (INFO, "LK continue on cpu0\n");
+	if (psci_cpu_on(platform_get_secondary_cpu_num(), (paddr_t)cpu_on_ep))
+	{
+		dprintf(CRITICAL, "Failed to turn on secondary CPU: %x\n", platform_get_secondary_cpu_num());
+	}
+	dprintf (INFO, "LK continue on cpu0\n");
 }
 
 /* handles the early domain */
 void earlydomain()
 {
-    /* Initialize the early domain header in early_domain
-     * shared memory betweek LK & kernel
-     */
-    earlydomain_init();
+	/* Initialize the early domain header in early_domain
+	 * shared memory betweek LK & kernel
+	 */
+	earlydomain_init();
 
-    /* run all early domain services */
-    earlydomain_services();
+	/* run all early domain services */
+	earlydomain_services();
 
-    /* cleanup and exit early domain services*/
-    earlydomain_exit();
+	/* cleanup and exit early domain services*/
+	earlydomain_exit();
 }
 
 /* early domain initialization */
 void earlydomain_init()
 {
-   /* Initialize the early domain header in early domain shared memory betweek LK & kernel */
-   early_domain_header = get_target_early_domain_shm_start();
-   memset(early_domain_header,0,sizeof(struct early_domain_header));
-   memcpy(early_domain_header->magic,EARLY_DOMAIN_MAGIC,MAGIC_SIZE);
-   early_domain_header->cpumask = BIT(SECONDARY_CPU);
-   set_early_service_active_bit(EARLY_DOMAIN_CORE);
-   dprintf(SPEW, "early domain header in early_domain_shared page initialized");
+	/* Initialize the early domain header in early domain shared memory betweek LK & kernel */
+	early_domain_header = get_target_early_domain_shm_start();
+	memset(early_domain_header,0,sizeof(struct early_domain_header));
+	memcpy(early_domain_header->magic,EARLY_DOMAIN_MAGIC,MAGIC_SIZE);
+	early_domain_header->cpumask = BIT(SECONDARY_CPU);
+	set_early_service_active_bit(EARLY_DOMAIN_CORE);
+	dprintf(SPEW, "early domain header in early_domain_shared page initialized");
 }
 
 /* early domain cleanup and exit */
 void earlydomain_exit()
 {
- /* By this time it is expected all early services which were active
-  * have ended and they have cleared their active bit.
-  */
-    clear_early_service_active_bit(EARLY_DOMAIN_CORE);
-    if (early_domain_header->status)
-	dprintf(CRITICAL,"Early domain status is not clear: 0x%llx\n",early_domain_header->status);
-    isb();
+	/* By this time it is expected all early services which were active
+	 * have ended and they have cleared their active bit.
+	 */
+	clear_early_service_active_bit(EARLY_DOMAIN_CORE);
+	if (early_domain_header->status)
+		dprintf(CRITICAL,"Early domain status is not clear: 0x%llx\n",early_domain_header->status);
+	isb();
 
-    /* clean-up */
-    arch_disable_cache(UCACHE);
+	/* clean-up */
+	arch_disable_cache(UCACHE);
 
-    arch_disable_mmu();
+	arch_disable_mmu();
 
-    dsb();
-    isb();
+	dsb();
+	isb();
 
-    arch_disable_ints();
+	arch_disable_ints();
 
-    /* turn off secondary cpu */
-    psci_cpu_off();
+	/* turn off secondary cpu */
+	psci_cpu_off();
 }
 
 enum compression_type {
@@ -1086,7 +1089,7 @@ int animated_splash_screen_mmc()
 	}
 
 	total_frame_num = SPLASH_BUFFER_SIZE /
-			(fb_display->width * fb_display->height * (fb_display->bpp/8));
+		(fb_display->width * fb_display->height * (fb_display->bpp/8));
 
 	// dynamical allocaton for img header structure based on blocksize
 	img_header = (animated_img_header *)malloc(MAX_NUM_DISPLAY * (blocksize * sizeof(uint8_t)));
@@ -1114,7 +1117,7 @@ int animated_splash_screen_mmc()
 		memcpy(header, (animated_img_header *)head, blocksize);
 		if (memcmp(header->magic, LOGO_IMG_MAGIC, 8)) {
 			dprintf(CRITICAL, "Invalid magic number in header %s %d\n",
-				header->magic, header->height);
+					header->magic, header->height);
 			ret = -1;
 			goto end;
 		}
@@ -1144,19 +1147,19 @@ int animated_splash_screen_mmc()
 			goto end;
 		} else {
 			if ((header->width > fb_display->width) ||
-				(header->height > fb_display->height)) {
+					(header->height > fb_display->height)) {
 				dprintf(CRITICAL, "Logo config greater than fb config. header->width %u"
-					" fb->width = %u header->height = %u fb->height = %u\n",
-					header->width, fb_display->width, header->height, fb_display->height);
+						" fb->width = %u header->height = %u fb->height = %u\n",
+						header->width, fb_display->width, header->height, fb_display->height);
 				ret = -1;
 				goto end;
 			}
 			dprintf(INFO, "width:%d height:%d blocks:%d imgsize:%d num_frames:%d\n", header->width,
-			header->height, header->blocks, header->img_size,header->num_frames);
+					header->height, header->blocks, header->img_size,header->num_frames);
 
 			if ((INT_MAX < (header->blocks * blocksize + blocksize)) ||
-				((total_frame_num * fb_display->width * fb_display->height * (fb_display->bpp/8))
-									<= header->blocks * blocksize)) {
+					((total_frame_num * fb_display->width * fb_display->height * (fb_display->bpp/8))
+					 <= header->blocks * blocksize)) {
 				dprintf(CRITICAL, "block number causes overflow\n");
 				ret = -1;
 				goto end;
@@ -1170,7 +1173,7 @@ int animated_splash_screen_mmc()
 
 			//Before buffer reading, need some checks to ensure no overflow occurs.
 			if (((uint8_t *)buffer < (uint8_t *)ANIMATED_SPLASH_BUFFER) ||
-				((uint8_t *)buffer > (uint8_t *)ANIMATED_SPLASH_BUFFER + SPLASH_BUFFER_SIZE)) {
+					((uint8_t *)buffer > (uint8_t *)ANIMATED_SPLASH_BUFFER + SPLASH_BUFFER_SIZE)) {
 				dprintf(CRITICAL, "buffer address not valid\n");
 				ret = -1;
 				goto end;
@@ -1211,21 +1214,11 @@ end:
 	return ret;
 }
 
-#if EARLYCAMERA_NO_GPIO
-
-inline bool get_reverse_camera_gpio() {
-	return TRUE;
-}
-
-#else
-
 inline bool get_reverse_camera_gpio() {
 	/* if gpio == 1, it is ON
 	   if gpio == 0, it is OFF */
-	return (1 == gpio_get(103));
+	return (1 == gpio_get(early_rvc_gpio));
 }
-
-#endif
 
 /* checks if GPIO or equivalent trigger to enable early camera is set to ON
    If this function retuns FALSE, only animated splash may be shown.
@@ -1234,7 +1227,7 @@ bool is_reverse_camera_on() {
 	uint32_t trigger_reg = 0;
 	trigger_reg = readl_relaxed((void *)MDSS_SCRATCH_REG_2);
 	if ((FALSE == get_reverse_camera_gpio()) ||
-		(0xF5F5F5F5 == trigger_reg))
+			(0xF5F5F5F5 == trigger_reg))
 		return FALSE; /* trigger to exit */
 	else
 		return TRUE;
@@ -1246,7 +1239,7 @@ int animated_splash() {
 	uint32_t frame_cnt[MAX_NUM_DISPLAY];
 	struct target_display_update update[MAX_NUM_DISPLAY];
 	struct target_layer layer_list[MAX_NUM_DISPLAY];
-        struct target_display * disp;
+	struct target_display * disp;
 	struct fbcon_config *fb;
 	uint32_t sleep_time = 0;
 	uint32_t disp_cnt = target_display_init_count();
@@ -1257,9 +1250,7 @@ int animated_splash() {
 	int camera_error_count = 0;
 	int camera_status = 0;
 	bool request_shutdown = false;
-#if EARLYCAMERA_NO_GPIO
 	uint32_t frame_count = 0;
-#endif
 	int32_t *scratch_pad = NULL;
 	uint32_t rvc_display_id = MAX_NUM_DISPLAY;
 	uint32_t shared_display_id = MAX_NUM_DISPLAY;
@@ -1330,6 +1321,13 @@ int animated_splash() {
 			shared_display_id = j;
 		fb_index = 0;
 	}
+
+	gpio_set(early_rvc_gpio, 0x0);
+	gpio_tlmm_config(early_rvc_gpio, 0, GPIO_INPUT, GPIO_NO_PULL,
+		GPIO_2MA, GPIO_ENABLE);
+	dprintf(CRITICAL, "gpio_tlmm_config_read(early_rvc_gpio) = %d\n", gpio_tlmm_config_read(early_rvc_gpio));
+
+
 
 	/* main animation loop */
 	while (1) {
@@ -1443,8 +1441,10 @@ int animated_splash() {
 				camera_error_count = 0;
 			}
 			if(camera_error_count > MAX_CAM_ERROR_EXIT) {
-				//Force an early exit for early camera.
-				frame_count = EARLYCAM_NO_GPIO_FRAME_LIMIT +1;
+				if(EARLYCAM_NO_GPIO_FRAME_LIMIT) {
+					//Force an early exit for early camera
+					frame_count = EARLYCAM_NO_GPIO_FRAME_LIMIT +1;
+				}
 				early_camera_stop(&layer_list[rvc_display_id]);
 				early_camera_enabled = 0;
 				layer_ptr = target_display_acquire_layer(
@@ -1458,10 +1458,9 @@ int animated_splash() {
 			mdelay_optimal(sleep_time);
 		}
 		k++;
-#if EARLYCAMERA_NO_GPIO
 		if (early_camera_enabled) {
 			if ((get_early_service_shutdown_request(EARLY_CAMERA)) ||
-			    (EARLYCAM_NO_GPIO_FRAME_LIMIT < frame_count)) {
+			    (EARLYCAM_NO_GPIO_FRAME_LIMIT < frame_count && EARLYCAM_NO_GPIO_FRAME_LIMIT > 0)) {
 				if (early_camera_enabled) {
 					early_camera_stop(&layer_list[rvc_display_id]);
 					early_camera_enabled = 0;
@@ -1476,7 +1475,6 @@ int animated_splash() {
 			}
 			frame_count++;
 		}
-#endif
 		if ((early_camera_enabled == 1) && (FALSE == camera_on) &&
 		    (get_early_service_shutdown_request(EARLY_CAMERA)))
 		{
