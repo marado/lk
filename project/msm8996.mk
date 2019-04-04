@@ -63,8 +63,10 @@ ENABLE_RPMB_SUPPORT := 1
 endif
 
 ifeq ($(VERIFIED_BOOT_2),1)
-#enable fbcon display menu
+ifneq ($(TARGET_BOARD_TYPE_AUTO),1)
+#enable fbcon display menu for mobile. For Auto default expected is 0 as there are no displays connected by default
 ENABLE_FBCON_DISPLAY_MSG := 1
+endif
 ENABLE_RPMB_SUPPORT := 1
 endif
 
