@@ -831,8 +831,6 @@ int check_aboot_addr_range_overlap(uintptr_t start, uint32_t size)
 		return -1;
 }
 
-#define ROUND_TO_PAGE(x,y) (((x) + (y)) & (~(y)))
-
 /* Function to check if the memory address range falls beyond ddr region.
  * start: Start of the memory region
  * size: Size of the memory region
