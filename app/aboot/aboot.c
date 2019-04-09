@@ -282,7 +282,7 @@ static uint32_t recovery_dtbo_size = 0;
 
 /* Assuming unauthorized kernel image by default */
 static int auth_kernel_img = 0;
-static device_info device = {DEVICE_MAGIC,0,0,0,0,0,{0},{0},{0},1,0,"none",0,"none",0,{0},0,{0},0,0,{0}};
+static device_info device = {DEVICE_MAGIC,0,0,0,0,0,{0},{0},{0},1,0,"none",0,"none",0,{0},0,{0},0,0,{0},0,0,{0}};
 static char *vbcmdline;
 
 static bool is_allow_unlock = 0;
@@ -4638,6 +4638,7 @@ void cmd_oem_enable_early_camera(const char *arg, void *data, unsigned size)
 	}
 
 	device.early_camera_enabled = 1;
+	strlcpy(device.camera_type, "digital", sizeof(device.camera_type));
 	write_device_info(&device);
 	fastboot_okay("");
 }
@@ -4686,6 +4687,49 @@ void cmd_oem_disable_shared_display(const char *arg, void *data, unsigned size)
 	fastboot_okay("");
 }
 
+void cmd_oem_rvc_timeout(const char *arg, void *data, unsigned size)
+{
+       char *token = NULL;
+       token = strtok((char *)arg, " ");
+       device.rvc_timeout = (uint32_t)atoul(token);
+       dprintf(CRITICAL, "Setting RVC Timeout Value to : %u\n",device.rvc_timeout);
+       device.rvc_gpio = MAX_GPIO_COUNT; // Reset Tlmm GPIO Invalid value.
+       write_device_info(&device);
+       fastboot_okay("");
+}
+
+void cmd_oem_rvc_gpio(const char *arg, void *data, unsigned size)
+{
+       char *token = NULL;
+       int gpio_num = 0;
+       token = strtok((char *)arg, " ");
+       gpio_num = (int)atoul(token);
+
+       if( gpio_num >= 0 && gpio_num < MAX_GPIO_COUNT) {
+               device.rvc_gpio = gpio_num;
+               device.rvc_timeout = 0; // Reset time out value to Zero.
+       } else {
+               fastboot_fail("Enter a Valid TLMM GPIO Value for this SOC");
+       }
+
+       device.rvc_timeout = 0; // Reset time out value to Zero.
+       dprintf(CRITICAL, "Setting RVC Gpio Value to : %d\n",device.rvc_gpio);
+       write_device_info(&device);
+       fastboot_okay("");
+}
+
+void cmd_oem_select_camera_type(const char *arg, void *data, unsigned size)
+{
+       char *token = NULL;
+       token = strtok((char *)arg, " ");
+       dprintf(INFO, "Selecting camera type %s\n", token);
+       if (token)
+               strlcpy(device.camera_type, token,
+                       sizeof(device.camera_type));
+       write_device_info(&device);
+       fastboot_okay("");
+}
+
 #else
 void cmd_oem_enable_early_domain(const char *arg, void *data, unsigned size)
 {
@@ -4716,6 +4760,18 @@ void cmd_oem_enable_shared_display(const char *arg, void *data, unsigned size)
 }
 
 void cmd_oem_disable_shared_display(const char *arg, void *data, unsigned size)
+{
+}
+
+void cmd_oem_rvc_timeout(const char *arg, void *data, unsigned size)
+{
+}
+
+void cmd_oem_rvc_gpio(const char *arg, void *data, unsigned size)
+{
+}
+
+void cmd_oem_select_camera_type(const char *arg, void *data, unsigned size)
 {
 }
 
@@ -5242,6 +5298,9 @@ void aboot_fastboot_register_commands(void)
 						{"oem off-mode-charge", cmd_oem_off_mode_charger},
 						{"oem select-display-panel", cmd_oem_select_display_panel},
 						{"set_active",cmd_set_active},
+						{"oem rvc-timeout", cmd_oem_rvc_timeout},
+						{"oem rvc-gpio", cmd_oem_rvc_gpio},
+						{"oem select-camera-type", cmd_oem_select_camera_type},
 #if HIBERNATION_SUPPORT
 						{"oem hibernation", cmd_oem_hibernation},
 #endif
@@ -5375,8 +5434,8 @@ void aboot_init(const struct app_descriptor *app)
 		bs_set_timestamp(BS_EARLY_DOMAIN_START);
 		update_early_domain_dt = true;
 		if (device.early_camera_enabled) {
-			set_early_camera_enabled(TRUE);
-			target_early_camera_init();
+			set_early_camera_enabled(TRUE, device.rvc_timeout, device.rvc_gpio);
+			target_early_camera_init(device.camera_type);
 		}
 		if (device.early_audio_enabled) {
 			set_early_audio_enabled(TRUE);
