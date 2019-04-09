@@ -58,7 +58,7 @@ struct i2c_config_data {
 int get_cam_data(int csi, struct i2c_config_data **cam_data);
 int early_camera_init(void);
 void target_early_camera_init(const char *camera_type);
-int early_camera_flip(void *cam_layer);
+int early_camera_flip(void *cam_layer, bool mode_change);
 int early_camera_on(void);
 
 void early_camera_stop(void *cam_layer);

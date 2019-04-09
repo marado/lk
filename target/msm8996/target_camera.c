@@ -98,7 +98,6 @@ enum camera_type {
 
 enum camera_type cam_type;
 
-int early_cam_on = 1;
 uint32 frame_counter = 0;
 uint32_t read_val = 0;
 int ping = 0;
@@ -2074,16 +2073,20 @@ int early_camera_check_rev(unsigned int *pExpected_rev_id, unsigned int num_id, 
 	return -1;
 }
 
-static void early_camera_setup_layer(int display_id, struct target_layer *cam_layer)
+static void early_camera_setup_layer(int display_id,
+						struct target_layer *cam_layer)
 {
 	uint32_t rvc_display_id = 0;
 	uint32_t fb_index = SPLIT_DISPLAY_0;
 
-	cam_layer->layer = target_display_acquire_layer(disp_ptr, "as", kFormatYCbCr422H2V1Packed);
 	if (!cam_layer->layer) {
-		dprintf(CRITICAL, "Camera Layer acquire failed\n");
-		cam_layer->layer = NULL;
-		return;
+		cam_layer->layer = target_display_acquire_layer(disp_ptr,
+							"as", kFormatYCbCr422H2V1Packed);
+		if (!cam_layer->layer) {
+			dprintf(CRITICAL, "Camera Layer acquire failed\n");
+			cam_layer->layer = NULL;
+			return;
+		}
 	}
 
 	/* RVC FB usually uses FB0 */
@@ -2555,7 +2558,7 @@ void early_camera_clear_buffers(void)
 	memset((void *)VFE_PONG_ADDR, EARLY_CAMERA_FILL_PATTERN, raw_size);
 }
 
-int early_camera_flip(void *cam_layer)
+int early_camera_flip(void *cam_layer, bool mode_change)
 {
 	static int buffer_cleared = 0;
 	uint32_t rvc_display_id;
@@ -2665,53 +2668,47 @@ int early_camera_flip(void *cam_layer)
 	rvc_display_id = target_display_get_rvc_display_id();
 
 	frame_counter++;
-	if(early_cam_on == 1) {
-		if (gpio_triggered) {
-			if(toggle ==0) {
-				toggle = 1;
-				early_camera_setup_layer(rvc_display_id, camera_layer);
-			}
+	if (gpio_triggered) {
+		if(mode_change)
+			early_camera_setup_layer(rvc_display_id, camera_layer);
 
-			if (camera_layer->fb) {
-				if (cam_type == ANALOG) {
-					if (ping)
-						camera_layer->fb[SPLIT_DISPLAY_0].base =
-							(void *)(VFE_PING_ADDR+CVBS_HEADER_SIZE);
-					else
-						camera_layer->fb[SPLIT_DISPLAY_0].base =
-							(void *)(VFE_PONG_ADDR+CVBS_HEADER_SIZE);
-
-				} else if (cam_type == DIGITAL) {
-					if (ping)
-						camera_layer->fb[SPLIT_DISPLAY_0].base = (void *)VFE_PING_ADDR;
-					else
-						camera_layer->fb[SPLIT_DISPLAY_0].base = (void *)VFE_PONG_ADDR;
-				}
-
-				if (firstframe)
-					target_display_update(&update_cam, 1, rvc_display_id);
+		if (camera_layer->fb) {
+			if (cam_type == ANALOG) {
+				if (ping)
+					camera_layer->fb[SPLIT_DISPLAY_0].base =
+						(void *)(VFE_PING_ADDR+CVBS_HEADER_SIZE);
 				else
-					target_display_update_pipe(&update_cam, 1, rvc_display_id);
-			}
-		} else {
-			if(toggle ==1) {
-				camera_layer->z_order[SPLIT_DISPLAY_0] = SPLASH_SPLIT_0_LAYER_ZORDER;
-				early_camera_remove_layer(camera_layer);
-				camera_layer->layer = NULL;
-				toggle = 0;
-				firstframe = true;
+					camera_layer->fb[SPLIT_DISPLAY_0].base =
+						(void *)(VFE_PONG_ADDR+CVBS_HEADER_SIZE);
+
+			} else if (cam_type == DIGITAL) {
+				if (ping)
+					camera_layer->fb[SPLIT_DISPLAY_0].base = (void *)VFE_PING_ADDR;
+				else
+					camera_layer->fb[SPLIT_DISPLAY_0].base = (void *)VFE_PONG_ADDR;
 			}
 		}
-		if (firstframe == true) {
-			cam_place_kpi_marker("Camera display post done");
-			firstframe = false;
-		}
+
+		if (mode_change)
+			target_display_update(&update_cam, 1, rvc_display_id);
+		else
+			target_display_update_pipe(&update_cam, 1, rvc_display_id);
+	} else {
+		camera_layer->z_order[SPLIT_DISPLAY_0] = SPLASH_SPLIT_0_LAYER_ZORDER;
+		early_camera_remove_layer(camera_layer);
+		camera_layer->layer = NULL;
+		firstframe = true;
+	}
+
+	if (firstframe == true) {
+		cam_place_kpi_marker("Camera display post done");
+		firstframe = false;
 	}
 
 	return 0;
 
-	ERROR:
-		return -1;
+ERROR:
+	return -1;
 }
 
 int early_camera_init(void)
