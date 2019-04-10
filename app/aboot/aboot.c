@@ -655,7 +655,7 @@ unsigned char *update_cmdline(const char * cmdline)
 	}
 	else
 	{
-		strlcpy((char*)device.boot_memory,DEFAULT_MEMORY,strlen(DEFAULT_MEMORY));
+		strlcpy((char*)device.boot_memory,DEFAULT_MEMORY,strlen(DEFAULT_MEMORY)+1);
 		memarg_length = strlen(DEFAULT_MEMORY);
 		cmdline_len += strlen(mem_arg);
 	        cmdline_len += memarg_length;
