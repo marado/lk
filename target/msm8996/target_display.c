@@ -1322,8 +1322,8 @@ int target_display_update(struct target_display_update *update, uint32_t size, u
 	struct Scale left_scale_setting;
 	struct Scale right_scale_setting;
 	struct LayerInfo layer;
-#endif
 	uint32_t fb_index = SPLIT_DISPLAY_0;
+#endif
 
 	if (update == NULL) {
 		dprintf(CRITICAL, "Error: Invalid argument\n");
