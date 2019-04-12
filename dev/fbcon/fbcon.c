@@ -36,6 +36,7 @@
 #include <platform.h>
 #include <string.h>
 #include <arch/ops.h>
+#include <smem.h>
 #if ENABLE_WBC
 #include <pm_app_smbchg.h>
 #endif
@@ -64,15 +65,15 @@ static struct fbcon_config *config = NULL;
 #define RGB565_RED		0xf800
 #define RGB565_GREEN		0x3666
 
-#define RGB888_BLACK            0x000000
-#define RGB888_WHITE            0xffffff
-#define RGB888_CYAN             0x00ffff
-#define RGB888_BLUE             0x0000FF
-#define RGB888_SILVER           0xc0c0c0
-#define RGB888_YELLOW           0xffff00
-#define RGB888_ORANGE           0xffa500
-#define RGB888_RED              0xff0000
-#define RGB888_GREEN            0x00ff00
+#define RGB888_BLACK	    0x000000
+#define RGB888_WHITE	    0xffffff
+#define RGB888_CYAN	     0x00ffff
+#define RGB888_BLUE	     0x0000FF
+#define RGB888_SILVER	   0xc0c0c0
+#define RGB888_YELLOW	   0xffff00
+#define RGB888_ORANGE	   0xffa500
+#define RGB888_RED	      0xff0000
+#define RGB888_GREEN	    0x00ff00
 
 #define FONT_WIDTH		5
 #define FONT_HEIGHT		12
@@ -390,9 +391,9 @@ void fbcon_setup(struct fbcon_config *_config)
 	case FB_FORMAT_RGB565:
 		fb_color_formats = fb_color_formats_555;
 		break;
-        case FB_FORMAT_RGB888:
+	case FB_FORMAT_RGB888:
 		fb_color_formats = fb_color_formats_888;
-                break;
+		break;
 	default:
 		dprintf(CRITICAL, "unknown framebuffer pixel format\n");
 		ASSERT(0);
@@ -490,6 +491,19 @@ void display_default_image_on_screen(void)
 #if DISPLAY_TYPE_MIPI
 	char *image = NULL;
 #endif
+	uint32_t hw_id = board_hardware_id();
+	uint32_t hw_subtype = board_hardware_subtype();
+	uint32_t splash_image_height;
+	uint32_t splash_image_width;
+
+	if ((HW_PLATFORM_SUBTYPE_LR3001 == hw_subtype) &&
+			(HW_PLATFORM_MTP == hw_id)) {
+		splash_image_height = SPLASH_IMAGE_HEIGHT_FP;
+		splash_image_width = SPLASH_IMAGE_WIDTH_FP;
+	} else {
+		splash_image_height = SPLASH_IMAGE_HEIGHT;
+		splash_image_width = SPLASH_IMAGE_WIDTH;
+	}
 
 	if (!config) {
 		dprintf(CRITICAL,"NULL configuration, image cannot be displayed\n");
@@ -501,8 +515,8 @@ void display_default_image_on_screen(void)
 	total_x = config->width;
 	total_y = config->height;
 	bytes_per_bpp = ((config->bpp) / 8);
-	image_base = ((((total_y/2) - (SPLASH_IMAGE_HEIGHT / 2) - 1) *
-			(config->width)) + (total_x/2 - (SPLASH_IMAGE_WIDTH / 2)));
+	image_base = ((((total_y/2) - (splash_image_height / 2) - 1) *
+		(config->width)) + (total_x/2 - (splash_image_width / 2)));
 
 #if DISPLAY_TYPE_MIPI
 #if ENABLE_WBC
@@ -510,12 +524,27 @@ void display_default_image_on_screen(void)
 #else
 	image = imageBuffer_rgb888;
 #endif
-
-	if (bytes_per_bpp == 3) {
-		for (i = 0; i < SPLASH_IMAGE_HEIGHT; i++) {
-			memcpy (config->base + ((image_base + (i * (config->width))) * bytes_per_bpp),
-			image + (i * SPLASH_IMAGE_WIDTH * bytes_per_bpp),
-			SPLASH_IMAGE_WIDTH * bytes_per_bpp);
+	if ((HW_PLATFORM_SUBTYPE_LR3001 == hw_subtype) &&
+			(HW_PLATFORM_MTP == hw_id)) {
+		image = imageBuffer_FP;
+		if (bytes_per_bpp == 3 || bytes_per_bpp == 2) {
+			for (i = 0; i < splash_image_height ; i++) {
+				memcpy(config->base + ((image_base +
+				(i * (config->width))) * bytes_per_bpp),
+				image +
+				(i * splash_image_width * bytes_per_bpp),
+				splash_image_width * bytes_per_bpp);
+			}
+		}
+	} else {
+		if (bytes_per_bpp == 3) {
+			for (i = 0; i < splash_image_height; i++) {
+				memcpy(config->base + ((image_base +
+				(i * (config->width))) * bytes_per_bpp),
+				image +
+				(i * splash_image_width * bytes_per_bpp),
+				splash_image_width * bytes_per_bpp);
+			}
 		}
 	}
 	fbcon_flush();
@@ -527,10 +556,10 @@ void display_default_image_on_screen(void)
 #else
 
 	if (bytes_per_bpp == 2) {
-		for (i = 0; i < SPLASH_IMAGE_HEIGHT; i++) {
+		for (i = 0; i < splash_image_height; i++) {
 			memcpy (config->base + ((image_base + (i * (config->width))) * bytes_per_bpp),
-			imageBuffer + (i * SPLASH_IMAGE_WIDTH * bytes_per_bpp),
-			SPLASH_IMAGE_WIDTH * bytes_per_bpp);
+			imageBuffer + (i * splash_image_width * bytes_per_bpp),
+			splash_image_width * bytes_per_bpp);
 		}
 	}
 	fbcon_flush();
@@ -540,14 +569,21 @@ void display_default_image_on_screen(void)
 
 void display_image_on_screen(void)
 {
+	uint32_t hw_id = board_hardware_id();
+	uint32_t hw_subtype = board_hardware_subtype();
 #if DISPLAY_TYPE_MIPI
 	int fetch_image_from_partition();
 
-	if (fetch_image_from_partition() < 0) {
+	if ((HW_PLATFORM_SUBTYPE_LR3001 == hw_subtype) &&
+			(HW_PLATFORM_MTP == hw_id)) {
 		display_default_image_on_screen();
 	} else {
-		/* data has been put into the right place */
-		fbcon_flush();
+		if (fetch_image_from_partition() < 0) {
+			display_default_image_on_screen();
+		} else {
+			/* data has been put into the right place */
+			fbcon_flush();
+		}
 	}
 #else
 	display_default_image_on_screen();
