@@ -432,7 +432,7 @@ msm_display_update_out:
 }
 
 
-int msm_display_remove_pipe(uint32_t pipe_id, uint32_t pipe_type, uint32_t disp_id)
+int msm_display_hide_pipe(uint32_t pipe_id, uint32_t pipe_type, uint32_t disp_id)
 {
 	struct msm_panel_info *pinfo;
 	struct msm_fb_panel_data *panel_local;
@@ -443,9 +443,9 @@ int msm_display_remove_pipe(uint32_t pipe_id, uint32_t pipe_type, uint32_t disp_
 	pinfo->pipe_type = pipe_type;
 	pinfo->pipe_id = pipe_id;
 
-	ret = mdss_layer_mixer_remove_pipe(pinfo);
+	ret = mdss_layer_mixer_hide_pipe(pinfo, panel_local->fb);
 	if (ret) {
-		dprintf(CRITICAL, "Error in mdss_layer_mixer_remove_pipe\n");
+		dprintf(CRITICAL, "Error in mdss_layer_mixer_hide_pipe\n");
 		return ret;
 	} else {
 		if (pinfo->type == MIPI_VIDEO_PANEL)
