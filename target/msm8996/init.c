@@ -1,4 +1,4 @@
-/* Copyright (c) 2014-2016, 2018, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2014-2016, 2018-2019, The Linux Foundation. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -1243,7 +1243,6 @@ int animated_splash() {
 			if (j == 0 && early_camera_enabled == 1) {
 				if (early_camera_on()) {
 					if(layer_list[j].layer) {
-						target_release_layer(&layer_list[j]);
 						firstframe[j] = true; // reset firstframe for the RVC display
 						layer_list[j].layer = NULL;
 					}

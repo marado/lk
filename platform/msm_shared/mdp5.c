@@ -177,6 +177,108 @@ void mdp_clk_gating_ctrl(void)
 	writel(0x40000000, MDP_CLK_CTRL4);
 }
 
+static void mdp_rm_stage_offset(uint32_t stage, uint32_t *blend_off, uint32_t *blend_fg_alpha_off)
+{
+	uint32_t blend_offset = 0, blend_fg_alpha_offset = 0;
+
+	/* border layer is the bottom layer, so for normal layers, stage value should start from 2 */
+	switch (stage) {
+	case MDP_STAGE_1:
+		blend_offset = LAYER_0_BLEND_OP;
+		blend_fg_alpha_offset = LAYER_0_BLEND0_FG_ALPHA;
+		break;
+	case MDP_STAGE_2:
+		blend_offset = LAYER_1_BLEND_OP;
+		blend_fg_alpha_offset = LAYER_1_BLEND0_FG_ALPHA;
+		break;
+	case MDP_STAGE_3:
+		blend_offset = LAYER_2_BLEND_OP;
+		blend_fg_alpha_offset = LAYER_2_BLEND0_FG_ALPHA;
+		break;
+	case MDP_STAGE_4:
+		blend_offset = LAYER_3_BLEND_OP;
+		blend_fg_alpha_offset = LAYER_3_BLEND0_FG_ALPHA;
+		break;
+	case MDP_STAGE_5:
+		blend_offset = LAYER_4_BLEND_OP;
+		blend_fg_alpha_offset = LAYER_4_BLEND0_FG_ALPHA;
+		break;
+	case MDP_STAGE_6:
+		blend_offset = LAYER_5_BLEND_OP;
+		blend_fg_alpha_offset = LAYER_5_BLEND0_FG_ALPHA;
+		break;
+	default:
+		dprintf(CRITICAL, "%s: invalid stage\n", __func__);
+		break;
+	}
+
+	*blend_off = blend_offset;
+	*blend_fg_alpha_off = blend_fg_alpha_offset;
+}
+
+static void mdss_layer_mixer_setup_blend_config(uint32_t lm_base,
+	uint32_t stage, uint32_t pipe_type)
+{
+	uint32_t blend_offset, blend_fg_alpha_offset;
+	uint32_t blend_op = 0;
+
+	mdp_rm_stage_offset(stage, &blend_offset, &blend_fg_alpha_offset);
+
+	if (pipe_type == MDSS_MDP_PIPE_TYPE_VIG)
+		blend_op = VIG_LAYER_ALPHA_BLEND;
+	else
+		blend_op = RGB_LAYER_ALPHA_BLEND;
+
+	writel(blend_op, lm_base + blend_offset);
+	writel(0xFF, lm_base + blend_fg_alpha_offset);
+}
+
+static void mdss_mdp_set_layer_transparent(struct msm_panel_info *pinfo,
+				uint32_t pipe_base, bool yuv_pipe)
+{
+	uint32_t img_size, stride, dst_xy, width;
+
+	if (pinfo->lcdc.dual_pipe)
+		width = pinfo->xres / 2;
+	else
+		width = pinfo->xres;
+
+	img_size = (pinfo->yres << 16) | width;
+	stride = width * 4;
+	dst_xy = (pinfo->yres << 16) | width;
+
+	writel(img_size, pipe_base + PIPE_SSPP_SRC_SIZE);
+	writel(0x0, pipe_base + PIPE_SSPP_SRC_XY);
+	writel(img_size, pipe_base + PIPE_SSPP_SRC_OUT_SIZE);
+	writel(dst_xy, pipe_base + PIPE_SSPP_OUT_XY);
+	writel(stride, pipe_base + PIPE_SSPP_SRC_YSTRIDE);
+	writel(0x0, pipe_base + PIPE_SSPP_SRC_YSTRIDE + 0x4);
+	writel(0x0, pipe_base + PIPE_SSPP_SW_PIX_EXT_CO_LR);
+	writel(0x0, pipe_base + PIPE_SSPP_SW_PIX_EXT_CO_TB);
+	writel(img_size, pipe_base + PIPE_SSPP_SW_PIX_EXT_CO_REQ_PIXELS);
+	writel(0x0, pipe_base + PIPE_SSPP_SW_PIX_EXT_C1C2_LR);
+	writel(0x0, pipe_base + PIPE_SSPP_SW_PIX_EXT_C1C2_TB);
+	writel(img_size, pipe_base + PIPE_SSPP_SW_PIX_EXT_C1C2_REQ_PIXELS);
+	writel(0x0, pipe_base + PIPE_SSPP_SW_PIX_EXT_C3_LR);
+	writel(0x0, pipe_base + PIPE_SSPP_SW_PIX_EXT_C3_TB);
+	writel(img_size, pipe_base + PIPE_SSPP_SW_PIX_EXT_C3_REQ_PIXELS);
+
+	/* solid fill of transparent color */
+	if (yuv_pipe) {
+		writel(SSPP_YUV_SOLID_FILL_FORMAT, pipe_base + PIPE_SSPP_SRC_FORMAT);
+		writel(SSPP_YUV_UNPACK_PATTERN, pipe_base + PIPE_SSPP_SRC_UNPACK_PATTERN);
+		writel(0xFFFFFFFF, pipe_base + PIPE_SSPP_CONSTANT_COLOR);
+	} else {
+		writel(SSPP_RGB_SOLID_FILL_FORMAT, pipe_base + PIPE_SSPP_SRC_FORMAT);
+		writel(SSPP_RGB_UNPACK_PATTERN, pipe_base + PIPE_SSPP_SRC_UNPACK_PATTERN);
+		writel(0x0, pipe_base + PIPE_SSPP_CONSTANT_COLOR);
+	}
+
+	/* disable CSC */
+	writel(0x0, pipe_base + PIPE_SSPP_SRC_OP_MODE);
+	writel(0x0, pipe_base + PIPE_VP_0_QSEEP2_CONFIG);
+}
+
 static void mdp_select_pipe_type(struct msm_panel_info *pinfo,
 				uint32_t *left_pipe, uint32_t *right_pipe)
 {
@@ -1168,157 +1270,52 @@ static void mdss_intf_fetch_start_config(struct msm_panel_info *pinfo,
 	writel_relaxed(fetch_enable, MDP_INTF_CONFIG + intf_base);
 }
 
-int mdss_layer_mixer_remove_pipe(struct msm_panel_info *pinfo) {
-	uint32_t left_staging_level = 0;
-	uint32_t  right_staging_level = 0;
-	uint32_t left_bitmask, right_bitmask;
-	uint32_t left_ctl_base = 0;
-	uint32_t right_ctl_base = 0;
+int mdss_layer_mixer_hide_pipe(struct msm_panel_info *pinfo) {
+	uint32_t left_pipe = 0, right_pipe = 0;
+	uint32_t ctl0_reg_val = 0, ctl1_reg_val = 0;
+	uint32_t flush_register = 0, i = 0;
 
-	if (!pinfo) {
-		dprintf(CRITICAL, "Invalid input\n");
-		return ERROR;
-	}
+	mdp_select_pipe_type(pinfo, &left_pipe, &right_pipe);
 
-	left_ctl_base = display_req[pinfo->dest - 1].ctl_base[0];
-	right_ctl_base = display_req[pinfo->dest - 1].ctl_base[1];
+	mdss_mdp_set_layer_transparent(pinfo, left_pipe,
+		(pinfo->pipe_type == MDSS_MDP_PIPE_TYPE_VIG) ? true : false);
+	if (pinfo->lcdc.dual_pipe)
+		 mdss_mdp_set_layer_transparent(pinfo, right_pipe,
+		 (pinfo->pipe_type == MDSS_MDP_PIPE_TYPE_VIG) ? true : false);
 
-	switch (pinfo->dest){
-		case DISPLAY_2:
-			if (display_req[0].num_lm == 1) {  //Disp1 used 1 pipe only
-				left_staging_level = readl(left_ctl_base + CTL_LAYER_1);
-				if (pinfo->lcdc.dual_pipe) {
-					if (pinfo->lcdc.split_display)
-						right_staging_level = readl(right_ctl_base + CTL_LAYER_2);
-				else  // single ctl, dual pipe
-					right_staging_level = readl(left_ctl_base + CTL_LAYER_2);
-				}
-			} else if (display_req[0].num_lm == 2) { //Disp1 used 2 pipes
-				left_staging_level = readl(left_ctl_base + CTL_LAYER_2);
-				if (pinfo->lcdc.dual_pipe) {
-					if (pinfo->lcdc.split_display)
-						right_staging_level = readl(right_ctl_base + CTL_LAYER_5);
-				else  // single ctl, dual pipe
-					right_staging_level = readl(left_ctl_base + CTL_LAYER_5);
-				}
-			}
-			break;
-		case DISPLAY_3:
-			left_staging_level = readl(left_ctl_base + CTL_LAYER_2);
-			if (pinfo->lcdc.dual_pipe)    //no split display in Disp3
-				right_staging_level = readl(left_ctl_base + CTL_LAYER_5);
-			break;
-		case DISPLAY_1:
-		default:
-			left_staging_level = readl(left_ctl_base + CTL_LAYER_0);
-			if (pinfo->lcdc.dual_pipe) {
-				if (pinfo->lcdc.split_display)
-					right_staging_level = readl(right_ctl_base + CTL_LAYER_1);
-				else  // single ctl, dual pipe
-					right_staging_level = readl(left_ctl_base + CTL_LAYER_1);
-			}
+	mdss_mdp_set_flush_pipe(pinfo, &ctl0_reg_val, &ctl1_reg_val);
+
+	writel(ctl0_reg_val,
+		display_req[pinfo->dest - 1].ctl_base[0] + CTL_FLUSH);
+	if (display_req[pinfo->dest - 1].num_ctl == 2)
+		writel(ctl1_reg_val,
+			display_req[pinfo->dest - 1].ctl_base[1] + CTL_FLUSH);
+
+	/* wait for pipe flush done for ctrl index 0 */
+	for (i = 0; i < SSPP_FLUSH_TIMEOUT_MS; i++) {
+		flush_register =
+			readl(display_req[pinfo->dest - 1].ctl_base[0] + CTL_FLUSH);
+		if ((flush_register & ctl0_reg_val) != 0) {
+			mdelay_optimal(1);
+		} else
 			break;
 	}
 
-	switch (pinfo->pipe_type) {
-		case MDSS_MDP_PIPE_TYPE_RGB:
-			switch (pinfo->pipe_id) {
-				case 1:
-					left_bitmask = 7 << 12;
-					right_bitmask = 7 << 15;
-					break;
-				case 2:
-					left_bitmask = 7 << 15;
-					right_bitmask = 7 << 29;
-					break;
-				case 3:
-					left_bitmask = 7 << 29;
-					right_bitmask = 7 << 9;
-					break;
-				case 0:
-				default:
-					left_bitmask = 7 << 9;
-					right_bitmask = 7 << 12;
-			}
-			right_bitmask = ~right_bitmask;
-			left_bitmask = ~left_bitmask;
-			break;
-		case MDSS_MDP_PIPE_TYPE_VIG:
-			switch (pinfo->pipe_id) {
-				case 1:
-					left_bitmask = 7 << 3;
-					right_bitmask = 7 << 6;
-					break;
-				case 2:
-					left_bitmask = 7 << 6;
-					right_bitmask = 7 << 26;
-					break;
-				case 3:
-					left_bitmask = 7 << 26;
-					right_bitmask = 7 << 3;
-					break;
-				case 0:
-				default:
-					left_bitmask = 7;
-					right_bitmask = 7 << 3;
-					break;
-			}
-			right_bitmask = ~right_bitmask;
-			left_bitmask = ~left_bitmask;
-			break;
-		default:
-			right_bitmask = 0xFFFFFFFF;
-			left_bitmask = 0xFFFFFFFF;
-			break;
-	}
-	if (pinfo->lcdc.dual_pipe && pinfo->lcdc.dst_split) {
-		left_bitmask &= right_bitmask;
-		left_staging_level = left_staging_level & left_bitmask;
-		right_staging_level = right_staging_level & left_bitmask;
-	} else {
-		left_staging_level = left_staging_level & left_bitmask;
-		right_staging_level = right_staging_level & right_bitmask;
+	/* wait for pipe flush done for ctrl index 1 if there is */
+	if (display_req[pinfo->dest - 1].num_ctl == 2) {
+		for (i = 0; i < SSPP_FLUSH_TIMEOUT_MS; i++) {
+			flush_register =
+				readl(display_req[pinfo->dest - 1].ctl_base[1] + CTL_FLUSH);
+			if ((flush_register & ctl1_reg_val) != 0)
+				mdelay_optimal(1);
+			else
+				break;
+		}
 	}
 
-	if (pinfo->lcdc.dual_pipe && pinfo->lcdc.dst_split)
-		left_staging_level &= right_staging_level;
-
-	switch (pinfo->dest){
-		case DISPLAY_2:
-			if (display_req[0].num_lm == 1) {
-				writel(left_staging_level, left_ctl_base + CTL_LAYER_1);
-				if (pinfo->lcdc.dual_pipe) {
-					if (pinfo->lcdc.split_display)
-						writel(right_staging_level, right_ctl_base + CTL_LAYER_2);
-					else  // single ctl, dual pipe
-						writel(right_staging_level, left_ctl_base + CTL_LAYER_2);
-				}
-			} else if (display_req[0].num_lm == 2) { //Disp1 used 2 pipes
-				writel(left_staging_level, left_ctl_base + CTL_LAYER_2);
-				if (pinfo->lcdc.dual_pipe) {
-					if (pinfo->lcdc.split_display)
-						writel(right_staging_level, right_ctl_base + CTL_LAYER_5);
-					else  // single ctl, dual pipe
-						writel(right_staging_level, left_ctl_base + CTL_LAYER_5);
-				}
-			}
-			break;
-		case DISPLAY_3:
-			writel(left_staging_level, left_ctl_base + CTL_LAYER_2);
-			if (pinfo->lcdc.dual_pipe)
-				writel(right_staging_level, left_ctl_base + CTL_LAYER_5);
-			break;
-		case DISPLAY_1:
-		default:
-			writel(left_staging_level, left_ctl_base + CTL_LAYER_0);
-			if (pinfo->lcdc.dual_pipe) {
-				if (pinfo->lcdc.split_display)
-					writel(right_staging_level, right_ctl_base + CTL_LAYER_1);
-				else  // single ctl, dual pipe
-					writel(right_staging_level, left_ctl_base + CTL_LAYER_1);
-			}
-			break;
-	}
+	/* print one error for awareness if there is */
+	if (i == SSPP_FLUSH_TIMEOUT_MS)
+		dprintf(CRITICAL, "pipe flush may have error.\n");
 
 	return 0;
 }
@@ -1441,6 +1438,10 @@ void mdss_layer_mixer_setup(struct fbcon_config *fb, struct msm_panel_info
 			pipe_order = 1;
 			break;
 	}
+
+	mdss_layer_mixer_setup_blend_config(left_mixer_base, pipe_order, pinfo->pipe_type);
+	if (pinfo->lcdc.dual_pipe)
+		mdss_layer_mixer_setup_blend_config(right_mixer_base, pipe_order, pinfo->pipe_type);
 
 	switch (pinfo->pipe_type) {
 		case MDSS_MDP_PIPE_TYPE_RGB:

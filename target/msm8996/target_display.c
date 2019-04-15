@@ -1,4 +1,4 @@
-/* Copyright (c) 2014-2016, 2018, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2014-2016, 2018-2019, The Linux Foundation. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -127,7 +127,7 @@ extern int msm_display_update(struct fbcon_config *fb, uint32_t pipe_id,
 	uint32_t pipe_type, uint32_t zorder, uint32_t width, uint32_t height, uint32_t disp_id);
 extern int msm_display_update_pipe(struct fbcon_config *fb, uint32_t pipe_id,
 	uint32_t pipe_type, uint32_t zorder, uint32_t width, uint32_t height, uint32_t disp_id);
-extern int msm_display_remove_pipe(uint32_t pipe_id, uint32_t pipe_type, uint32_t disp_id);
+extern int msm_display_hide_pipe(uint32_t pipe_id, uint32_t pipe_type, uint32_t disp_id);
 extern struct fbcon_config* msm_display_get_fb(uint32_t disp_id);
 extern int msm_display_init_count();
 
@@ -1304,11 +1304,11 @@ int target_display_update(struct target_display_update * update, uint32_t size, 
 		// Remove Animated splash layer
 		lyr = (struct target_layer_int *)update[i].layer_list[0].layer;
 		if (lyr != NULL)
-			msm_display_remove_pipe(lyr->layer_id, lyr->layer_type, disp_id);
+			msm_display_hide_pipe(lyr->layer_id, lyr->layer_type, disp_id);
 		else
 			dprintf(CRITICAL, "No layer to remove\n");
 		// Remove static splash layer
-		msm_display_remove_pipe(0, 0, disp_id);
+		msm_display_hide_pipe(0, 0, disp_id);
 		return 1;
 	}
 
@@ -1466,7 +1466,7 @@ int target_release_layer(struct target_layer *layer)
 		cur_layer->disp = NULL;
 	}
 
-	msm_display_remove_pipe(pipe_id, pipe_type, disp_id);
+	msm_display_hide_pipe(pipe_id, pipe_type, disp_id);
 	return 0;
 }
 

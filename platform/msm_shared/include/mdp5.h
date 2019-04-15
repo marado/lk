@@ -42,6 +42,7 @@
 #define PIPE_SSPP_SRC_FORMAT                    0x30
 #define PIPE_SSPP_SRC_UNPACK_PATTERN            0x34
 #define PIPE_SSPP_SRC_OP_MODE                   0x38
+#define PIPE_SSPP_CONSTANT_COLOR                0x3c
 #define PIPE_SSPP_SW_PIX_EXT_CO_LR              0x100
 #define PIPE_SSPP_SW_PIX_EXT_CO_TB              0x104
 #define PIPE_SSPP_SW_PIX_EXT_CO_REQ_PIXELS      0x108
@@ -295,6 +296,28 @@
 #define DSI1_INT_CTRL			REG_MDP(0x96110)
 #define DSI_INT_CTRL_RESET_STATUS	0x51115501
 
+enum mdp_stage {
+	MDP_STAGE_BASE = 0,
+	MDP_STAGE_0,
+	MDP_STAGE_1,
+	MDP_STAGE_2,
+	MDP_STAGE_3,
+	MDP_STAGE_4,
+	MDP_STAGE_5,
+	MDP_STAGE_6,
+	MDP_STAGE_MAX,
+};
+
+#define RGB_LAYER_ALPHA_BLEND 			0x600
+#define VIG_LAYER_ALPHA_BLEND			0x206
+#define SSPP_RGB_SOLID_FILL_FORMAT		0x004237FF
+#define SSPP_RGB_UNPACK_PATTERN			0x00030201
+#define SSPP_YUV_SOLID_FILL_FORMAT		0x004236FF
+#define SSPP_YUV_UNPACK_PATTERN			0x03020001
+
+/* pipe flush waiting for up to 2 vsync periods */
+#define SSPP_FLUSH_TIMEOUT_MS			32
+
 void mdp_set_revision(int rev);
 int mdp_get_revision();
 int mdp_dsi_video_config(struct msm_panel_info *pinfo, struct fbcon_config *fb);
@@ -344,7 +367,7 @@ void mdss_dsc_mdp_config(struct msm_panel_info *pinfo,
 	unsigned int pp_base, unsigned int dsc_base,
 	bool mux, bool split_mode);
 
-int mdss_layer_mixer_remove_pipe(struct msm_panel_info *pinfo);
+int mdss_layer_mixer_hide_pipe(struct msm_panel_info *pinfo);
 
 int mdss_spi_init(void);
 int mdss_spi_panel_init(struct msm_panel_info *pinfo);
