@@ -1,4 +1,4 @@
-/* Copyright (c) 2012-2016,2018, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2012-2016,2018-2019, The Linux Foundation. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are met:
@@ -452,6 +452,58 @@ int mdp_scalar_config(struct LayerInfo* layer, struct msm_panel_info *pinfo,
 }
 #endif
 
+static void mdss_mdp_set_flush_pipe(struct msm_panel_info *pinfo,
+				uint32_t *ctl0_reg_val, uint32_t *ctl1_reg_val)
+{
+	switch (pinfo->pipe_id) {
+	case 1:
+		if (pinfo->pipe_type == MDSS_MDP_PIPE_TYPE_VIG){
+			*ctl0_reg_val |= BIT(1);
+			if (pinfo->lcdc.dual_pipe)
+				*ctl0_reg_val |= BIT(2);
+		} else if (pinfo->pipe_type == MDSS_MDP_PIPE_TYPE_RGB) {
+			*ctl0_reg_val |= BIT(4);
+			if (pinfo->lcdc.dual_pipe)
+				*ctl0_reg_val |= BIT(5);
+		}
+		break;
+	case 2:
+		if (pinfo->pipe_type == MDSS_MDP_PIPE_TYPE_VIG){
+			*ctl0_reg_val |= BIT(2);
+			if (pinfo->lcdc.dual_pipe)
+				*ctl0_reg_val |= BIT(18);
+		} else if (pinfo->pipe_type == MDSS_MDP_PIPE_TYPE_RGB) {
+			*ctl0_reg_val |= BIT(5);
+			if (pinfo->lcdc.dual_pipe)
+				*ctl0_reg_val |= BIT(19);
+		}
+		break;
+	case 3:
+		if (pinfo->pipe_type == MDSS_MDP_PIPE_TYPE_VIG){
+			*ctl0_reg_val |= BIT(18);
+			if (pinfo->lcdc.dual_pipe)
+				*ctl0_reg_val |= BIT(0);
+		} else if (pinfo->pipe_type == MDSS_MDP_PIPE_TYPE_RGB) {
+			*ctl0_reg_val |= BIT(19);
+			if (pinfo->lcdc.dual_pipe)
+				*ctl0_reg_val |= BIT(5);
+		}
+		break;
+	case 0:
+	default:
+		if (pinfo->pipe_type == MDSS_MDP_PIPE_TYPE_VIG){
+			*ctl0_reg_val |= BIT(0);
+			if (pinfo->lcdc.dual_pipe)
+				*ctl1_reg_val |= BIT(1);
+		} else if (pinfo->pipe_type == MDSS_MDP_PIPE_TYPE_RGB) {
+			*ctl0_reg_val |= BIT(3);
+			if (pinfo->lcdc.dual_pipe)
+				*ctl1_reg_val |= BIT(4);
+		}
+		break;
+	}
+}
+
 static void mdss_mdp_set_flush(struct msm_panel_info *pinfo,
 				uint32_t *ctl0_reg_val, uint32_t *ctl1_reg_val)
 {
@@ -459,53 +511,7 @@ static void mdss_mdp_set_flush(struct msm_panel_info *pinfo,
 	bool dual_pipe_single_ctl = pinfo->lcdc.dual_pipe &&
 		!pinfo->mipi.dual_dsi && !pinfo->lcdc.split_display;
 
-	switch (pinfo->pipe_id) {
-		case 1:
-			if (pinfo->pipe_type == MDSS_MDP_PIPE_TYPE_VIG){
-				*ctl0_reg_val |= BIT(1);
-				if (pinfo->lcdc.dual_pipe)
-					*ctl0_reg_val |= BIT(2);
-			} else if (pinfo->pipe_type == MDSS_MDP_PIPE_TYPE_RGB) {
-				*ctl0_reg_val |= BIT(4);
-				if (pinfo->lcdc.dual_pipe)
-					*ctl0_reg_val |= BIT(5);
-			}
-			break;
-		case 2:
-			if (pinfo->pipe_type == MDSS_MDP_PIPE_TYPE_VIG){
-				*ctl0_reg_val |= BIT(2);
-				if (pinfo->lcdc.dual_pipe)
-					*ctl0_reg_val |= BIT(18);
-			} else if (pinfo->pipe_type == MDSS_MDP_PIPE_TYPE_RGB) {
-				*ctl0_reg_val |= BIT(5);
-				if (pinfo->lcdc.dual_pipe)
-					*ctl0_reg_val |= BIT(19);
-			}
-			break;
-		case 3:
-			if (pinfo->pipe_type == MDSS_MDP_PIPE_TYPE_VIG){
-				*ctl0_reg_val |= BIT(18);
-				if (pinfo->lcdc.dual_pipe)
-					*ctl0_reg_val |= BIT(0);
-			} else if (pinfo->pipe_type == MDSS_MDP_PIPE_TYPE_RGB) {
-				*ctl0_reg_val |= BIT(19);
-				if (pinfo->lcdc.dual_pipe)
-					*ctl0_reg_val |= BIT(5);
-			}
-			break;
-		case 0:
-		default:
-			if (pinfo->pipe_type == MDSS_MDP_PIPE_TYPE_VIG){
-				*ctl0_reg_val |= BIT(0);
-				if (pinfo->lcdc.dual_pipe)
-					*ctl1_reg_val |= BIT(1);
-			} else if (pinfo->pipe_type == MDSS_MDP_PIPE_TYPE_RGB) {
-				*ctl0_reg_val |= BIT(3);
-				if (pinfo->lcdc.dual_pipe)
-					*ctl1_reg_val |= BIT(4);
-			}
-			break;
-	}
+	mdss_mdp_set_flush_pipe(pinfo, ctl0_reg_val, ctl1_reg_val);
 
 	if (pinfo->dest == DISPLAY_3) {
 		// Display 3 can only possible to use mixer 2 or mixer 5
@@ -1323,8 +1329,6 @@ void mdss_layer_mixer_setup(struct fbcon_config *fb, struct msm_panel_info
 	uint32_t mdp_rgb_size, height, width;
 	uint32_t left_staging_level = 0;
 	uint32_t right_staging_level = 0;
-	uint32_t new_left_staging_level = 0;
-	uint32_t new_right_staging_level = 0;
 	uint32_t left_mixer_base = 0;
 	uint32_t right_mixer_base = 0;
 	uint32_t left_ctl_base = 0;
@@ -1426,42 +1430,6 @@ void mdss_layer_mixer_setup(struct fbcon_config *fb, struct msm_panel_info
 		writel(0xFF, right_mixer_base + LAYER_5_BLEND0_FG_ALPHA);
 	}
 
-	switch (pinfo->dest){
-		case DISPLAY_2:
-			if (display_req[0].num_lm == 1) {  //Disp1 used 1 pipe only
-				left_staging_level = readl(left_ctl_base + CTL_LAYER_1);
-				if (pinfo->lcdc.dual_pipe) {
-					if (pinfo->lcdc.split_display)
-						right_staging_level = readl(right_ctl_base + CTL_LAYER_2);
-					else  // single ctl, dual pipe
-						right_staging_level = readl(left_ctl_base + CTL_LAYER_2);
-				}
-			} else if (display_req[0].num_lm == 2) { //Disp1 used 2 pipes
-				left_staging_level = readl(left_ctl_base + CTL_LAYER_2);
-				if (pinfo->lcdc.dual_pipe) {
-					if (pinfo->lcdc.split_display)
-						right_staging_level = readl(right_ctl_base + CTL_LAYER_5);
-					else  // single ctl, dual pipe
-						right_staging_level = readl(left_ctl_base + CTL_LAYER_5);
-				}
-			}
-			break;
-		case DISPLAY_3:
-			left_staging_level = readl(left_ctl_base + CTL_LAYER_2);
-			if (pinfo->lcdc.dual_pipe)    //no split display in Disp3
-				right_staging_level = readl(left_ctl_base + CTL_LAYER_5);
-			break;
-		case DISPLAY_1:
-		default:
-			left_staging_level = readl(left_ctl_base + CTL_LAYER_0);
-			if (pinfo->lcdc.dual_pipe) {
-				if (pinfo->lcdc.split_display)
-					right_staging_level = readl(right_ctl_base + CTL_LAYER_1);
-				else  // single ctl, dual pipe
-					right_staging_level = readl(left_ctl_base + CTL_LAYER_1);
-			}
-			break;
-	}
 	switch (pinfo->zorder) {
 		case 1:
 			pipe_order = 6;
@@ -1478,53 +1446,52 @@ void mdss_layer_mixer_setup(struct fbcon_config *fb, struct msm_panel_info
 		case MDSS_MDP_PIPE_TYPE_RGB:
 			switch (pinfo->pipe_id) {
 				case 1:
-					new_left_staging_level = pipe_order << 12;
-					new_right_staging_level = pipe_order << 15;
+					left_staging_level = pipe_order << 12;
+					right_staging_level = pipe_order << 15;
 					break;
 				case 2:
-					new_left_staging_level = pipe_order << 15;
-					new_right_staging_level = pipe_order << 29;
+					left_staging_level = pipe_order << 15;
+					right_staging_level = pipe_order << 29;
 					break;
 				case 3:
-					new_left_staging_level = pipe_order << 29;
-					new_right_staging_level = pipe_order << 9;
+					left_staging_level = pipe_order << 29;
+					right_staging_level = pipe_order << 9;
 					break;
 				case 0:
 				default:
-					new_left_staging_level = pipe_order << 9;
-					new_right_staging_level = pipe_order << 12;
+					left_staging_level = pipe_order << 9;
+					right_staging_level = pipe_order << 12;
 			}
 			break;
 		case MDSS_MDP_PIPE_TYPE_DMA:
-			new_left_staging_level = 0x0040000;
-			new_right_staging_level = 0x200000;
+			left_staging_level = 0x0040000;
+			right_staging_level = 0x200000;
 			break;
 		case MDSS_MDP_PIPE_TYPE_VIG:
 		default:
 			switch (pinfo->pipe_id) {
 				case 1:
-					new_left_staging_level = pipe_order << 3;
-					new_right_staging_level = pipe_order << 6;
+					left_staging_level = pipe_order << 3;
+					right_staging_level = pipe_order << 6;
 					break;
 				case 2:
-					new_left_staging_level = pipe_order << 6;
-					new_right_staging_level = pipe_order << 26;
+					left_staging_level = pipe_order << 6;
+					right_staging_level = pipe_order << 26;
 					break;
 				case 3:
-					new_left_staging_level = pipe_order << 26;
-					new_right_staging_level = pipe_order << 3;
+					left_staging_level = pipe_order << 26;
+					right_staging_level = pipe_order << 3;
 					break;
 				case 0:
 				default:
-					new_left_staging_level = pipe_order;
-					new_right_staging_level = pipe_order << 3;
+					left_staging_level = pipe_order;
+					right_staging_level = pipe_order << 3;
 			}
 			break;
 	}
 
-	left_staging_level |= new_left_staging_level;
+	/* border color */
 	left_staging_level |= BIT(24);
-	right_staging_level |= new_right_staging_level;
 	right_staging_level |= BIT(24);
 	/*
 	 * When ping-pong split is enabled and two pipes are used,
@@ -2288,7 +2255,7 @@ int mdp_dsi_video_update_pipe(struct msm_panel_info *pinfo,  struct fbcon_config
 	if (pinfo->lcdc.split_display)
 		writel((uint32_t) fb->base, right_pipe + PIPE_SSPP_SRC0_ADDR);
 
-	mdss_mdp_set_flush(pinfo, &ctl0_reg_val, &ctl1_reg_val);
+	mdss_mdp_set_flush_pipe(pinfo, &ctl0_reg_val, &ctl1_reg_val);
 	if (pinfo->dest == DISPLAY_1) {
 		writel(ctl0_reg_val, display_req[0].ctl_base[0] + CTL_FLUSH);
 		if (display_req[0].num_ctl == 2)
@@ -2446,9 +2413,8 @@ int mdss_hdmi_update_pipe(struct msm_panel_info *pinfo,  struct fbcon_config *fb
 	if (pinfo->lcdc.split_display)
 		writel((uint32_t) fb->base, right_pipe + PIPE_SSPP_SRC0_ADDR);
 
-	mdss_mdp_set_flush(pinfo, &ctl0_reg_val, &ctl1_reg_val);
-	ctl0_reg_val &= 0x0FFFFFFF;  // remove the interface setting
-	ctl0_reg_val |= BIT(28);     // enable interface 3
+	mdss_mdp_set_flush_pipe(pinfo, &ctl0_reg_val, &ctl1_reg_val);
+
 	writel(ctl0_reg_val, display_req[pinfo->dest - 1].ctl_base[0] + CTL_FLUSH);
 
 	return NO_ERROR;
