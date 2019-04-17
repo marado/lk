@@ -444,15 +444,10 @@ int msm_display_hide_pipe(uint32_t pipe_id, uint32_t pipe_type, uint32_t disp_id
 	pinfo->pipe_id = pipe_id;
 
 	ret = mdss_layer_mixer_hide_pipe(pinfo, panel_local->fb);
-	if (ret) {
+	if (ret)
 		dprintf(CRITICAL, "Error in mdss_layer_mixer_hide_pipe\n");
-		return ret;
-	} else {
-		if (pinfo->type == MIPI_VIDEO_PANEL)
-			return mdp_dsi_video_update(pinfo);
-		else
-			return mdss_hdmi_update(pinfo);
-	}
+
+	return ret;
 }
 
 int msm_display_init(struct msm_fb_panel_data *pdata)

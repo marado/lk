@@ -312,9 +312,12 @@ enum mdp_stage {
 #define RGB_LAYER_ALPHA_BLEND 			0x600
 #define VIG_LAYER_ALPHA_BLEND			0x206
 #define SSPP_RGB_SOLID_FILL_FORMAT		0x004237FF
+#define SSPP_RGB_UNPACK_PATTERN			0x00030201
 #define SSPP_YUV_SOLID_FILL_FORMAT		0x004236FF
-#define SSPP_UNPACK_PATTERN				0x03020001
+#define SSPP_YUV_UNPACK_PATTERN			0x03020001
 
+/* pipe flush waiting for up to 2 vsync periods */
+#define SSPP_FLUSH_TIMEOUT_MS			32
 
 void mdp_set_revision(int rev);
 int mdp_get_revision();

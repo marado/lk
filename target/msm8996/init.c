@@ -1373,7 +1373,6 @@ int animated_splash() {
 					}
 
 					if(animation_layer_on_rvc) {
-						target_release_layer(&layer_list[j]);
 						firstframe[j] = true; // reset firstframe for the RVC display
 						animation_layer_on_rvc = false;
 
