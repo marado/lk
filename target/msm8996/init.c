@@ -1239,7 +1239,6 @@ int animated_splash() {
 	uint32_t frame_cnt[MAX_NUM_DISPLAY];
 	struct target_display_update update[MAX_NUM_DISPLAY];
 	struct target_layer layer_list[MAX_NUM_DISPLAY];
-	struct target_layer orig_layer_list[MAX_NUM_DISPLAY];
 	struct target_display * disp;
 	struct fbcon_config *fb;
 	uint32_t sleep_time = 0;
@@ -1315,9 +1314,6 @@ int animated_splash() {
 			}
 			layer_list[j].fb[fb_index] = *fb;
 		} while((++fb_index < MAX_SPLIT_DISPLAY) && disp->splitter_display_enabled);
-
-		/* back up original layer_list structure, and re-use in status switch */
-		memcpy(&orig_layer_list[j], &layer_list[j], sizeof(struct target_layer));
 
 		if (disp->has_rvc)
 			rvc_display_id = j;
@@ -1396,7 +1392,6 @@ int animated_splash() {
 					continue;
 				} else {
 					if(!layer_list[j].layer) {
-						memcpy(&layer_list[j], &orig_layer_list[j], sizeof(struct target_layer));
 						layer_ptr = target_display_acquire_layer(update[j].disp, "as", kFormatRGB888);
 						layer_list[j].layer = layer_ptr;
 						layer_list[j].z_order[SPLIT_DISPLAY_0] = SPLASH_SPLIT_0_LAYER_ZORDER;
@@ -1439,7 +1434,7 @@ int animated_splash() {
 		if(early_camera_enabled == 1) {
 			// Rely on camera timing to flip.
 			camera_status = early_camera_flip(&layer_list[rvc_display_id]);
-			if(camera_status == -1) {
+			if(camera_status ==-1) {
 				camera_error_count++;
 				mdelay_optimal(16);
 			} else {
@@ -1452,8 +1447,6 @@ int animated_splash() {
 				}
 				early_camera_stop(&layer_list[rvc_display_id]);
 				early_camera_enabled = 0;
-				memcpy(&layer_list[rvc_display_id], &orig_layer_list[rvc_display_id],
-					sizeof(struct target_layer));
 				layer_ptr = target_display_acquire_layer(
 				update[rvc_display_id].disp, "as", kFormatRGB888);
 				layer_list[rvc_display_id].layer = layer_ptr;
@@ -1473,8 +1466,6 @@ int animated_splash() {
 					early_camera_enabled = 0;
 				}
 				if(camera_frame_on) {
-					memcpy(&layer_list[rvc_display_id], &orig_layer_list[rvc_display_id],
-						sizeof(struct target_layer));
 					layer_ptr = target_display_acquire_layer(
 						update[rvc_display_id].disp, "as", kFormatRGB888);
 					layer_list[rvc_display_id].layer = layer_ptr;
@@ -1490,8 +1481,6 @@ int animated_splash() {
 			early_camera_enabled = 0;
 			early_camera_stop(&layer_list[rvc_display_id]);
 			if(camera_frame_on) {
-				memcpy(&layer_list[rvc_display_id], &orig_layer_list[rvc_display_id],
-					sizeof(struct target_layer));
 				layer_ptr = target_display_acquire_layer(
 				update[rvc_display_id].disp, "as", kFormatRGB888);
 				layer_list[rvc_display_id].layer = layer_ptr;
