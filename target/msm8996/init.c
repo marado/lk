@@ -1214,37 +1214,32 @@ end:
 	return ret;
 }
 
-inline bool get_reverse_camera_gpio() {
-	/* if gpio == 1, it is ON
-	   if gpio == 0, it is OFF */
-	return (1 == gpio_get(early_rvc_gpio));
-}
-
-/* checks if GPIO or equivalent trigger to enable early camera is set to ON
-   If this function retuns FALSE, only animated splash may be shown.
-   This is also a check to see if early-camera/animated splash can exit*/
-bool is_reverse_camera_on() {
-	uint32_t trigger_reg = 0;
-	trigger_reg = readl_relaxed((void *)MDSS_SCRATCH_REG_2);
-	if ((FALSE == get_reverse_camera_gpio()) ||
-			(0xF5F5F5F5 == trigger_reg))
-		return FALSE; /* trigger to exit */
+static inline bool layer_list_mode_changed(
+				const struct target_layer *layer_list1,
+				const struct target_layer *layer_list2)
+{
+	if ((layer_list1->layer == layer_list2->layer) &&
+		(layer_list1->z_order[SPLIT_DISPLAY_0] ==
+		layer_list2->z_order[SPLIT_DISPLAY_0]))
+		return true;
 	else
-		return TRUE;
+		return false;
 }
 
 int animated_splash() {
 	void *disp_ptr, *layer_ptr;
-	uint32_t ret = 0, k = 0, j = 0, i = 0;
+	uint32_t ret = 0, j = 0, i = 0;
 	uint32_t frame_cnt[MAX_NUM_DISPLAY];
 	struct target_display_update update[MAX_NUM_DISPLAY];
 	struct target_layer layer_list[MAX_NUM_DISPLAY];
+	struct target_layer cached_splash_layer_list[MAX_NUM_DISPLAY];
+	struct target_layer cached_rvc_layer_list;
 	struct target_display * disp;
 	struct fbcon_config *fb;
 	uint32_t sleep_time = 0;
 	uint32_t disp_cnt = target_display_init_count();
-	bool camera_on = FALSE;
-	bool camera_frame_on = false;
+	bool camera_on = false;
+	bool mode_change = true;
 	bool stop_display_splash = false;
 	bool firstframe[disp_cnt];
 	int camera_error_count = 0;
@@ -1315,8 +1310,13 @@ int animated_splash() {
 			layer_list[j].fb[fb_index] = *fb;
 		} while((++fb_index < MAX_SPLIT_DISPLAY) && disp->splitter_display_enabled);
 
-		if (disp->has_rvc)
+		/* back up original layer_list structure, and re-use in status switch */
+		memcpy(&cached_splash_layer_list[j], &layer_list[j], sizeof(struct target_layer));
+
+		if (disp->has_rvc) {
 			rvc_display_id = j;
+			memcpy(&cached_rvc_layer_list, &layer_list[j], sizeof(struct target_layer));
+		}
 		if (disp->splitter_display_enabled)
 			shared_display_id = j;
 		fb_index = 0;
@@ -1326,8 +1326,6 @@ int animated_splash() {
 	gpio_tlmm_config(early_rvc_gpio, 0, GPIO_INPUT, GPIO_NO_PULL,
 		GPIO_2MA, GPIO_ENABLE);
 	dprintf(CRITICAL, "gpio_tlmm_config_read(early_rvc_gpio) = %d\n", gpio_tlmm_config_read(early_rvc_gpio));
-
-
 
 	/* main animation loop */
 	while (1) {
@@ -1339,7 +1337,8 @@ int animated_splash() {
 			}
 		}
 
-		camera_on = is_reverse_camera_on();
+		/* Check camera status at the beginning of each frame flip loop */
+		camera_on = early_camera_on();
 
 		request_shutdown = get_early_service_shutdown_request(EARLY_DISPLAY);
 
@@ -1348,7 +1347,6 @@ int animated_splash() {
 			// to shutdown. LK can update kernel when it is
 			// ready to shutdown by calling clear_early_service_active_bit
 			// for EARLY_DISPLAY service id.
-
 			scratch_pad = (int32_t *) get_service_shared_mem_start(EARLY_DISPLAY);
 
 			if (scratch_pad)
@@ -1356,8 +1354,7 @@ int animated_splash() {
 
 			if (0 == early_camera_enabled)
 				break;
-			else if ((1 == early_camera_enabled) &&
-					(FALSE == camera_on) && (false == camera_frame_on))
+			else if ((1 == early_camera_enabled) && (false == camera_on))
 				break;
 			else {
 				/* early RVC is still on while splash display needs to be stopped */
@@ -1367,11 +1364,21 @@ int animated_splash() {
 
 		for (j = 0; j < disp_cnt; j++) {
 			if (j == rvc_display_id && early_camera_enabled == 1) {
-				if (early_camera_on()) {
+				if (camera_on) {
+					if (!layer_list_mode_changed(&layer_list[j],
+										&cached_rvc_layer_list)) {
+						memcpy(&layer_list[j], &cached_rvc_layer_list,
+											sizeof(struct target_layer));
+						mode_change = true;
+					}
+
 					if(animation_layer_on_rvc) {
 						target_release_layer(&layer_list[j]);
 						firstframe[j] = true; // reset firstframe for the RVC display
 						animation_layer_on_rvc = false;
+
+						/* camera module will set up display layer once */
+						layer_list[j].layer = NULL;
 					}
 
 					/* if RVC display is shared, RVC FB stays on the left, and on right
@@ -1388,14 +1395,22 @@ int animated_splash() {
 					} else
 						layer_list[j].fb[SPLIT_DISPLAY_1].base = NULL;
 
-					camera_frame_on = true;
 					continue;
 				} else {
-					if(!layer_list[j].layer) {
-						layer_ptr = target_display_acquire_layer(update[j].disp, "as", kFormatRGB888);
-						layer_list[j].layer = layer_ptr;
-						layer_list[j].z_order[SPLIT_DISPLAY_0] = SPLASH_SPLIT_0_LAYER_ZORDER;
-						camera_frame_on = false;
+					/* going to animation case once camera is disabled */
+					if (!layer_list_mode_changed(&layer_list[j],
+						&cached_splash_layer_list[j])) {
+						memcpy(&layer_list[j], &cached_splash_layer_list[j],
+							sizeof(struct target_layer));
+
+						if(!layer_list[j].layer) {
+							layer_ptr = target_display_acquire_layer(update[j].disp, "as", kFormatRGB888);
+							layer_list[j].layer = layer_ptr;
+							layer_list[j].z_order[SPLIT_DISPLAY_0] = SPLASH_SPLIT_0_LAYER_ZORDER;
+						}
+
+						mode_change = true;
+						firstframe[j] = true;
 					}
 				}
 			}
@@ -1431,64 +1446,58 @@ int animated_splash() {
 			}
 		}
 
-		if(early_camera_enabled == 1) {
+		if(early_camera_enabled == 1 && camera_on) {
 			// Rely on camera timing to flip.
-			camera_status = early_camera_flip(&layer_list[rvc_display_id]);
-			if(camera_status ==-1) {
+			camera_status = early_camera_flip(&layer_list[rvc_display_id], mode_change);
+			if(camera_status == -1) {
 				camera_error_count++;
 				mdelay_optimal(16);
 			} else {
 				camera_error_count = 0;
+				if (mode_change == true) {
+					memcpy(&cached_rvc_layer_list, &layer_list[rvc_display_id],
+						sizeof(struct target_layer));
+					mode_change = false;
+				}
 			}
+
+			/* camera error occurs, exit camera flip and run animation splash instead */
 			if(camera_error_count > MAX_CAM_ERROR_EXIT) {
 				if(EARLYCAM_NO_GPIO_FRAME_LIMIT) {
 					//Force an early exit for early camera
-					frame_count = EARLYCAM_NO_GPIO_FRAME_LIMIT +1;
+					frame_count = EARLYCAM_NO_GPIO_FRAME_LIMIT + 1;
 				}
 				early_camera_stop(&layer_list[rvc_display_id]);
 				early_camera_enabled = 0;
-				layer_ptr = target_display_acquire_layer(
-				update[rvc_display_id].disp, "as", kFormatRGB888);
-				layer_list[rvc_display_id].layer = layer_ptr;
-				layer_list[rvc_display_id].z_order[SPLIT_DISPLAY_0] = SPLASH_SPLIT_0_LAYER_ZORDER;
-				camera_frame_on = false;
+				memcpy(&layer_list[rvc_display_id],
+					&cached_splash_layer_list[rvc_display_id],
+					sizeof(struct target_layer));
 			}
 		} else {
 			// assume all displays have the same fps
 			mdelay_optimal(sleep_time);
 		}
-		k++;
+
 		if (early_camera_enabled) {
+			/* camera shutdown by kernel camera module or exceeds specified frame count */
 			if ((get_early_service_shutdown_request(EARLY_CAMERA)) ||
 			    (EARLYCAM_NO_GPIO_FRAME_LIMIT < frame_count && EARLYCAM_NO_GPIO_FRAME_LIMIT > 0)) {
 				if (early_camera_enabled) {
 					early_camera_stop(&layer_list[rvc_display_id]);
 					early_camera_enabled = 0;
 				}
-				if(camera_frame_on) {
-					layer_ptr = target_display_acquire_layer(
-						update[rvc_display_id].disp, "as", kFormatRGB888);
-					layer_list[rvc_display_id].layer = layer_ptr;
-					layer_list[rvc_display_id].z_order[SPLIT_DISPLAY_0] = SPLASH_SPLIT_0_LAYER_ZORDER;
-					camera_frame_on = false;
+
+				if(camera_on) {
+					memcpy(&layer_list[rvc_display_id],
+						&cached_splash_layer_list[rvc_display_id],
+						sizeof(struct target_layer));
 				}
 			}
+
 			frame_count++;
 		}
-		if ((early_camera_enabled == 1) && (FALSE == camera_on) &&
-		    (get_early_service_shutdown_request(EARLY_CAMERA)))
-		{
-			early_camera_enabled = 0;
-			early_camera_stop(&layer_list[rvc_display_id]);
-			if(camera_frame_on) {
-				layer_ptr = target_display_acquire_layer(
-				update[rvc_display_id].disp, "as", kFormatRGB888);
-				layer_list[rvc_display_id].layer = layer_ptr;
-				layer_list[rvc_display_id].z_order[SPLIT_DISPLAY_0] = SPLASH_SPLIT_0_LAYER_ZORDER;
-				camera_frame_on = false;
-			}
-		}
 	}
+
 	if (early_camera_enabled == 1)
 		early_camera_stop(&layer_list[rvc_display_id]);
 
