@@ -1105,23 +1105,15 @@ end:
 	return ret;
 }
 
-inline bool get_reverse_camera_gpio() {
-	/* if gpio == 1, it is ON
-	   if gpio == 0, it is OFF */
-	return (1 == gpio_get(early_rvc_gpio));
-}
-
-/* checks if GPIO or equivalent trigger to enable early camera is set to ON
-   If this function retuns FALSE, only animated splash may be shown.
-   This is also a check to see if early-camera/animated splash can exit*/
-bool is_reverse_camera_on() {
-	uint32_t trigger_reg = 0;
-	trigger_reg = readl_relaxed((void *)MDSS_SCRATCH_REG_2);
-	if ((FALSE == get_reverse_camera_gpio()) ||
-		(0xF5F5F5F5 == trigger_reg))
-		return FALSE; /* trigger to exit */
+static inline bool layer_list_mode_unchanged(
+	const struct target_layer *layer_list1,
+	const struct target_layer *layer_list2)
+{
+	if ((layer_list1->layer == layer_list2->layer) &&
+		(layer_list1->z_order == layer_list2->z_order))
+		return true;
 	else
-		return TRUE;
+		return false;
 }
 
 int animated_splash() {
@@ -1130,12 +1122,13 @@ int animated_splash() {
 	uint32_t frame_cnt[NUM_DISPLAYS];
 	struct target_display_update update[NUM_DISPLAYS];
 	struct target_layer layer_list[NUM_DISPLAYS];
+	struct target_layer cached_splash_layer_list[NUM_DISPLAYS];
 	struct target_display * disp;
 	struct fbcon_config *fb;
 	uint32_t sleep_time = 0;
 	uint32_t disp_cnt = target_display_init_count();
 	uint32_t reg_value;
-	bool camera_on = FALSE;
+	bool camera_on = false;
 	bool camera_frame_on = false;
 	bool stop_display_splash = false;
 	bool firstframe[disp_cnt];
@@ -1192,6 +1185,9 @@ int animated_splash() {
 		layer_list[j].src_rect_y = 0;
 		layer_list[j].dst_rect_x = (disp->width - layer_list[j].dst_width)/2;
 		layer_list[j].dst_rect_y = (disp->height - layer_list[j].dst_height)/2;
+
+		/* back up original layer_list structure, and re-use in status switch */
+		memcpy(&cached_splash_layer_list[j], &layer_list[j], sizeof(struct target_layer));
 	}
 
 	gpio_set(early_rvc_gpio, 0x0);
@@ -1208,7 +1204,8 @@ int animated_splash() {
 			}
 		}
 
-		camera_on = is_reverse_camera_on();
+		/* Check camera status at the beginning of each frame flip loop */
+		camera_on = early_camera_on();
 
 		reg_value = readl_relaxed((void *)MDSS_SCRATCH_REG_1);
 		if (0xFEFEFEFE == reg_value) {
@@ -1241,7 +1238,7 @@ int animated_splash() {
 
 		for (j = 0; j < disp_cnt; j++) {
 			if (j == 0 && early_camera_enabled == 1) {
-				if (early_camera_on()) {
+				if (camera_on) {
 					if(layer_list[j].layer) {
 						firstframe[j] = true; // reset firstframe for the RVC display
 						layer_list[j].layer = NULL;
@@ -1249,10 +1246,17 @@ int animated_splash() {
 					camera_frame_on = true;
 					continue;
 				} else {
-					if(!layer_list[j].layer) {
-						layer_ptr = target_display_acquire_layer(update[j].disp, "as", kFormatRGB888);
-						layer_list[j].layer = layer_ptr;
-						layer_list[j].z_order = 2;
+					/* going to animation case once camera is disabled */
+					if (!layer_list_mode_unchanged(&layer_list[j],
+						&cached_splash_layer_list[j])) {
+						memcpy(&layer_list[j], &cached_splash_layer_list[j],
+							sizeof(struct target_layer));
+						if(!layer_list[j].layer) {
+							layer_ptr = target_display_acquire_layer(update[j].disp, "as", kFormatRGB888);
+							layer_list[j].layer = layer_ptr;
+							layer_list[j].z_order = 2;
+						}
+
 						camera_frame_on = false;
 					}
 				}
@@ -1298,10 +1302,10 @@ int animated_splash() {
 				}
 				early_camera_stop();
 				early_camera_enabled = 0;
-				layer_ptr = target_display_acquire_layer(
-				update[RVC_DISPLAY_ID].disp, "as", kFormatRGB888);
-				layer_list[RVC_DISPLAY_ID].layer = layer_ptr;
-				layer_list[RVC_DISPLAY_ID].z_order = 2;
+				memcpy(&layer_list[RVC_DISPLAY_ID],
+					&cached_splash_layer_list[RVC_DISPLAY_ID],
+					sizeof(struct target_layer));
+
 				camera_frame_on = false;
 			}
 		} else {
@@ -1316,10 +1320,10 @@ int animated_splash() {
 					early_camera_enabled = 0;
 				}
 				if(camera_frame_on) {
-					layer_ptr = target_display_acquire_layer(
-						update[RVC_DISPLAY_ID].disp, "as", kFormatRGB888);
-					layer_list[RVC_DISPLAY_ID].layer = layer_ptr;
-					layer_list[RVC_DISPLAY_ID].z_order = 2;
+					memcpy(&layer_list[RVC_DISPLAY_ID],
+					&cached_splash_layer_list[RVC_DISPLAY_ID],
+					sizeof(struct target_layer));
+
 					camera_frame_on = false;
 				}
 			}
