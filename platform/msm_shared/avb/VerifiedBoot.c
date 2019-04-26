@@ -39,6 +39,7 @@
 #include "verifiedboot.h"
 #include <err.h>
 #include <target.h>
+#include <libavb/avb_sha.h>
 
 #ifndef DTB_PAD_SIZE
 #define DTB_PAD_SIZE            2048
@@ -358,6 +359,18 @@ VOID AddRequestedPartition(CHAR8 **requestedpartititon, UINT32 index)
 	}
 }
 
+static VOID ComputeVbMetaDigest (AvbSlotVerifyData* SlotData, CHAR8* Digest) {
+	size_t Index;
+	AvbSHA256Ctx Ctx;
+	avb_sha256_init (&Ctx);
+	for (Index = 0; Index < SlotData->num_vbmeta_images; Index++) {
+		avb_sha256_update (&Ctx,
+			SlotData->vbmeta_images[Index].vbmeta_data,
+			SlotData->vbmeta_images[Index].vbmeta_size);
+	}
+	avb_memcpy (Digest, avb_sha256_final(&Ctx), AVB_SHA256_DIGEST_SIZE);
+}
+
 static EFI_STATUS load_image_and_authVB2(bootinfo *Info)
 {
 	EFI_STATUS Status = EFI_SUCCESS;
@@ -383,6 +396,7 @@ static EFI_STATUS load_image_and_authVB2(bootinfo *Info)
            AVB_SLOT_VERIFY_FLAGS_NONE;
 	AvbHashtreeErrorMode VerityFlags = AVB_HASHTREE_ERROR_MODE_RESTART_AND_INVALIDATE;
 	device_info DevInfo_vb;
+	CHAR8 Digest[AVB_SHA256_DIGEST_SIZE] = {0};
 
 	HeaderVersion = Info->header_version;
 	Info->boot_state = RED;
@@ -435,11 +449,6 @@ static EFI_STATUS load_image_and_authVB2(bootinfo *Info)
 	}
 
 	RequestedPartition = (const CHAR8 **)RequestedPartitionAll;
-	if (Info->num_loaded_images) {
-		/* fastboot boot option, skip Index 0, boot image already loaded */
-		RequestedPartition = (const CHAR8 **)&RequestedPartitionAll[1];
-		NumRequestedPartition--;
-	}
 
 	VerityFlags = VerityEnforcing ?
 				AVB_HASHTREE_ERROR_MODE_RESTART :
@@ -475,6 +484,7 @@ static EFI_STATUS load_image_and_authVB2(bootinfo *Info)
 		     loadedindex < SlotData->num_loaded_partitions; loadedindex++) {
 			dprintf(DEBUG, "Loaded Partition: %s\n",
 			       SlotData->loaded_partitions[loadedindex].partition_name);
+			UINTN PartIndex = Info->num_loaded_images;
 			if (!strncmp(((const char *)RequestedPartition[ReqIndex]),
 			            SlotData->loaded_partitions[loadedindex].partition_name,MAX_GPT_NAME_SIZE))
 			  {
@@ -488,13 +498,22 @@ static EFI_STATUS load_image_and_authVB2(bootinfo *Info)
 					Info->boot_state = RED;
 					goto out;
 				}
-				Info->images[Info->num_loaded_images].name =
-				        SlotData->loaded_partitions[loadedindex].partition_name;
-				Info->images[Info->num_loaded_images].image_buffer =
-				        SlotData->loaded_partitions[loadedindex].data;
-				Info->images[Info->num_loaded_images].imgsize =
-				        SlotData->loaded_partitions[loadedindex].data_size;
-				Info->num_loaded_images++;
+
+				if (!strncmp("boot", SlotData->loaded_partitions[loadedindex].partition_name, strlen("boot")))
+						PartIndex = IMG_BOOT;
+				else if (!strncmp("dtbo", SlotData->loaded_partitions[loadedindex].partition_name, strlen("dtbo")))
+						PartIndex = IMG_DTBO;
+				else if (!strncmp("recovery", SlotData->loaded_partitions[loadedindex].partition_name,
+					strlen("recovery")))
+						PartIndex = IMG_RECOVERY;
+				else
+						Info->num_loaded_images++;
+				Info->images[PartIndex].name =
+					SlotData->loaded_partitions[loadedindex].partition_name;
+				Info->images[PartIndex].image_buffer =
+					SlotData->loaded_partitions[loadedindex].data;
+				Info->images[PartIndex].imgsize =
+					SlotData->loaded_partitions[loadedindex].data_size;
 				break;
 			}
 		}
@@ -551,6 +570,9 @@ static EFI_STATUS load_image_and_authVB2(bootinfo *Info)
 	set_os_version(ADD_SALT_BUFF_OFFSET(Info->images[0].image_buffer));
 	if(!send_rot_command((uint32_t)DevInfo_vb.is_unlocked))
 		return EFI_LOAD_ERROR;
+
+	ComputeVbMetaDigest(SlotData, (CHAR8 *)&Digest);
+	GUARD_OUT(set_verified_boot_hash((const CHAR8 *)&Digest, sizeof(Digest)));
 	dprintf(INFO, "VB2: Authenticate complete! boot state is: %s\n",
 	       VbSn[Info->boot_state].name);
 
