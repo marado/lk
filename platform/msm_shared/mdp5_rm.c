@@ -43,15 +43,15 @@ static struct resource_req display_req[MAX_NUM_DISPLAY] = {
  * like 4K display case, HDMI/DSI split display case.
  */
 static struct pipe_usage pipe_rm[] = {
-	{MDSS_MDP_PIPE_TYPE_RGB, MDP_VP_0_RGB_0_BASE, MDP_VP_0_RGB_1_BASE, false},
-	{MDSS_MDP_PIPE_TYPE_RGB, MDP_VP_0_RGB_1_BASE, MDP_VP_0_RGB_2_BASE, false},
-	{MDSS_MDP_PIPE_TYPE_RGB, MDP_VP_0_RGB_2_BASE, MDP_VP_0_RGB_3_BASE, false},
-	{MDSS_MDP_PIPE_TYPE_RGB, MDP_VP_0_RGB_3_BASE, MDP_VP_0_RGB_0_BASE, false},
-	{MDSS_MDP_PIPE_TYPE_VIG, MDP_VP_0_VIG_0_BASE, MDP_VP_0_VIG_1_BASE, false},
-	{MDSS_MDP_PIPE_TYPE_VIG, MDP_VP_0_VIG_1_BASE, MDP_VP_0_VIG_2_BASE, false},
-	{MDSS_MDP_PIPE_TYPE_VIG, MDP_VP_0_VIG_2_BASE, MDP_VP_0_VIG_3_BASE, false},
-	{MDSS_MDP_PIPE_TYPE_VIG, MDP_VP_0_VIG_3_BASE, MDP_VP_0_VIG_0_BASE, false},
-	{MDSS_MDP_PIPE_TYPE_DMA, MDP_VP_0_DMA_0_BASE, MDP_VP_0_DMA_1_BASE, false},
+	{MDSS_MDP_PIPE_TYPE_RGB, MDP_VP_0_RGB_0_BASE, MDP_VP_0_RGB_1_BASE, false, false},
+	{MDSS_MDP_PIPE_TYPE_RGB, MDP_VP_0_RGB_1_BASE, MDP_VP_0_RGB_2_BASE, false, false},
+	{MDSS_MDP_PIPE_TYPE_RGB, MDP_VP_0_RGB_2_BASE, MDP_VP_0_RGB_3_BASE, false, false},
+	{MDSS_MDP_PIPE_TYPE_RGB, MDP_VP_0_RGB_3_BASE, MDP_VP_0_RGB_0_BASE, false, false},
+	{MDSS_MDP_PIPE_TYPE_VIG, MDP_VP_0_VIG_0_BASE, MDP_VP_0_VIG_1_BASE, false, false},
+	{MDSS_MDP_PIPE_TYPE_VIG, MDP_VP_0_VIG_1_BASE, MDP_VP_0_VIG_2_BASE, false, false},
+	{MDSS_MDP_PIPE_TYPE_VIG, MDP_VP_0_VIG_2_BASE, MDP_VP_0_VIG_3_BASE, false, false},
+	{MDSS_MDP_PIPE_TYPE_VIG, MDP_VP_0_VIG_3_BASE, MDP_VP_0_VIG_0_BASE, false, false},
+	{MDSS_MDP_PIPE_TYPE_DMA, MDP_VP_0_DMA_0_BASE, MDP_VP_0_DMA_1_BASE, false, false},
 };
 
 static void _mdp_rm_update_hdmi_display(struct msm_panel_info *pinfo)
@@ -61,17 +61,13 @@ static void _mdp_rm_update_hdmi_display(struct msm_panel_info *pinfo)
 		/* layer mixer number is 2 for wide resolution case */
 		display_req[pinfo->dest - DISPLAY_1].num_lm = 2;
 	}
-
-	if (pinfo->dest == DISPLAY_1)
-		pinfo->pipe_id = 0;
-	else
-		pinfo->pipe_id = 2;
 }
 
 static void _mdp_rm_update_dsi_display(struct msm_panel_info *pinfo, bool use_second_dsi)
 {
-	if (pinfo->lcdc.dual_pipe && !pinfo->mipi.dual_dsi &&
-		!pinfo->lcdc.split_display) {
+	if (pinfo->lcdc.dual_pipe &&
+		((!pinfo->mipi.dual_dsi && !pinfo->lcdc.split_display) ||
+		(pinfo->splitter_is_enabled && !pinfo->lcdc.force_merge))) {
 		display_req[pinfo->dest - DISPLAY_1].num_ctl = 1;
 		display_req[pinfo->dest - DISPLAY_1].num_lm = 2;
 	} else if (pinfo->lcdc.split_display) {
@@ -105,9 +101,10 @@ void mdp_rm_update_resource(struct msm_panel_info *pinfo, bool use_second_dsi)
 void mdp_rm_select_pipe(struct msm_panel_info *pinfo, uint32_t *left_pipe, uint32_t *right_pipe)
 {
 	uint32_t i = 0;
-	bool pipe_used = false;
 	uint32_t pipe_start_index = 0;
-	uint32_t pipe_select_index = 0;
+	uint32_t ori_pipe_select_index = 0;
+	uint32_t new_pipe_select_index = 0;
+	uint32_t index_offset = 0;
 
 	for (i = 0; i < ARRAY_SIZE(pipe_rm); i++) {
 		if (pipe_rm[i].type == pinfo->pipe_type) {
@@ -116,21 +113,60 @@ void mdp_rm_select_pipe(struct msm_panel_info *pinfo, uint32_t *left_pipe, uint3
 		}
 	}
 
-	for (i = pipe_start_index; i < pipe_start_index + pinfo->pipe_id; i++) {
-		if (pipe_rm[i].valid) {
-			pipe_used = true;
+	/* display id is the determine */
+	index_offset = pinfo->dest - DISPLAY_1;
+	if (index_offset >= MAX_NUM_DISPLAY) {
+		dprintf(INFO, "Error: display index exceeds\n");
+		return;
+	}
+
+	ori_pipe_select_index = pipe_start_index + index_offset;
+
+	/*
+	 * It's need to care that case previous displays have
+	 * occupied two adjacent pipes.
+	 */
+	for (i = pipe_start_index; i < ori_pipe_select_index; i++) {
+		if (pipe_rm[i].left_pipe_valid && pipe_rm[i].right_pipe_valid)
+			index_offset++;
+	}
+
+	/*
+	 * Check the pipe type of the updated index_offset is still the same as
+	 * that from upper user, otherwise, print one warning here.
+	 */
+	if (pipe_rm[pipe_start_index + index_offset].type !=
+				pinfo->pipe_type)
+		dprintf(CRITICAL, "abnormal pipe allocation\n");
+
+	ori_pipe_select_index = pipe_start_index + index_offset;
+	new_pipe_select_index = ori_pipe_select_index;
+
+	/*
+	 * Check pipe usage between pipe_start_index and ori_pipe_select_index
+	 * for pipe re-use.
+	 */
+	for (i = pipe_start_index;
+		(index_offset > 0 && i < (ori_pipe_select_index - 1)); i++) {
+		if (!pipe_rm[i].left_pipe_valid) {
+			new_pipe_select_index = i;
 			break;
 		}
 	}
 
-	if (pipe_used)
-		pipe_select_index = pipe_start_index + pinfo->pipe_id;
-	else
-		pipe_select_index = pipe_start_index;
+	*left_pipe = pipe_rm[new_pipe_select_index].left_base;
+	*right_pipe = pipe_rm[new_pipe_select_index].right_base;
 
-	*left_pipe = pipe_rm[pipe_select_index].left_base;
-	*right_pipe = pipe_rm[pipe_select_index].right_base;
-	pipe_rm[pipe_select_index].valid = true;
+	pipe_rm[new_pipe_select_index].left_pipe_valid = true;
+	if (pinfo->lcdc.dual_pipe) {
+		pipe_rm[new_pipe_select_index].right_pipe_valid = true;
+		/*
+		 * Mark the left pipe of next index in the pipe_rm to be true,
+		 * as that left pipe has been occupied in current display as
+		 * the right pipe of dual pipe case.
+		 */
+		pipe_rm[new_pipe_select_index + 1].left_pipe_valid = true;
+	}
 
 	display_req[pinfo->dest - DISPLAY_1].pipe_base[SPLIT_DISPLAY_0] = *left_pipe;
 	display_req[pinfo->dest - DISPLAY_1].pipe_base[SPLIT_DISPLAY_1] = *right_pipe;

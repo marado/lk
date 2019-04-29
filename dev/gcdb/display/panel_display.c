@@ -118,6 +118,22 @@ static int dsi_panel_ctl_base_setup(struct msm_panel_info *pinfo,
 	return NO_ERROR;
 }
 
+static void dsi_panel_set_splitter(struct msm_panel_info *pinfo)
+{
+	if (pinfo->splitter_is_enabled && pinfo->lcdc.dual_pipe) {
+		pinfo->lcdc.force_merge = 1;
+		pinfo->lm_split[SPLIT_DISPLAY_0] = pinfo->xres / MAX_SPLIT_DISPLAY;
+		pinfo->lm_split[SPLIT_DISPLAY_1] =
+			pinfo->xres - pinfo->lm_split[SPLIT_DISPLAY_0];
+
+		/*
+		 * When staging left and right pipes on one layer mixer,
+		 * both pipes' zorder should not be the same.
+		 */
+		pinfo->zorder[SPLIT_DISPLAY_1] = SPLASH_SPLIT_1_LAYER_ZORDER;
+	}
+}
+
 /*---------------------------------------------------------------------------*/
 /* Panel Init                                                                */
 /*---------------------------------------------------------------------------*/
@@ -151,7 +167,8 @@ int dsi_panel_init(struct msm_panel_info *pinfo,
 	dprintf(SPEW, "panel_operating_mode=0x%x\n",
 		pstruct->paneldata->panel_operating_mode);
 	pinfo->lcdc.force_merge = 0;
-	if (pstruct->paneldata->panel_operating_mode & DUAL_PIPE_FLAG)
+	if ((pstruct->paneldata->panel_operating_mode & DUAL_PIPE_FLAG) ||
+		pinfo->splitter_is_enabled)
 		pinfo->lcdc.dual_pipe = 1;
 	if (pstruct->paneldata->panel_operating_mode & PIPE_SWAP_FLAG)
 		pinfo->lcdc.pipe_swap = 1;
@@ -164,9 +181,26 @@ int dsi_panel_init(struct msm_panel_info *pinfo,
 	if (pstruct->paneldata->panel_operating_mode & USE_DSI1_PLL_FLAG)
 		pinfo->mipi.use_dsi1_pll = 1;
 
-	dprintf(SPEW, "dual_pipe=%d pipe_swap=%d split_display=%d dst_split=%d\n",
-		pinfo->lcdc.dual_pipe, pinfo->lcdc.pipe_swap,
-		pinfo->lcdc.split_display, pinfo->lcdc.dst_split);
+	dsi_panel_set_splitter(pinfo);
+	/*
+	 * Double check the concurrency of splitter enablement and dsi split function.
+	 * DSI split display and dsi splitter are different things, the former one is both
+	 * DSI0 and DSI1 will fetch from one buffer, and use two ctrls along with one
+	 * layer mixer and one pipe respectively.
+	 * While for the dsi splitter feature, it will use one ctrl along with one or two layer
+	 * mixer, and two pipes on DSI0 or DSI1 display.
+	 * They are mutual to each other.
+	 */
+	if (pinfo->lcdc.split_display && pinfo->splitter_is_enabled) {
+		dprintf(CRITICAL, "dsi split can't co-exist with dsi splitter\n");
+		return ERR_NOT_VALID;
+	}
+
+	dprintf(SPEW, "dual_pipe=%d pipe_swap=%d split_display=%d dst_split=%d\
+			force_merge=%d splitter=%d\n",
+			pinfo->lcdc.dual_pipe, pinfo->lcdc.pipe_swap,
+			pinfo->lcdc.split_display, pinfo->lcdc.dst_split,
+			pinfo->lcdc.force_merge, pinfo->splitter_is_enabled);
 
 	/* Color setting*/
 	pinfo->lcdc.border_clr = pstruct->color->border_color;

@@ -1191,7 +1191,8 @@ static int mdss_hdmi_update_panel_info(bool splitter_is_enabled)
 		/* update FB base address */
 		base = (void *)((int8_t *)panel.fb[i].base + panel.fb[i].stride * panel.fb[i].height);
 
-		dprintf(CRITICAL, "FB[%d] width %d, height %d\n", i, panel.fb[i].width, panel.fb[i].height);
+		dprintf(CRITICAL, "HDMI: FB[%d] width %d, height %d\n", i,
+			panel.fb[i].width, panel.fb[i].height);
 	}
 
 	return NO_ERROR;
