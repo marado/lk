@@ -51,7 +51,12 @@
 #define PWM_DUTY_US 13
 #define PWM_PERIOD_US 27
 #define PM8916_VER 0x20000
+#define SUB_TYPE_SKUA           0x00
+#define BB_VERSION_MAJOR        0x03
 
+static struct gpio_pin bl_gpio = {
+	"msmgpio", 61, 3, 1, 0, 1
+};
 static void mdss_dsi_uniphy_pll_sw_reset_8909(uint32_t pll_base)
 {
 	writel(0x01, pll_base + 0x0068); /* PLL TEST CFG */
@@ -187,13 +192,13 @@ static void enable_bl_to_level(uint8_t level)
 {
 	int i;
 
-	gpio_set(61,2);
+	gpio_set(bl_gpio.pin_id,2);
 	udelay(40);
 	for(i = 1; i < level; i++)
 	{
-		gpio_set(61,0);
+		gpio_set(bl_gpio.pin_id,0);
 		udelay(2);
-		gpio_set(61,2);
+		gpio_set(bl_gpio.pin_id,2);
 		udelay(2);
 	}
 }
@@ -204,6 +209,9 @@ int target_backlight_ctrl(struct backlight *bl, uint8_t enable)
 	uint32_t hw_id = board_hardware_id();
 	struct board_pmic_data pmic_info;
 	int rc;
+	uint32_t hw_subtype = board_hardware_subtype();
+	uint32_t target_id = board_target_id();
+	uint32_t plat_hw_ver_major = ((target_id >> 16) & 0xFF);
 
 	if (bl->bl_interface_type == BL_DCS)
 		return 0;
@@ -227,11 +235,26 @@ int target_backlight_ctrl(struct backlight *bl, uint8_t enable)
 		pm8x41_config_output_mpp(&mpp);
 		pm8x41_enable_mpp(&mpp, MPP_ENABLE);
 
-		enable_bl_to_level(1);
+		if ((hw_id == HW_PLATFORM_QRD) &&
+		    (hw_subtype == SUB_TYPE_SKUA) &&
+		    (plat_hw_ver_major == BB_VERSION_MAJOR)) {
+			//init gpio1
+			gpio_tlmm_config(bl_gpio.pin_id, 0,
+					bl_gpio.pin_direction,
+					bl_gpio.pin_pull,
+					bl_gpio.pin_strength,
+					bl_gpio.pin_state);
+			gpio_set(bl_gpio.pin_id,0);
+			enable_bl_to_level(1);
+		}
 	} else {
 		pm_pwm_enable(false);
 		pm8x41_enable_mpp(&mpp, MPP_DISABLE);
-		gpio_set(61,0);
+		if ((hw_id == HW_PLATFORM_QRD) &&
+			(hw_subtype == SUB_TYPE_SKUA) &&
+			(plat_hw_ver_major == BB_VERSION_MAJOR)) {
+			gpio_set(bl_gpio.pin_id,0);
+		}
 	}
 	mdelay(20);
 

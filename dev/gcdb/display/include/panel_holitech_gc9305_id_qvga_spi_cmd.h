@@ -106,7 +106,7 @@ static struct mdss_spi_cmd holitech_gc9305_id_qvga_cmd_on_command[] = {
 	{sizeof(holitech_gc9305_id_qvga_cmd_on_cmd15), holitech_gc9305_id_qvga_cmd_on_cmd15, 0x00, 0},
 	{sizeof(holitech_gc9305_id_qvga_cmd_on_cmd16), holitech_gc9305_id_qvga_cmd_on_cmd16, 0x00, 0},
 	{sizeof(holitech_gc9305_id_qvga_cmd_on_cmd17), holitech_gc9305_id_qvga_cmd_on_cmd17, 0x00, 0},
-	{sizeof(holitech_gc9305_id_qvga_cmd_on_cmd18), holitech_gc9305_id_qvga_cmd_on_cmd18, 0x00, 0},   
+	{sizeof(holitech_gc9305_id_qvga_cmd_on_cmd18), holitech_gc9305_id_qvga_cmd_on_cmd18, 0x00, 0},
 	{sizeof(holitech_gc9305_id_qvga_cmd_on_cmd19), holitech_gc9305_id_qvga_cmd_on_cmd19, 0x00, 0},
 	{sizeof(holitech_gc9305_id_qvga_cmd_on_cmd20), holitech_gc9305_id_qvga_cmd_on_cmd20, 0x00, 0},
 	{sizeof(holitech_gc9305_id_qvga_cmd_on_cmd21), holitech_gc9305_id_qvga_cmd_on_cmd21, 0x00, 0},
@@ -117,7 +117,7 @@ static struct mdss_spi_cmd holitech_gc9305_id_qvga_cmd_on_command[] = {
 	{sizeof(holitech_gc9305_id_qvga_cmd_on_cmd26), holitech_gc9305_id_qvga_cmd_on_cmd26, 0x00, 0},
 	{sizeof(holitech_gc9305_id_qvga_cmd_on_cmd27), holitech_gc9305_id_qvga_cmd_on_cmd27, 0x78, 0},
 	{sizeof(holitech_gc9305_id_qvga_cmd_on_cmd28), holitech_gc9305_id_qvga_cmd_on_cmd28, 0x00, 0},
-	{sizeof(holitech_gc9305_id_qvga_cmd_on_cmd29), holitech_gc9305_id_qvga_cmd_on_cmd29, 0x00, 0},								
+	{sizeof(holitech_gc9305_id_qvga_cmd_on_cmd29), holitech_gc9305_id_qvga_cmd_on_cmd29, 0x00, 0},
 };
 
 #define HOLITECH_GC9305_ID_QVGA_CMD_ON_COMMAND 29
