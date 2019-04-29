@@ -44,11 +44,7 @@
 #endif
 
 static struct msm_fb_panel_data *panel;
-#ifdef NUM_TARGET_DISPLAYS
-static struct msm_fb_panel_data panel_array[NUM_TARGET_DISPLAYS];
-#else
-static struct msm_fb_panel_data panel_array[1];
-#endif
+static struct msm_fb_panel_data panel_array[MAX_NUM_DISPLAY];
 
 static uint32_t num_panel = 0;
 

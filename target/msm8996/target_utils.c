@@ -35,6 +35,9 @@ IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 static struct utils_panel_lookup_list lookup_table[] = {
 	{"dual_1080p_single_hdmi_video", {{" dsi0", 0}, {" dsi1", 1}, {" hdmi", 2}}},
 	{"single_1080p_single_hdmi_video", {{" dsi0",0}, {" hdmi", 1}, {"none", 0}}},
+	{"dual_720p_single_hdmi_video", {{" dsi0",0}, {" dsi1", 1}, {" hdmi", 2}}},
+	{"single_720p_single_hdmi_video", {{" dsi0",0}, {" hdmi", 1}, {"none", 0}}},
+	{"adv7533_3840w_swap_hdmi", {{" hdmi", 1}, {"none", 0}, {"none", 0}}},
 	{"hdmi", {{" hdmi", 0}, {"none", 0}, {"none", 0}}},
 };
 

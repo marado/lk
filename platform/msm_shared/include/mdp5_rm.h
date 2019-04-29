@@ -50,13 +50,15 @@ struct resource_req {
  * @type: pipe type
  * @left_base: base address of left pipe
  * @right_base: base address of right pipe
- * @valid: whether pipe is occuiped.
+ * @left_pipe_valid: left pipe is occupied.
+ * @right_pipe_valid: right pipe is occupied.
  */
 struct pipe_usage {
 	uint32_t type;
 	uint32_t left_base;
 	uint32_t right_base;
-	bool valid;
+	bool left_pipe_valid;
+	bool right_pipe_valid;
 };
 
 void mdp_rm_update_resource(struct msm_panel_info *pinfo, bool use_second_dsi);

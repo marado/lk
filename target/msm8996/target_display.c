@@ -121,7 +121,7 @@ static struct gpio_pin hdmi_hpd_gpio = {       /* HPD, input */
   "msmgpio", 34, 7, 0, 1, 1
 };
 
-struct target_display displays[NUM_TARGET_DISPLAYS];
+struct target_display displays[MAX_NUM_DISPLAY];
 struct target_layer_int layers[NUM_TARGET_LAYERS];
 
 extern int msm_display_update(struct fbcon_config *fb, uint32_t pipe_id,
@@ -986,174 +986,238 @@ void target_display_init(const char *panel_name)
 			oem.panel);
 		goto target_display_init_end;
 	} else if (!strcmp(oem.panel, HDMI_PANEL_NAME)) {
-		mdss_hdmi_display_init(MDP_REV_50, (void *) HDMI_FB_ADDR, displays[0].splitter_display_enabled);
+		mdss_hdmi_display_init(MDP_REV_50, (void *)HDMI_FB_ADDR,
+				displays[DISPLAY_1 - DISPLAY_1].splitter_display_enabled);
 		// Get HDMI resolution
-		target_display_HDMI_resolution (&displays[0].width, &displays[0].height);
-		if (displays[0].width > 2560)
-			displays[0].dual_pipe = true;
+		target_display_HDMI_resolution (&displays[DISPLAY_1 - DISPLAY_1].width,
+				&displays[DISPLAY_1 - DISPLAY_1].height);
+
+		if (displays[DISPLAY_1 - DISPLAY_1].width > 2560)
+			displays[DISPLAY_1 - DISPLAY_1].dual_pipe = true;
 		else
-			displays[0].dual_pipe = false;
-		displays[1].width = 0;
-		displays[1].height = 0;
-		displays[2].width = 0;
-		displays[2].height = 0;
+			displays[DISPLAY_1 - DISPLAY_1].dual_pipe = false;
+
+		displays[DISPLAY_2 - DISPLAY_1].width = 0;
+		displays[DISPLAY_2 - DISPLAY_1].height = 0;
+		displays[DISPLAY_3 - DISPLAY_1].width = 0;
+		displays[DISPLAY_3 - DISPLAY_1].height = 0;
 		goto target_display_init_end;
 	} else if (!strcmp(oem.panel, "dual_720p_single_hdmi_video")) {
 		// Three display panels init, init DSI0 first
 		gcdb_display_init("adv7533_720p_dsi0_video", MDP_REV_50,
-				(void *)MIPI_FB_ADDR, false);
+			(void *)MIPI_FB_ADDR,
+			displays[DISPLAY_1 - DISPLAY_1].splitter_display_enabled);
+
 		// if the panel has different size or color format, they cannot use
 		// the same FB buffer
 		gcdb_display_init("adv7533_720p_dsi1_video", MDP_REV_50,
-				(void *)MIPI_FB_ADDR + 0x1000000, false);
-		mdss_hdmi_display_init(MDP_REV_50, (void *) HDMI_FB_ADDR, displays[2].splitter_display_enabled);
-		displays[0].width = 1280;
-		displays[0].height = 720;
-		displays[1].width = 1280;
-		displays[1].height = 720;
+				(void *)MIPI_FB_ADDR + 0x1000000,
+				displays[DISPLAY_2 - DISPLAY_1].splitter_display_enabled);
+
+		displays[DISPLAY_1 - DISPLAY_1].width = 1280;
+		displays[DISPLAY_1 - DISPLAY_1].height = 720;
+		displays[DISPLAY_2 - DISPLAY_1].width = 1280;
+		displays[DISPLAY_2 - DISPLAY_1].height = 720;
+
+		mdss_hdmi_display_init(MDP_REV_50, (void *)HDMI_FB_ADDR,
+				displays[DISPLAY_3 - DISPLAY_1].splitter_display_enabled);
 		// Get HDMI resolution
-		target_display_HDMI_resolution (&displays[2].width, &displays[2].height);
-		if (displays[2].width > 2560)
-			displays[2].dual_pipe = true;
+		target_display_HDMI_resolution (&displays[DISPLAY_3 - 1].width,
+				&displays[DISPLAY_3 - DISPLAY_1].height);
+
+		if (displays[DISPLAY_3 - DISPLAY_1].width > 2560)
+			displays[DISPLAY_3 - DISPLAY_1].dual_pipe = true;
 		else
-			displays[2].dual_pipe = false;
+			displays[DISPLAY_3 - DISPLAY_1].dual_pipe = false;
 
 		goto target_display_init_end;
 	} else if (!strcmp(oem.panel, "dual_1080p_single_hdmi_video")) {
 		// Three display panels init, init DSI0 first
 		gcdb_display_init("adv7533_1080p_dsi0_video", MDP_REV_50,
-				(void *)MIPI_FB_ADDR, false);
+				(void *)MIPI_FB_ADDR,
+				displays[DISPLAY_1 - DISPLAY_1].splitter_display_enabled);
+
 		// if the panel has different size or color format, they cannot use
 		// the same FB buffer
 		gcdb_display_init("adv7533_1080p_dsi1_video", MDP_REV_50,
-				(void *)MIPI_FB_ADDR + 0x1000000, false);
-		mdss_hdmi_display_init(MDP_REV_50, (void *) HDMI_FB_ADDR, displays[2].splitter_display_enabled);
-		displays[0].width = 1920;
-		displays[0].height = 1080;
-		displays[1].width = 1920;
-		displays[1].height = 1080;
+				(void *)MIPI_FB_ADDR + 0x1000000,
+				displays[DISPLAY_2 - DISPLAY_1].splitter_display_enabled);
+
+		displays[DISPLAY_1 - DISPLAY_1].width = 1920;
+		displays[DISPLAY_1 - DISPLAY_1].height = 1080;
+		displays[DISPLAY_2 - DISPLAY_1].width = 1920;
+		displays[DISPLAY_2 - DISPLAY_1].height = 1080;
+
+		mdss_hdmi_display_init(MDP_REV_50, (void *)HDMI_FB_ADDR,
+			displays[DISPLAY_3 - DISPLAY_1].splitter_display_enabled);
 		// Get HDMI resolution
-		target_display_HDMI_resolution (&displays[2].width, &displays[2].height);
-		if (displays[2].width > 2560)
-			displays[2].dual_pipe = true;
+		target_display_HDMI_resolution (&displays[DISPLAY_3 - DISPLAY_1].width,
+				&displays[DISPLAY_3 - DISPLAY_1].height);
+		if (displays[DISPLAY_3 - DISPLAY_1].width > 2560)
+			displays[DISPLAY_3 - DISPLAY_1].dual_pipe = true;
 		else
-			displays[2].dual_pipe = false;
+			displays[DISPLAY_3 - DISPLAY_1].dual_pipe = false;
 
 		goto target_display_init_end;
 	} else if (!strcmp(oem.panel, "single_720p_single_hdmi_video")) {
 		// Dual display panels init, init DSI0 first
 		gcdb_display_init("adv7533_720p_video", MDP_REV_50,
-				(void *)MIPI_FB_ADDR, false);
-		mdss_hdmi_display_init(MDP_REV_50, (void *) HDMI_FB_ADDR, displays[1].splitter_display_enabled);
-		displays[0].width = 1280;
-		displays[0].height = 720;
+				(void *)MIPI_FB_ADDR,
+				displays[DISPLAY_1 - DISPLAY_1].splitter_display_enabled);
+
+		displays[DISPLAY_1 - DISPLAY_1].width = 1280;
+		displays[DISPLAY_1 - DISPLAY_1].height = 720;
+
+		mdss_hdmi_display_init(MDP_REV_50, (void *)HDMI_FB_ADDR,
+			displays[DISPLAY_2 - DISPLAY_1].splitter_display_enabled);
 		// Get HDMI resolution
-		target_display_HDMI_resolution (&displays[1].width, &displays[1].height);
-		if (displays[1].width > 2560)
-			displays[1].dual_pipe = true;
+		target_display_HDMI_resolution (&displays[DISPLAY_2 - DISPLAY_1].width,
+				&displays[DISPLAY_2 - DISPLAY_1].height);
+		if (displays[DISPLAY_2 - DISPLAY_1].width > 2560)
+			displays[DISPLAY_2 - DISPLAY_1].dual_pipe = true;
 		else
-			displays[1].dual_pipe = false;
-		displays[2].width = 0;
-		displays[2].height = 0;
+			displays[DISPLAY_2 - DISPLAY_1].dual_pipe = false;
+
+		displays[DISPLAY_3 - DISPLAY_1].width = 0;
+		displays[DISPLAY_3 - DISPLAY_1].height = 0;
 		goto target_display_init_end;
 	} else if (!strcmp(oem.panel, "single_1080p_single_hdmi_video")) {
 		//Single display panel init, init DSI0 only
 		gcdb_display_init("adv7533_1080p_video", MDP_REV_50,
-				(void *)MIPI_FB_ADDR, false);
-		mdss_hdmi_display_init(MDP_REV_50, (void *) HDMI_FB_ADDR, displays[1].splitter_display_enabled);
-		displays[0].width = 1920;
-		displays[0].height = 1080;
+				(void *)MIPI_FB_ADDR,
+				displays[DISPLAY_1 - DISPLAY_1].splitter_display_enabled);
+
+		displays[DISPLAY_1 - DISPLAY_1].width = 1920;
+		displays[DISPLAY_1 - DISPLAY_1].height = 1080;
+
+		mdss_hdmi_display_init(MDP_REV_50, (void *)HDMI_FB_ADDR,
+				displays[DISPLAY_2 - DISPLAY_1].splitter_display_enabled);
+
 		// Get HDMI resolution
-		target_display_HDMI_resolution (&displays[1].width, &displays[1].height);
-		if (displays[1].width > 2560)
-			displays[1].dual_pipe = true;
+		target_display_HDMI_resolution (&displays[DISPLAY_2 - DISPLAY_1].width,
+				&displays[DISPLAY_2 - DISPLAY_1].height);
+		if (displays[DISPLAY_2 - DISPLAY_1].width > 2560)
+			displays[DISPLAY_2 - DISPLAY_1].dual_pipe = true;
 		else
-			displays[1].dual_pipe = false;
-		displays[2].width = 0;
-		displays[2].height = 0;
+			displays[DISPLAY_2 - DISPLAY_1].dual_pipe = false;
+
+		displays[DISPLAY_3 - DISPLAY_1].width = 0;
+		displays[DISPLAY_3 - DISPLAY_1].height = 0;
+
 		goto target_display_init_end;
 	} else if (!strcmp(oem.panel, "adv7533_2560w")) {
-		displays[0].width = 2560;
-		displays[0].height = 720;
-		displays[0].dual_pipe = true;
-		displays[1].width = 0;
-		displays[1].height = 0;
-		displays[2].width = 0;
-		displays[2].height = 0;
+		displays[DISPLAY_1 - DISPLAY_1].width = 2560;
+		displays[DISPLAY_1 - DISPLAY_1].height = 720;
+		displays[DISPLAY_1 - DISPLAY_1].dual_pipe = true;
+		displays[DISPLAY_2 - DISPLAY_1].width = 0;
+		displays[DISPLAY_2 - DISPLAY_1].height = 0;
+		displays[DISPLAY_3 - DISPLAY_1].width = 0;
+		displays[DISPLAY_3 - DISPLAY_1].height = 0;
 	} else if (!strcmp(oem.panel, "adv7533_3840w")) {
-		displays[0].width = 3840;
-		displays[0].height = 1080;
-		displays[0].dual_pipe = true;
-		displays[1].width = 0;
-		displays[1].height = 0;
-		displays[2].width = 0;
-		displays[2].height = 0;
+		displays[DISPLAY_1 - DISPLAY_1].width = 3840;
+		displays[DISPLAY_1 - DISPLAY_1].height = 1080;
+		displays[DISPLAY_1 - DISPLAY_1].dual_pipe = true;
+		displays[DISPLAY_2 - DISPLAY_1].width = 0;
+		displays[DISPLAY_2 - DISPLAY_1].height = 0;
+		displays[DISPLAY_3 - DISPLAY_1].width = 0;
+		displays[DISPLAY_3 - DISPLAY_1].height = 0;
 	} else if (!strcmp(oem.panel, "adv7533_3840w_hdmi")) {
+		/* shared display can't co-exist with dsi split case */
 		gcdb_display_init("adv7533_3840w", MDP_REV_50,
 				(void *)MIPI_FB_ADDR, false);
-		mdss_hdmi_display_init(MDP_REV_50, (void *) HDMI_FB_ADDR, displays[1].splitter_display_enabled);
-		displays[0].width = 3840;
-		displays[0].height = 1080;
-		displays[0].dual_pipe = true;
-		displays[2].width = 0;
-		displays[2].height = 0;
+
+		displays[DISPLAY_1 - DISPLAY_1].width = 3840;
+		displays[DISPLAY_1 - DISPLAY_1].height = 1080;
+		displays[DISPLAY_1 - DISPLAY_1].dual_pipe = true;
+
+		mdss_hdmi_display_init(MDP_REV_50, (void *)HDMI_FB_ADDR,
+				displays[DISPLAY_2 - DISPLAY_1].splitter_display_enabled);
+
 		// Get HDMI resolution
-		target_display_HDMI_resolution (&displays[1].width, &displays[1].height);
-		if (displays[1].width > 2560)
-			displays[1].dual_pipe = true;
+		target_display_HDMI_resolution (&displays[DISPLAY_2 - DISPLAY_1].width,
+				&displays[DISPLAY_2 - DISPLAY_1].height);
+		if (displays[DISPLAY_2 - DISPLAY_1].width > 2560)
+			displays[DISPLAY_2 - DISPLAY_1].dual_pipe = true;
 		else
-			displays[1].dual_pipe = false;
+			displays[DISPLAY_2 - DISPLAY_1].dual_pipe = false;
+
+		displays[DISPLAY_3 - DISPLAY_1].width = 0;
+		displays[DISPLAY_3 - DISPLAY_1].height = 0;
+
 		goto target_display_init_end;
 	} else if (!strcmp(oem.panel, "adv7533_2560w_hdmi")) {
+		/* shared display can't co-exist with dsi split case */
 		gcdb_display_init("adv7533_2560w", MDP_REV_50,
 				(void *)MIPI_FB_ADDR, false);
-		mdss_hdmi_display_init(MDP_REV_50, (void *) HDMI_FB_ADDR, displays[1].splitter_display_enabled);
-		displays[0].width = 2560;
-		displays[0].height = 720;
-		displays[0].dual_pipe = true;
-		displays[2].width = 0;
-		displays[2].height = 0;
+
+		displays[DISPLAY_1 - DISPLAY_1].width = 2560;
+		displays[DISPLAY_1 - DISPLAY_1].height = 720;
+		displays[DISPLAY_1 - DISPLAY_1].dual_pipe = true;
+
+		mdss_hdmi_display_init(MDP_REV_50, (void *)HDMI_FB_ADDR,
+				displays[DISPLAY_2 - DISPLAY_1].splitter_display_enabled);
+
 		// Get HDMI resolution
-		target_display_HDMI_resolution (&displays[1].width, &displays[1].height);
-		if (displays[1].width > 2560)
-			displays[1].dual_pipe = true;
+		target_display_HDMI_resolution (&displays[DISPLAY_2 - DISPLAY_1].width,
+				&displays[DISPLAY_2 - DISPLAY_1].height);
+		if (displays[DISPLAY_2 - DISPLAY_1].width > 2560)
+			displays[DISPLAY_2 - DISPLAY_1].dual_pipe = true;
 		else
-			displays[1].dual_pipe = false;
+			displays[DISPLAY_2 - DISPLAY_1].dual_pipe = false;
+
+		displays[DISPLAY_3 - DISPLAY_1].width = 0;
+		displays[DISPLAY_3 - DISPLAY_1].height = 0;
+
 		goto target_display_init_end;
 	} else if (!strcmp(oem.panel, "adv7533_3840w_swap_hdmi")) {
+		/* shared display can't co-exist with dsi split case */
 		gcdb_display_init("adv7533_3840w_swap", MDP_REV_50,
 				(void *)MIPI_FB_ADDR, false);
-		mdss_hdmi_display_init(MDP_REV_50, (void *) HDMI_FB_ADDR, displays[1].splitter_display_enabled);
-		displays[0].width = 3840;
-		displays[0].height = 1080;
-		displays[0].dual_pipe = true;
-		displays[2].width = 0;
-		displays[2].height = 0;
+
+		displays[DISPLAY_1 - DISPLAY_1].width = 3840;
+		displays[DISPLAY_1 - DISPLAY_1].height = 1080;
+		displays[DISPLAY_1 - DISPLAY_1].dual_pipe = true;
+
+		mdss_hdmi_display_init(MDP_REV_50, (void *)HDMI_FB_ADDR,
+				displays[DISPLAY_2 - DISPLAY_1].splitter_display_enabled);
+
 		// Get HDMI resolution
-		target_display_HDMI_resolution (&displays[1].width, &displays[1].height);
-		if (displays[1].width > 2560)
-			displays[1].dual_pipe = true;
+		target_display_HDMI_resolution (&displays[DISPLAY_2 - DISPLAY_1].width,
+				&displays[DISPLAY_2 - DISPLAY_1].height);
+		if (displays[DISPLAY_2 - DISPLAY_1].width > 2560)
+			displays[DISPLAY_2 - DISPLAY_1].dual_pipe = true;
 		else
-			displays[1].dual_pipe = false;
+			displays[DISPLAY_2 - DISPLAY_1].dual_pipe = false;
+
+		displays[DISPLAY_3 - DISPLAY_1].width = 0;
+		displays[DISPLAY_3 - DISPLAY_1].height = 0;
+
 		goto target_display_init_end;
 	} else if (!strcmp(oem.panel, "dsi0_600p_dsi1_720p_hdmi_video")) {
 		// Initialize DSI0 in 1024x600 resolution
 		gcdb_display_init("adv7533_1024_600p_dsi0_video", MDP_REV_50,
-				(void *)MIPI_FB_ADDR, false);
-		displays[0].width = 1024;
-		displays[0].height = 600;
+				(void *)MIPI_FB_ADDR,
+				displays[DISPLAY_1 - DISPLAY_1].splitter_display_enabled);
+		displays[DISPLAY_1 - DISPLAY_1].width = 1024;
+		displays[DISPLAY_1 - DISPLAY_1].height = 600;
+
 		// Initialize DSI1 in 1280x720 resolution
 		gcdb_display_init("adv7533_720p_dsi1_video", MDP_REV_50,
-				(void *)MIPI_FB_ADDR + 0x1000000, false);
-		displays[1].width = 1280;
-		displays[1].height = 720;
-		mdss_hdmi_display_init(MDP_REV_50, (void *) HDMI_FB_ADDR, displays[2].splitter_display_enabled);
+				(void *)MIPI_FB_ADDR + 0x1000000,
+				displays[DISPLAY_2 - DISPLAY_1].splitter_display_enabled);
+		displays[DISPLAY_2 - DISPLAY_1].width = 1280;
+		displays[DISPLAY_2 - DISPLAY_1].height = 720;
+
+		mdss_hdmi_display_init(MDP_REV_50, (void *)HDMI_FB_ADDR,
+			displays[DISPLAY_3 - DISPLAY_1].splitter_display_enabled);
 		// Get HDMI resolution
-		target_display_HDMI_resolution (&displays[2].width, &displays[2].height);
-		if (displays[2].width > 2560)
-			displays[2].dual_pipe = true;
+		target_display_HDMI_resolution (&displays[DISPLAY_3 - DISPLAY_1].width,
+				&displays[DISPLAY_3 - DISPLAY_1].height);
+		if (displays[DISPLAY_3 - DISPLAY_1].width > 2560)
+			displays[DISPLAY_3 - DISPLAY_1].dual_pipe = true;
 		else
-			displays[2].dual_pipe = false;
+			displays[DISPLAY_3 - DISPLAY_1].dual_pipe = false;
+
 		goto target_display_init_end;
 		return;
 	} else if (composite_panel_name(oem.panel)) {
@@ -1170,7 +1234,8 @@ void target_display_init(const char *panel_name)
 		for (i = 0; ((i < panel_count) && (i < MAX_PANEL_COUNT)); i++) {
 			if (!strcmp(panel[i], HDMI_PANEL_NAME)) {
 				dprintf (SPEW, "panel%d name is %s\n", i, panel[i]);
-				mdss_hdmi_display_init(MDP_REV_50, (void *) HDMI_FB_ADDR, displays[i].splitter_display_enabled);
+				mdss_hdmi_display_init(MDP_REV_50, (void *)HDMI_FB_ADDR,
+					displays[i].splitter_display_enabled);
 				// Get HDMI resolution
 				target_display_HDMI_resolution (&displays[i].width, &displays[i].height);
 				if (displays[i].width > 2560)
@@ -1178,7 +1243,9 @@ void target_display_init(const char *panel_name)
 				else
 					displays[i].dual_pipe = false;
 			} else {
-				gcdb_display_init(panel[i], MDP_REV_50, (void *)MIPI_FB_ADDR, false);
+				gcdb_display_init(panel[i], MDP_REV_50, (void *)MIPI_FB_ADDR,
+					displays[i].splitter_display_enabled);
+
 				if ((!strcmp(panel[i], "adv7533_1080p_dsi0_video")) ||
 					(!strcmp(panel[i], "adv7533_1080p_dsi1_video")) ||
 					(!strcmp(panel[i], "adv7533_1080p_video")) ||
@@ -1272,7 +1339,7 @@ void * target_acquire_vig_pipe(struct target_display *disp)
 
 void * target_display_open (uint32 display_id)
 {
-	if (display_id >= NUM_TARGET_DISPLAYS) {
+	if (display_id >= MAX_NUM_DISPLAY) {
 		dprintf(CRITICAL, "Invalid display id %u\n", display_id);
 		return NULL;
 	} else {
@@ -1284,7 +1351,7 @@ uint32_t target_display_get_rvc_display_id()
 {
 	uint32_t i;
 
-	for (i = 0; i < NUM_TARGET_DISPLAYS; i++) {
+	for (i = 0; i < MAX_NUM_DISPLAY; i++) {
 		if (displays[i].has_rvc)
 			return i;
 	}
@@ -1537,11 +1604,7 @@ int target_display_close(struct target_display * disp) {
 }
 
 int target_get_max_display() {
-#ifdef NUM_TARGET_DISPLAYS
-    return NUM_TARGET_DISPLAYS;
-#else
-	return 1;
-#endif
+	return MAX_NUM_DISPLAY;
 }
 
 int target_display_init_count() {

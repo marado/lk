@@ -1806,7 +1806,7 @@ int mdp_dsi_video_config(struct msm_panel_info *pinfo,
 
 	/* enable 3D mux for dual_pipe but single interface config */
 	if (pinfo->lcdc.dual_pipe && !pinfo->mipi.dual_dsi &&
-		!pinfo->lcdc.split_display) {
+		!pinfo->lcdc.split_display && !pinfo->lcdc.force_merge) {
 
 		if (pinfo->num_dsc_enc != 2)
 			reg |= BIT(19) | BIT(20);
