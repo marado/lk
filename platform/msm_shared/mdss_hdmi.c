@@ -1187,6 +1187,12 @@ static int mdss_hdmi_update_panel_info(bool splitter_is_enabled)
 		panel.fb[i].stride = (panel.panel_info.xres * panel.panel_info.bpp / 8) / max_fb_cnt;
 		panel.fb[i].bpp = panel.panel_info.bpp;
 		panel.fb[i].format = FB_FORMAT_RGB888;
+		panel.fb[i].z_order = SPLASH_SPLIT_0_LAYER_ZORDER + i;
+		panel.fb[i].right = LM_LEFT;
+
+		if ((i == SPLIT_DISPLAY_1) &&
+			panel.panel_info.lcdc.dual_pipe && !panel.panel_info.lcdc.force_merge)
+			panel.fb[i].right = LM_RIGHT;
 
 		/* update FB base address */
 		base = (void *)((int8_t *)panel.fb[i].base + panel.fb[i].stride * panel.fb[i].height);

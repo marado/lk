@@ -38,6 +38,15 @@
 #define DFPS_MAX_FRAME_RATE 20
 #define DFPS_PLL_CODES_SIZE 0x1000 /* One page */
 
+#define MAX_TARGET_LAYERS 10
+
+#define MAX_STAGE_FB 6
+
+enum layer_mixer {
+	LM_LEFT,
+	LM_RIGHT,
+};
+
 /* panel type list */
 enum panel_type {
 	NO_PANEL,
@@ -73,7 +82,7 @@ enum display_id {
 
 enum split_framebuffer_index {
 	SPLIT_DISPLAY_0 = 0,		/* default FB index */
-	SPLIT_DISPLAY_1,		/* active in splitter case */
+	SPLIT_DISPLAY_1,		/* active in splitter case/dual ctl and lm case */
 	MAX_SPLIT_DISPLAY,
 };
 

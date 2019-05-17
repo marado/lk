@@ -1,7 +1,7 @@
 /*
  * Copyright (c) 2008 Travis Geiselbrecht
  *
- * Copyright (c) 2013-2017, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2013-2017, 2019 The Linux Foundation. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining
  * a copy of this software and associated documentation files
@@ -126,6 +126,7 @@ bool target_battery_is_present();
 uint32_t target_get_pmic();
 void earlydomain();
 int target_is_yuv_format(uint32_t format);
+bool target_format_is_valid(uint32_t format);
 int target_update_cmdline(char *cmdline);
 int target_get_vb_version();
 #endif
