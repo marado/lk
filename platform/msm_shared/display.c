@@ -42,6 +42,7 @@
 #if ENABLE_QSEED_SCALAR
 #include <target/scalar.h>
 #endif
+#include "mdp5_rm.h"
 
 static struct msm_fb_panel_data *panel;
 static struct msm_fb_panel_data panel_array[MAX_NUM_DISPLAY];
@@ -94,6 +95,7 @@ int msm_display_config()
 	int mdp_rev;
 #endif
 	struct msm_panel_info *pinfo;
+	static bool reseted;
 
 	if (!panel)
 		return ERR_INVALID_ARGS;
@@ -104,6 +106,9 @@ int msm_display_config()
 
 	/* Set MDP revision */
 	mdp_set_revision(panel->mdp_rev);
+
+	mdp_rm_reset_resource_manager(reseted);
+	reseted = true;
 
 	switch (pinfo->type) {
 #ifdef DISPLAY_TYPE_MDSS
@@ -130,7 +135,8 @@ int msm_display_config()
 		if (pinfo->early_config)
 			ret = pinfo->early_config((void *)pinfo);
 
-		ret = mdp_dsi_video_config(pinfo, panel->fb);
+		ret = mdp_dsi_video_config(pinfo, panel->fb,
+			pinfo->splitter_is_enabled ? MAX_SPLIT_DISPLAY : SPLIT_DISPLAY_1);
 		if (ret)
 			goto msm_display_config_out;
 		break;
@@ -166,7 +172,8 @@ int msm_display_config()
 		break;
 	case HDMI_PANEL:
 		dprintf(SPEW, "Config HDMI PANEL.\n");
-		ret = mdss_hdmi_config(pinfo, panel->fb);
+		ret = mdss_hdmi_config(pinfo, panel->fb,
+			pinfo->splitter_is_enabled ? MAX_SPLIT_DISPLAY : SPLIT_DISPLAY_1);
 		if (ret)
 			goto msm_display_config_out;
 		break;
@@ -322,12 +329,15 @@ struct fbcon_config* msm_display_get_fb(uint32_t disp_id, uint32_t fb_index)
 		return &panel_array[disp_id].fb[fb_index];
 }
 
-int msm_display_update(struct fbcon_config *fb, uint32_t pipe_id, uint32_t pipe_type,
-	uint32_t *zorder, uint32_t *width, uint32_t *height, uint32_t disp_id)
+int msm_display_update(struct fbcon_config *fb, uint32_t fb_cnt,
+	uint32_t pipe_id, uint32_t pipe_type, uint32_t *width, uint32_t *height,
+	uint32_t disp_id, bool disp_has_rvc_context, bool firstframe)
 {
 	struct msm_panel_info *pinfo;
 	struct msm_fb_panel_data *panel_local;
 	int ret = 0, i = 0, max_fb_cnt = 0;
+	uint32_t left_mask, right_mask;
+	static bool reseted;
 
 	if (!fb) {
 		dprintf(CRITICAL, "Error! Inalid args\n");
@@ -342,7 +352,7 @@ int msm_display_update(struct fbcon_config *fb, uint32_t pipe_id, uint32_t pipe_
 	max_fb_cnt = pinfo->splitter_is_enabled ? MAX_SPLIT_DISPLAY : SPLIT_DISPLAY_1;
 
 	for (i = SPLIT_DISPLAY_0; i < max_fb_cnt; i++) {
-		pinfo->zorder[i] = zorder[i];
+		pinfo->zorder[i] = fb[i].z_order;
 		pinfo->border_top[i] = fb[i].height/2 - height[i]/2;
 		pinfo->border_bottom[i] = pinfo->border_top[i];
 		pinfo->border_left[i] = fb[i].width/2 - width[i]/2;
@@ -350,30 +360,66 @@ int msm_display_update(struct fbcon_config *fb, uint32_t pipe_id, uint32_t pipe_
 		panel_local->fb[i] = fb[i];
 	}
 
+	mdp_rm_reset_resource_manager(reseted);
+	reseted = true;
+
 	switch (pinfo->type) {
 		case MIPI_VIDEO_PANEL:
-			ret = mdp_dsi_video_config(pinfo, fb);
-			if (ret) {
-				dprintf(CRITICAL, "ERROR in dsi display config\n");
-				goto msm_display_update_out;
-			}
+			if (firstframe) {
+				dprintf(INFO, "set DSI config and update once\n");
+				ret = mdp_dsi_video_config(pinfo, fb, fb_cnt);
+				if (ret) {
+					dprintf(CRITICAL, "ERROR in dsi display config\n");
+					goto msm_display_update_out;
+				}
 
-			ret = mdp_dsi_video_update(pinfo);
-			if (ret) {
-				dprintf(CRITICAL, "ERROR in dsi display update\n");
-				goto msm_display_update_out;
+				ret = mdp_dsi_video_update(pinfo);
+				if (ret) {
+					dprintf(CRITICAL, "ERROR in dsi display update\n");
+					goto msm_display_update_out;
+				}
+			} else {
+				ret = mdp_config_pipe(pinfo, fb, fb_cnt);
+				if (ret) {
+					dprintf(CRITICAL, "call DSI mdp_config_pipe failed\n");
+					goto msm_display_update_out;
+				}
+
+				ret = mdp_trigger_flush(pinfo, fb, fb_cnt,
+						&left_mask, &right_mask);
+				if (ret) {
+					dprintf(CRITICAL, "call DSI mdp_trigger_flush failed\n");
+					goto msm_display_update_out;
+				}
 			}
 			break;
 		case HDMI_PANEL:
-			ret = mdss_hdmi_config(pinfo, fb);
-			if (ret) {
-				dprintf(CRITICAL, "ERROR in hdmi display config\n");
-				goto msm_display_update_out;
-			}
-			ret = mdss_hdmi_update(pinfo);
-			if (ret) {
-				dprintf(CRITICAL, "ERROR in hdmi display update\n");
-				goto msm_display_update_out;
+			if (firstframe) {
+				dprintf(INFO, "set HDMI config and update once\n");
+				ret = mdss_hdmi_config(pinfo, fb, fb_cnt);
+				if (ret) {
+					dprintf(CRITICAL, "ERROR in hdmi display config\n");
+					goto msm_display_update_out;
+				}
+
+				ret = mdss_hdmi_update(pinfo);
+				if (ret) {
+					dprintf(CRITICAL, "ERROR in hdmi display update\n");
+					goto msm_display_update_out;
+				}
+			} else {
+				ret = mdp_config_pipe(pinfo, fb, fb_cnt);
+				if (ret) {
+					dprintf(CRITICAL, "call HDMI mdp_config_pipe failed\n");
+					goto msm_display_update_out;
+				}
+
+				ret = mdp_trigger_flush(pinfo, fb, fb_cnt,
+						&left_mask, &right_mask);
+				if (ret) {
+					dprintf(CRITICAL, "call HDMI mdp_trigger_flush failed\n");
+					goto msm_display_update_out;
+				}
 			}
 			break;
 		default:
@@ -385,8 +431,8 @@ msm_display_update_out:
 	return ret;
 }
 
-int msm_display_update_pipe(struct fbcon_config *fb, uint32_t pipe_id, uint32_t pipe_type,
-	uint32_t *zorder, uint32_t *width, uint32_t *height, uint32_t disp_id)
+int msm_display_update_pipe(struct fbcon_config *fb, uint32_t pipe_id,
+	uint32_t pipe_type, uint32_t *width, uint32_t *height, uint32_t disp_id)
 {
 	struct msm_panel_info *pinfo;
 	struct msm_fb_panel_data *panel_local;
@@ -404,40 +450,24 @@ int msm_display_update_pipe(struct fbcon_config *fb, uint32_t pipe_id, uint32_t 
 	max_fb_cnt = pinfo->splitter_is_enabled ? MAX_SPLIT_DISPLAY : SPLIT_DISPLAY_1;
 
 	for (i = SPLIT_DISPLAY_0; i < max_fb_cnt; i++) {
-		pinfo->zorder[i] = zorder[i];
+		pinfo->zorder[i] = fb[i].z_order;
 		pinfo->border_top[i] = fb[i].height/2 - height[i]/2;
 		pinfo->border_bottom[i] = pinfo->border_top[i];
 		pinfo->border_left[i] = fb[i].width/2 - width[i]/2;
 		pinfo->border_right[i] = pinfo->border_left[i];
 		panel_local->fb[i] = fb[i];
-        }
-
-	switch (pinfo->type) {
-		case MIPI_VIDEO_PANEL:
-			ret = mdp_dsi_video_update_pipe(pinfo, fb);
-			if (ret) {
-				dprintf(CRITICAL, "ERROR in DSI pipe update\n");
-				goto msm_display_update_out;
-			}
-			break;
-		case HDMI_PANEL:
-			ret = mdss_hdmi_update_pipe(pinfo, fb);
-			if (ret) {
-				dprintf(CRITICAL, "ERROR in HDMI pipe update\n");
-				goto msm_display_update_out;
-			}
-			break;
-		default:
-			dprintf(CRITICAL, "Update not supported right now\n");
-			break;
 	}
 
-msm_display_update_out:
+	ret = mdp_update_pipe(pinfo, fb, max_fb_cnt);
+	if (ret)
+		dprintf(CRITICAL, "Error in mdp_update_pipe for %s%d display\n",
+			(pinfo->type == MIPI_VIDEO_PANEL) ? "DSI" : "HDMI", pinfo->dest - DISPLAY_1);
 	return ret;
 }
 
 
-int msm_display_hide_pipe(uint32_t pipe_id, uint32_t pipe_type, uint32_t disp_id)
+int msm_display_hide_pipe(struct fbcon_config *fb, uint32_t fb_cnt,
+	uint32_t pipe_id, uint32_t pipe_type, uint32_t disp_id)
 {
 	struct msm_panel_info *pinfo;
 	struct msm_fb_panel_data *panel_local;
@@ -448,7 +478,7 @@ int msm_display_hide_pipe(uint32_t pipe_id, uint32_t pipe_type, uint32_t disp_id
 	pinfo->pipe_type = pipe_type;
 	pinfo->pipe_id = pipe_id;
 
-	ret = mdss_layer_mixer_hide_pipe(pinfo, panel_local->fb);
+	ret = mdss_layer_mixer_hide_pipe(pinfo, fb, fb_cnt);
 	if (ret)
 		dprintf(CRITICAL, "Error in mdss_layer_mixer_hide_pipe\n");
 
@@ -564,9 +594,11 @@ int msm_display_init(struct msm_fb_panel_data *pdata)
 	// if panel init correctly, save the panel struct in the array
 	memcpy((void*) &panel_array[num_panel], (void*) panel, sizeof(struct  msm_fb_panel_data));
 	for (i = SPLIT_DISPLAY_0; i < max_fb_cnt; i++)
-		dprintf (SPEW, "Default panel %d init FB[%d] width:%d height:%d\n", num_panel, i, panel_array[num_panel].fb[i].width, panel_array[num_panel].fb[i].height);
+		dprintf(SPEW, "Default panel %d init FB[%d] width:%d height:%d\n",
+			num_panel, i, panel_array[num_panel].fb[i].width,
+			panel_array[num_panel].fb[i].height);
 
-	num_panel ++;
+	num_panel++;
 
 msm_display_init_out:
 	return ret;

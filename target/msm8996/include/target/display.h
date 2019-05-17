@@ -89,9 +89,6 @@ static const uint32_t panel_physical_ctrl[] = { };
 #define HDMI_CONTROLLER_STRING       "hdmi:"
 #define HDMI_VIC_LEN                 5
 
-#define NUM_TARGET_DISPLAYS          3
-#define NUM_TARGET_LAYERS            10
-
 #define NUM_VIG_PIPES                4
 #define VIG_ID_START                 4
 #define VIG_PIPE_START               4
@@ -169,13 +166,13 @@ struct target_layer {
   uint32_t            src_rect_y[MAX_SPLIT_DISPLAY];
   uint32_t            dst_rect_x[MAX_SPLIT_DISPLAY];
   uint32_t            dst_rect_y[MAX_SPLIT_DISPLAY];
-  uint32_t            z_order[MAX_SPLIT_DISPLAY];
   uint32_t            global_aplha;
   uint32_t            src_width[MAX_SPLIT_DISPLAY];
   uint32_t            src_height[MAX_SPLIT_DISPLAY];
   uint32_t            dst_width[MAX_SPLIT_DISPLAY];
   uint32_t            dst_height[MAX_SPLIT_DISPLAY];
-  struct fbcon_config fb[MAX_SPLIT_DISPLAY];
+  struct fbcon_config fb[MAX_STAGE_FB];
+  uint32_t valid_fb_cnt;
 };
 
 struct target_display_update {
@@ -190,14 +187,20 @@ uint32_t target_display_get_rvc_display_id();
 struct target_display * target_get_display_info(void *disp);
 void *target_display_acquire_layer(struct target_display * disp, char *client_name, int color_format);
 struct fbcon_config* target_display_get_fb(uint32_t disp_id, uint32_t fb_index);
-int target_display_update(struct target_display_update * update, uint32_t size, uint32_t disp_id);
+int target_display_update(struct target_display_update * update, uint32_t size, uint32_t disp_id,
+	bool has_rvc_context, bool firstframe);
 int target_display_update_pipe(struct target_display_update * update,
 				uint32_t size, uint32_t disp_id);
-int target_release_layer(struct target_layer *layer);
+int target_release_layer(struct target_layer *layer, struct fbcon_config *fb);
 int target_display_close(struct target_display * disp);
 bool target_display_panel_is_selected();
 void target_display_set_panel_type(char *panel_name);
 int target_get_max_display();
 bool target_display_is_init_done();
 int target_display_init_count();
+void target_display_setup_fb(struct fbcon_config *fb,
+	void *base, enum LayerBufferFormat fmt, uint32_t zorder,
+	bool right, uint32_t bpp);
+struct fbcon_config *target_display_search_fb(struct target_layer *layer,
+	uint32_t fmt, uint32_t zorder);
 #endif

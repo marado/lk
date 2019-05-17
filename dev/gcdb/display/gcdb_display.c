@@ -584,6 +584,8 @@ static int mdss_dsi_update_frame_buffer_info(bool splitter_is_enabled,
 		panel.fb[i].stride = (panel.panel_info.xres * panel.panel_info.bpp / 8) / max_fb_cnt;
 		panel.fb[i].bpp = panel.panel_info.bpp;
 		panel.fb[i].format = pixel_format;
+		panel.fb[i].z_order = SPLASH_SPLIT_0_LAYER_ZORDER + i;
+		panel.fb[i].right = LM_LEFT;
 
 		/* update FB base address */
 		fb_base = (void *)((int8_t *)panel.fb[i].base + panel.fb[i].stride * panel.fb[i].height);

@@ -122,13 +122,15 @@ static struct gpio_pin hdmi_hpd_gpio = {       /* HPD, input */
 };
 
 struct target_display displays[MAX_NUM_DISPLAY];
-struct target_layer_int layers[NUM_TARGET_LAYERS];
+struct target_layer_int layers[MAX_TARGET_LAYERS];
 
-extern int msm_display_update(struct fbcon_config *fb, uint32_t pipe_id,
-	uint32_t pipe_type, uint32_t *zorder, uint32_t *width, uint32_t *height, uint32_t disp_id);
+extern int msm_display_update(struct fbcon_config *fb, uint32_t fb_cnt, uint32_t pipe_id,
+	uint32_t pipe_type, uint32_t *width, uint32_t *height, uint32_t disp_id,
+	bool has_rvc_context, bool firstframe);
 extern int msm_display_update_pipe(struct fbcon_config *fb, uint32_t pipe_id,
-	uint32_t pipe_type, uint32_t *zorder, uint32_t *width, uint32_t *height, uint32_t disp_id);
-extern int msm_display_hide_pipe(uint32_t pipe_id, uint32_t pipe_type, uint32_t disp_id);
+	uint32_t pipe_type, uint32_t *width, uint32_t *height, uint32_t disp_id);
+extern int msm_display_hide_pipe(struct fbcon_config *fb, uint32_t fb_cnt,
+	uint32_t pipe_id, uint32_t pipe_type, uint32_t disp_id);
 extern struct fbcon_config* msm_display_get_fb(uint32_t disp_id, uint32_t fb_index);
 extern int msm_display_init_count();
 
@@ -1378,7 +1380,20 @@ struct fbcon_config* target_display_get_fb(uint32_t disp_id, uint32_t fb_index)
 	return msm_display_get_fb(disp_id, fb_index);
 }
 
-int target_display_update(struct target_display_update *update, uint32_t size, uint32_t disp_id)
+void target_display_setup_fb(struct fbcon_config *fb,
+	void *base, enum LayerBufferFormat fmt, uint32_t zorder,
+	bool right, uint32_t bpp)
+{
+	fb->base = base;
+	fb->format = fmt;
+	fb->z_order = zorder;
+	fb->right = right;
+	fb->bpp = bpp;
+}
+
+int target_display_update(struct target_display_update *update,
+	uint32_t size, uint32_t disp_id,
+	bool has_rvc_context, bool firstframe)
 {
 	uint32_t i = 0;
 	uint32_t pipe_type, pipe_id;
@@ -1514,8 +1529,9 @@ int target_display_update(struct target_display_update *update, uint32_t size, u
 			update[i].layer_list[0].fb[SPLIT_DISPLAY_0].layer_scale = NULL;
 #endif
 
-		ret = msm_display_update(update[i].layer_list[0].fb, pipe_id, pipe_type, update[i].layer_list[0].z_order,
-			update[i].layer_list[0].dst_width, update[i].layer_list[0].dst_height, disp_id);
+		ret = msm_display_update(update[i].layer_list[0].fb, update[i].layer_list[0].valid_fb_cnt,
+			pipe_id, pipe_type, update[i].layer_list[0].dst_width, update[i].layer_list[0].dst_height,
+			disp_id, has_rvc_context, firstframe);
 		if (ret != 0)
 			dprintf(CRITICAL, "Error in display upadte ret=%u\n",ret);
 
@@ -1552,7 +1568,7 @@ int target_display_update_pipe(struct target_display_update * update, uint32_t s
 		pipe_id = lyr->layer_id;
 		pipe_type = lyr->layer_type;
 
-		ret = msm_display_update_pipe(update[i].layer_list[0].fb, pipe_id, pipe_type, update[i].layer_list[0].z_order,
+		ret = msm_display_update_pipe(update[i].layer_list[0].fb, pipe_id, pipe_type,
 			update[i].layer_list[0].dst_width, update[i].layer_list[0].dst_height, disp_id);
 		if (ret != 0)
 			dprintf(CRITICAL, "Error in display pipe upadte ret=%u\n",ret);
@@ -1561,11 +1577,13 @@ int target_display_update_pipe(struct target_display_update * update, uint32_t s
 	return ret;
 }
 
-int target_release_layer(struct target_layer *layer)
+int target_release_layer(struct target_layer *layer,
+	struct fbcon_config *fb)
 {
 	struct target_layer_int *cur_layer = NULL;
 	uint32_t disp_id, pipe_id, pipe_type;
 	bool    dual_pipe;
+	int ret;
 
 	if ((!layer) || (NULL == layer->layer)) {
 		return ERR_INVALID_ARGS;
@@ -1587,8 +1605,26 @@ int target_release_layer(struct target_layer *layer)
 		cur_layer->disp = NULL;
 	}
 
-	msm_display_hide_pipe(pipe_id, pipe_type, disp_id);
-	return 0;
+	ret = msm_display_hide_pipe(fb, layer->valid_fb_cnt,
+		pipe_id, pipe_type, disp_id);
+	if (ret)
+		dprintf(CRITICAL, "call %s failed\n", __func__);
+
+	return ret;
+}
+
+struct fbcon_config *target_display_search_fb(struct target_layer *layer,
+	uint32_t fmt, uint32_t zorder)
+{
+	uint32_t i = 0;
+
+	for (i = 0; i < MAX_STAGE_FB; i++) {
+		if ((layer->fb[i].format == fmt) &&
+			(layer->fb[i].z_order == zorder))
+			return &layer->fb[i];
+	}
+
+	return NULL;
 }
 
 int target_is_yuv_format(uint32_t format)
@@ -1597,6 +1633,10 @@ int target_is_yuv_format(uint32_t format)
 		return 0;
 	else
 		return 1;
+}
+
+bool target_format_is_valid(uint32_t fmt) {
+	return (fmt != kFormatInvalid ? true : false);
 }
 
 int target_display_close(struct target_display * disp) {

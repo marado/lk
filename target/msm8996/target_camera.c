@@ -76,7 +76,6 @@ struct target_display_update update_cam;
 struct target_display *disp;
 struct fbcon_config *fb;
 int num_configs = 0;
-bool firstframe = true;
 #define VFE_TIME_OUT_POLL_NUM 33 * 3
 int queue_id = 1;
 
@@ -116,7 +115,6 @@ enum msm_camera_i2c_reg_addr_type {
 };
 
 #define TIMER_KHZ 32768
-int target_is_yuv_format(uint32_t format);
 
 static unsigned int cam_place_kpi_marker(char *marker_name)
 {
@@ -2074,7 +2072,7 @@ int early_camera_check_rev(unsigned int *pExpected_rev_id, unsigned int num_id, 
 }
 
 static void early_camera_setup_layer(int display_id,
-						struct target_layer *cam_layer)
+	struct target_layer *cam_layer)
 {
 	uint32_t rvc_display_id = 0;
 	uint32_t fb_index = SPLIT_DISPLAY_0;
@@ -2097,13 +2095,13 @@ static void early_camera_setup_layer(int display_id,
 		return;
 	}
 
-	cam_layer->z_order[fb_index] = RVC_LAYER_ZORDER;
 	update_cam.disp = disp_ptr;
 	update_cam.layer_list = cam_layer;
 
 	update_cam.num_layers = 1;
 	fb->bpp = 16;
 	fb->format = kFormatYCbCr422H2V1Packed;
+	fb->z_order = RVC_LAYER_ZORDER;
 	cam_layer->fb[fb_index] = *fb;
 
 	cam_layer->src_rect_x[fb_index] = 0;
@@ -2124,11 +2122,29 @@ static void early_camera_setup_layer(int display_id,
 	}
 
 	if (disp->splitter_display_enabled)
-		cam_layer->dst_width[fb_index] /= 2;
+		cam_layer->dst_width[fb_index] /= MAX_SPLIT_DISPLAY;
+
+	dprintf(INFO, "fb_cnt in camera_layer = %d\n", cam_layer->valid_fb_cnt);
 }
+
 static void early_camera_remove_layer(struct target_layer *cam_layer)
 {
-	target_release_layer(cam_layer);
+	struct fbcon_config *cam_fb = NULL;
+
+	if (!cam_layer) {
+		dprintf(CRITICAL, "invalid cam_layer\n");
+		return;
+	}
+
+	cam_fb = target_display_search_fb(cam_layer,
+		kFormatYCbCr422H2V1Packed, RVC_LAYER_ZORDER);
+	if (cam_fb) {
+		target_display_setup_fb(cam_fb, NULL,
+			kFormatYCbCr422H2V1Packed, RVC_LAYER_ZORDER, false, 24);
+		cam_layer->valid_fb_cnt = 1;
+
+		target_release_layer(cam_layer, cam_fb);
+	}
 }
 
 static int early_camera_setup_display(void)
@@ -2469,10 +2485,12 @@ static int early_camera_start(void *arg) {
 }
 
 #define SENSOR_STOP_IDX 3
-void early_camera_stop(void *cam_layer) {
+void early_camera_stop(void *cam_layer)
+{
 	struct target_layer *camera_layer;
 	unsigned int csid_irq = 0;
 	unsigned int irq_cci = 0;
+	struct fbcon_config *cam_fb = NULL;
 
 	if (!cam_layer) {
 		dprintf(CRITICAL, "Invalid cam_layer\n");
@@ -2512,8 +2530,15 @@ void early_camera_stop(void *cam_layer) {
 						cci_master);
 	}
 
-	target_release_layer(camera_layer);
-	firstframe = true;  // reset firstframe for next cycle
+	cam_fb = target_display_search_fb(camera_layer,
+		kFormatYCbCr422H2V1Packed, RVC_LAYER_ZORDER);
+	if (cam_fb) {
+		target_display_setup_fb(cam_fb, NULL,
+			kFormatYCbCr422H2V1Packed, RVC_LAYER_ZORDER, false, 24);
+		camera_layer->valid_fb_cnt = 1;
+
+		target_release_layer(camera_layer, cam_fb);
+	}
 
 	// Clear any interrupt status registers before exit.
 	msm_camera_io_w_mb(0xffffffff, MMSS_A_VFE_0_IRQ_CLEAR_0);
@@ -2558,7 +2583,7 @@ void early_camera_clear_buffers(void)
 	memset((void *)VFE_PONG_ADDR, EARLY_CAMERA_FILL_PATTERN, raw_size);
 }
 
-int early_camera_flip(void *cam_layer, bool mode_change)
+int early_camera_flip(void *cam_layer, bool firstframe, bool mode_change)
 {
 	static int buffer_cleared = 0;
 	uint32_t rvc_display_id;
@@ -2669,8 +2694,9 @@ int early_camera_flip(void *cam_layer, bool mode_change)
 
 	frame_counter++;
 	if (gpio_triggered) {
-		if(mode_change)
-			early_camera_setup_layer(rvc_display_id, camera_layer);
+		if(firstframe || mode_change)
+			early_camera_setup_layer(rvc_display_id,
+				camera_layer);
 
 		if (camera_layer->fb) {
 			if (cam_type == ANALOG) {
@@ -2687,23 +2713,32 @@ int early_camera_flip(void *cam_layer, bool mode_change)
 				else
 					camera_layer->fb[SPLIT_DISPLAY_0].base = (void *)VFE_PONG_ADDR;
 			}
+			camera_layer->valid_fb_cnt++;
 		}
 
-		if (mode_change)
-			target_display_update(&update_cam, 1, rvc_display_id);
-		else
+		if (firstframe || mode_change) {
+			if (firstframe) {
+				/* setup one inactive fb for status switching between RVC and animation */
+				if (firstframe) {
+					target_display_setup_fb(&camera_layer->fb[camera_layer->valid_fb_cnt],
+						NULL, kFormatRGB888, SPLASH_SPLIT_0_LAYER_ZORDER, false, 24);
+					camera_layer->valid_fb_cnt++;
+				}
+			}
+
+			if (firstframe)
+				dprintf(INFO, "camera flip setup once(display id=%d)\n", rvc_display_id);
+			target_display_update(&update_cam, 1, rvc_display_id, true, firstframe);
+		} else
 			target_display_update_pipe(&update_cam, 1, rvc_display_id);
 	} else {
-		camera_layer->z_order[SPLIT_DISPLAY_0] = SPLASH_SPLIT_0_LAYER_ZORDER;
+		camera_layer->fb[SPLIT_DISPLAY_0].z_order = SPLASH_SPLIT_0_LAYER_ZORDER;
 		early_camera_remove_layer(camera_layer);
 		camera_layer->layer = NULL;
-		firstframe = true;
 	}
 
-	if (firstframe == true) {
+	if (firstframe == true)
 		cam_place_kpi_marker("Camera display post done");
-		firstframe = false;
-	}
 
 	return 0;
 
