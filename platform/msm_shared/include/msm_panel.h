@@ -58,6 +58,11 @@ enum panel_type {
 	MAX_PANEL_TYPE = 255,
 };
 
+enum flip_mode {
+	H_FLIP,
+	V_FLIP,
+};
+
 enum display_id {
 	DISPLAY_UNKNOWN = 0,
 	DISPLAY_1,

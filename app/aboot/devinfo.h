@@ -73,5 +73,6 @@ struct device_info
 	uint32_t rvc_timeout;
 	uint32_t rvc_gpio;
 	char camera_type[MAX_CAMERA_TYPE_LEN];
+	bool rotation_180;
 };
 #endif

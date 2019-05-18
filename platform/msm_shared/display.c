@@ -52,6 +52,8 @@ static struct msm_fb_panel_data panel_array[1];
 
 static uint32_t num_panel = 0;
 
+static uint32_t orientation_mask = 0;
+
 extern int lvds_on(struct msm_fb_panel_data *pdata);
 
 static int msm_fb_alloc(struct fbcon_config *fb)
@@ -84,6 +86,11 @@ static int msm_fb_alloc(struct fbcon_config *fb)
 	}
 }
 
+void msm_display_set_orientation(uint32_t rot_mask)
+{
+	orientation_mask = rot_mask;
+}
+
 int msm_display_config()
 {
 	int ret = NO_ERROR;
@@ -96,6 +103,8 @@ int msm_display_config()
 		return ERR_INVALID_ARGS;
 
 	pinfo = &(panel->panel_info);
+
+	pinfo->orientation = orientation_mask;
 
 	/* Set MDP revision */
 	mdp_set_revision(panel->mdp_rev);
