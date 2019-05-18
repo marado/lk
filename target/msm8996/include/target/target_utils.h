@@ -79,4 +79,6 @@ void target_utils_set_input_config(bool enable,
 
 bool target_utils_validate_input_config(const char *panel_name,
 	uint32_t *disp_id, enum display_type disp_type);
+
+void target_utils_set_orientation(bool rotation_180);
 #endif

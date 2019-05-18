@@ -220,6 +220,7 @@
 /* source pipe opmode bits for flip */
 #define MDSS_MDP_OP_MODE_FLIP_UD                BIT(14)
 #define MDSS_MDP_OP_MODE_FLIP_LR                BIT(13)
+#define MDSS_MDP_OP_MODE_PIX_OVERRIDE           BIT(31)
 
 #define MDP_QOS_REMAPPER_CLASS_0                REG_MDP(0x02E0)
 #define MDP_QOS_REMAPPER_CLASS_1                REG_MDP(0x02E4)

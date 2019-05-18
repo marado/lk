@@ -40,6 +40,8 @@ static struct utils_panel_lookup_list lookup_table[] = {
 
 static struct common_config usr_config[2];
 
+extern void msm_display_set_orientation(uint32_t rot_mask);
+
 static uint32_t display_name_to_disp_id(struct utils_panel_lookup_list panel_list[],
 		uint32_t list_size, const char *panel_name, const char *display_name)
 {
@@ -82,6 +84,16 @@ bool target_utils_validate_input_config(const char *panel_name,
 	}
 
 	return ret;
+}
+
+void target_utils_set_orientation(bool rotation_180)
+{
+	uint32_t rot_bit_mask = 0;
+
+	if (rotation_180)
+		rot_bit_mask = (1 << H_FLIP) | (1 << V_FLIP);
+
+	msm_display_set_orientation(rot_bit_mask);
 }
 
 void target_utils_set_input_config(bool enable,

@@ -282,7 +282,9 @@ static uint32_t recovery_dtbo_size = 0;
 
 /* Assuming unauthorized kernel image by default */
 static int auth_kernel_img = 0;
-static device_info device = {DEVICE_MAGIC,0,0,0,0,0,{0},{0},{0},1,0,"none",0,"none",0,{0},0,{0},0,0,{0},0,0,{0}};
+static device_info device = {DEVICE_MAGIC,0,0,0,0,0,{0},{0},{0},1,
+	0,"none",0,"none",0,{0},0,{0},0,0,{0},0,0,{0},0};
+
 static char *vbcmdline;
 
 static bool is_allow_unlock = 0;
@@ -4612,6 +4614,24 @@ void cmd_oem_select_display_panel(const char *arg, void *data, unsigned size)
 	fastboot_okay("");
 }
 
+void cmd_oem_enable_orientation(const char *arg, void *data, unsigned size)
+{
+	device.rotation_180 = true;
+	write_device_info(&device);
+	fastboot_okay("");
+
+	dprintf(INFO, "Enable 180 rotation\n");
+}
+
+void cmd_oem_disable_orientation(const char *arg, void *data, unsigned size)
+{
+	device.rotation_180 = false;
+	write_device_info(&device);
+	fastboot_okay("");
+
+	dprintf(INFO, "Disable 180 rotation\n");
+}
+
 #if EARLYDOMAIN_SUPPORT
 void cmd_oem_enable_early_domain(const char *arg, void *data, unsigned size)
 {
@@ -5301,6 +5321,8 @@ void aboot_fastboot_register_commands(void)
 						{"oem rvc-timeout", cmd_oem_rvc_timeout},
 						{"oem rvc-gpio", cmd_oem_rvc_gpio},
 						{"oem select-camera-type", cmd_oem_select_camera_type},
+						{"oem enable-180-rotation", cmd_oem_enable_orientation},
+						{"oem disable-180-rotation", cmd_oem_disable_orientation},
 #if HIBERNATION_SUPPORT
 						{"oem hibernation", cmd_oem_hibernation},
 #endif
@@ -5465,6 +5487,7 @@ void aboot_init(const struct app_descriptor *app)
 				device.rvc_display_name, RVC_DISPLAY);
 	target_utils_set_input_config(device.shared_display_enabled,
 				device.shared_display_name, SHARE_DISPLAY);
+	target_utils_set_orientation(device.rotation_180);
 
 	/* Display splash screen if enabled */
 	place_marker("Display init start");

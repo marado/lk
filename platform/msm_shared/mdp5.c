@@ -62,6 +62,29 @@ int mdp_get_revision()
 	return mdp_rev;
 }
 
+#if ENABLE_QSEED_SCALAR
+void _mdp_get_scalar_sspp_op_mode(uint32_t *opmode,
+	uint32_t orientation, uint32_t pipe_base)
+{
+	uint32_t op_mode_val = 0;
+
+	op_mode_val = readl(pipe_base + PIPE_SSPP_SRC_OP_MODE);
+
+	op_mode_val &= ~(MDSS_MDP_OP_MODE_FLIP_LR |
+					MDSS_MDP_OP_MODE_FLIP_UD |
+					MDSS_MDP_OP_MODE_PIX_OVERRIDE);
+
+	if (orientation & (1 << H_FLIP))
+		op_mode_val |= MDSS_MDP_OP_MODE_FLIP_LR;
+	if (orientation & (1 << V_FLIP))
+		op_mode_val |= MDSS_MDP_OP_MODE_FLIP_UD;
+
+	op_mode_val |= MDSS_MDP_OP_MODE_PIX_OVERRIDE;
+
+	*opmode = op_mode_val;
+}
+#endif
+
 static inline bool is_software_pixel_ext_config_needed()
 {
 	return (MDSS_IS_MAJOR_MINOR_MATCHING(readl(MDP_HW_REV),
@@ -213,6 +236,7 @@ static void mdss_mdp_set_layer_transparent(struct msm_panel_info *pinfo,
 {
 	uint32_t img_size, stride, dst_xy, width;
 	struct resource_req *rm = NULL;
+	uint32_t op_mode = 0;
 
 	rm = mdp_rm_retrieve_resource(pinfo->dest);
 	if (!rm) {
@@ -256,8 +280,13 @@ static void mdss_mdp_set_layer_transparent(struct msm_panel_info *pinfo,
 		writel(0x0, pipe_base + PIPE_SSPP_CONSTANT_COLOR);
 	}
 
-	/* disable CSC */
-	writel(0x0, pipe_base + PIPE_SSPP_SRC_OP_MODE);
+	if (pinfo->orientation & (1 << H_FLIP))
+		op_mode |= MDSS_MDP_OP_MODE_FLIP_LR;
+	if (pinfo->orientation & (1 << V_FLIP))
+		op_mode |= MDSS_MDP_OP_MODE_FLIP_UD;
+
+	/* CSC is also needed to be disabled. */
+	writel(op_mode, pipe_base + PIPE_SSPP_SRC_OP_MODE);
 	writel(0x0, pipe_base + PIPE_VP_0_QSEEP2_CONFIG);
 }
 
@@ -386,6 +415,7 @@ int mdp_scalar_config(struct LayerInfo* layer, struct msm_panel_info *pinfo,
 	bool v_scale_down = false;
 	bool h_scale_down = false;
 	uint32_t reg = 0;
+	uint32_t op_mode_val = 0;
 
 	if (!layer)
 		return -1;
@@ -535,7 +565,10 @@ int mdp_scalar_config(struct LayerInfo* layer, struct msm_panel_info *pinfo,
 			writel(0x00000070, left_pipe_offset + PIPE_VP_0_QSEEP2_SHARP_THRESHOLD_EDGE);
 			writel(0x00000008, left_pipe_offset + PIPE_VP_0_QSEEP2_SHARP_THRESHOLD_SMOOTH);
 			writel(0x00000002, left_pipe_offset + PIPE_VP_0_QSEEP2_SHARP_THRESHHOLD_NOISE);
-			writel(0x80000000, left_pipe_offset + PIPE_SSPP_SRC_OP_MODE);
+
+			_mdp_get_scalar_sspp_op_mode(&op_mode_val,
+				pinfo->orientation, left_pipe_offset);
+			writel(op_mode_val, left_pipe_offset + PIPE_SSPP_SRC_OP_MODE);
 
 			/* Setup right pipe for dual pipe case */
 			if (pinfo->lcdc.dual_pipe && !pinfo->splitter_is_enabled) {
@@ -570,7 +603,10 @@ int mdp_scalar_config(struct LayerInfo* layer, struct msm_panel_info *pinfo,
 				writel(0x00000070, right_pipe_offset + PIPE_VP_0_QSEEP2_SHARP_THRESHOLD_EDGE);
 				writel(0x00000008, right_pipe_offset + PIPE_VP_0_QSEEP2_SHARP_THRESHOLD_SMOOTH);
 				writel(0x00000002, right_pipe_offset + PIPE_VP_0_QSEEP2_SHARP_THRESHHOLD_NOISE);
-				writel(0x80000000, right_pipe_offset + PIPE_SSPP_SRC_OP_MODE);
+
+				_mdp_get_scalar_sspp_op_mode(&op_mode_val,
+					pinfo->orientation, right_pipe_offset);
+				writel(op_mode_val, right_pipe_offset + PIPE_SSPP_SRC_OP_MODE);
 			}
 
 			break;
@@ -835,9 +871,9 @@ static void mdss_source_pipe_config(struct fbcon_config *fb, struct msm_panel_in
 	/* bit(0) is set if hflip is required.
 	 * bit(1) is set if vflip is required.
 	 */
-	if (pinfo->orientation & 0x1)
+	if (pinfo->orientation & (1 << H_FLIP))
 		flip_bits |= MDSS_MDP_OP_MODE_FLIP_LR;
-	if (pinfo->orientation & 0x2)
+	if (pinfo->orientation & (1 << V_FLIP))
 		flip_bits |= MDSS_MDP_OP_MODE_FLIP_UD;
 
 	if (is_software_pixel_ext_config_needed()) {
