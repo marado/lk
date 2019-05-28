@@ -197,7 +197,6 @@ int target_backlight_ctrl(struct backlight *bl, uint8_t enable)
 	uint32_t hw_id = board_hardware_id();
 	uint32_t platform = board_platform_id();
 	uint32_t platform_subtype = board_hardware_subtype();
-	uint32_t backlight_gpio_pin_id;
 
 	if (bl->bl_interface_type == BL_DCS)
 		return 0;
@@ -234,15 +233,10 @@ int target_backlight_ctrl(struct backlight *bl, uint8_t enable)
 		mdelay(20);
 	}
 	if (enable) {
-		backlight_gpio_pin_id = bkl_gpio.pin_id;
-		if ((HW_PLATFORM_SUBTYPE_LR3001 == platform_subtype) &&
-			(HW_PLATFORM_MTP == hw_id)) {
-			backlight_gpio_pin_id = 15;
-		}
-		gpio_tlmm_config(backlight_gpio_pin_id, 0,
+		gpio_tlmm_config(bkl_gpio.pin_id, 0,
 			bkl_gpio.pin_direction, bkl_gpio.pin_pull,
 			bkl_gpio.pin_strength, bkl_gpio.pin_state);
-			gpio_set(backlight_gpio_pin_id, 2);
+			gpio_set(bkl_gpio.pin_id, 2);
 	}
 
 	return 0;
@@ -328,27 +322,20 @@ int target_panel_reset(uint8_t enable, struct panel_reset_sequence *resetseq,
 
 			gpio_set(enable_gpio.pin_id, 2);
 		}
-		if (!((HW_PLATFORM_SUBTYPE_LR3001 == hw_subtype) &&
-			(HW_PLATFORM_MTP == hw_id))) {
 
-			gpio_tlmm_config(reset_gpio.pin_id, 0,
-					reset_gpio.pin_direction,
-					reset_gpio.pin_pull,
-					reset_gpio.pin_strength,
-					reset_gpio.pin_state);
+		gpio_tlmm_config(reset_gpio.pin_id, 0,
+				reset_gpio.pin_direction, reset_gpio.pin_pull,
+				reset_gpio.pin_strength, reset_gpio.pin_state);
 
-			gpio_set(reset_gpio.pin_id, 2);
+		gpio_set(reset_gpio.pin_id, 2);
 
-			/* reset */
-			for (int i = 0; i < RESET_GPIO_SEQ_LEN; i++) {
-				if (resetseq->pin_state[i] == GPIO_STATE_LOW)
-					gpio_set(reset_gpio.pin_id,
-						GPIO_STATE_LOW);
-				else
-					gpio_set(reset_gpio.pin_id,
-						GPIO_STATE_HIGH);
-				mdelay(resetseq->sleep[i]);
-			}
+		/* reset */
+		for (int i = 0; i < RESET_GPIO_SEQ_LEN; i++) {
+			if (resetseq->pin_state[i] == GPIO_STATE_LOW)
+				gpio_set(reset_gpio.pin_id, GPIO_STATE_LOW);
+			else
+				gpio_set(reset_gpio.pin_id, GPIO_STATE_HIGH);
+			mdelay(resetseq->sleep[i]);
 		}
 	} else if(!target_cont_splash_screen()) {
 		gpio_set(reset_gpio.pin_id, 0);
