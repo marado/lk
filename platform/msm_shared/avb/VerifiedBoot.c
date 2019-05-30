@@ -436,10 +436,13 @@ static EFI_STATUS load_image_and_authVB2(bootinfo *Info)
 
 	RequestedPartition = (const CHAR8 **)RequestedPartitionAll;
 
-	VerityFlags = VerityEnforcing ?
+	if (ALLOW_EIO){
+		VerityFlags = VerityEnforcing ?
 				AVB_HASHTREE_ERROR_MODE_RESTART :
 				AVB_HASHTREE_ERROR_MODE_EIO;
-
+	}else{
+		VerityFlags = AVB_HASHTREE_ERROR_MODE_RESTART_AND_INVALIDATE;
+	}
 	Result = avb_slot_verify(Ops, RequestedPartition, SlotSuffix,
 				VerifyFlags, VerityFlags,
 				&SlotData);
