@@ -1009,6 +1009,31 @@ static void mdss_source_pipe_config(struct fbcon_config *fb, struct msm_panel_in
 			else
 				writel(0x02d10501, pipe_base + PIPE_SSPP_SW_PIX_EXT_C3_REQ_PIXELS);
 		}
+#if ENABLE_QSEED_SCALAR
+		if (fb->layer_scale) {
+			if (fb_off == 0) {
+				writel(fb->layer_scale->left_pipe.scale_data->init_phase_x[0], pipe_base + PIPE_COMP0_3_INIT_PHASE_X);
+				writel(fb->layer_scale->left_pipe.scale_data->init_phase_y[0], pipe_base + PIPE_COMP0_3_INIT_PHASE_Y);
+				writel(fb->layer_scale->left_pipe.scale_data->phase_step_x[0], pipe_base + PIPE_COMP0_3_PHASE_STEP_X);
+				writel(fb->layer_scale->left_pipe.scale_data->phase_step_y[0], pipe_base + PIPE_COMP0_3_PHASE_STEP_Y);
+
+				writel(fb->layer_scale->left_pipe.scale_data->init_phase_x[1], pipe_base + PIPE_COMP1_2_INIT_PHASE_X);
+				writel(fb->layer_scale->left_pipe.scale_data->init_phase_y[1], pipe_base + PIPE_COMP1_2_INIT_PHASE_Y);
+				writel(fb->layer_scale->left_pipe.scale_data->phase_step_x[1], pipe_base + PIPE_COMP1_2_PHASE_STEP_X);
+				writel(fb->layer_scale->left_pipe.scale_data->phase_step_y[1], pipe_base + PIPE_COMP1_2_PHASE_STEP_Y);
+			} else {
+				writel(fb->layer_scale->right_pipe.scale_data->init_phase_x[0], pipe_base + PIPE_COMP0_3_INIT_PHASE_X);
+				writel(fb->layer_scale->right_pipe.scale_data->init_phase_y[0], pipe_base + PIPE_COMP0_3_INIT_PHASE_Y);
+				writel(fb->layer_scale->right_pipe.scale_data->phase_step_x[0], pipe_base + PIPE_COMP0_3_PHASE_STEP_X);
+				writel(fb->layer_scale->right_pipe.scale_data->phase_step_y[0], pipe_base + PIPE_COMP0_3_PHASE_STEP_Y);
+
+				writel(fb->layer_scale->right_pipe.scale_data->init_phase_x[1], pipe_base + PIPE_COMP1_2_INIT_PHASE_X);
+				writel(fb->layer_scale->right_pipe.scale_data->init_phase_y[1], pipe_base + PIPE_COMP1_2_INIT_PHASE_Y);
+				writel(fb->layer_scale->right_pipe.scale_data->phase_step_x[1], pipe_base + PIPE_COMP1_2_PHASE_STEP_X);
+				writel(fb->layer_scale->right_pipe.scale_data->phase_step_y[1], pipe_base + PIPE_COMP1_2_PHASE_STEP_Y);
+			}
+		}
+#endif
 	}
 	writel(flip_bits, pipe_base + PIPE_SSPP_SRC_OP_MODE);
 }

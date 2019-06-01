@@ -1232,6 +1232,7 @@ static void animated_splash_handle_layer_list(struct target_layer *current,
 	/* suppose both pointer of current and target are valid */
 	memcpy(current, target, sizeof(struct target_layer));
 
+	current->valid_fb_cnt = 0;
 	*mode_change = true;
 }
 
@@ -1462,7 +1463,7 @@ int animated_splash() {
 				 * multiple times, which will exculde race problems.
 				 */
 				if ((early_camera_enabled == 1) &&
-					(j == rvc_display_id) && firstframe[j]) {
+					(j == rvc_display_id)) {
 					target_display_setup_fb(&layer_list[j].fb[layer_list[j].valid_fb_cnt],
 						NULL, kFormatYCbCr422H2V1Packed, RVC_LAYER_ZORDER, false, 16);
 					layer_list[j].valid_fb_cnt++;
