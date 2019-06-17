@@ -317,6 +317,11 @@ enum mdp_stage {
 	MDP_STAGE_MAX,
 };
 
+enum pipe {
+	LEFT_PIPE,
+	RIGHT_PIPE,
+};
+
 #define RGB_LAYER_ALPHA_BLEND 			0x600
 #define VIG_LAYER_ALPHA_BLEND			0x206
 #define SSPP_RGB_SOLID_FILL_FORMAT		0x004237FF

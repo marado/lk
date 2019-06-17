@@ -448,15 +448,140 @@ static void _mdp_get_external_fb_offset(struct resource_req *res_mgr)
 	}
 }
 
-#if ENABLE_QSEED_SCALAR
-int mdp_scalar_config(struct LayerInfo* layer, struct msm_panel_info *pinfo,
-			uint32_t left_pipe_offset, uint32_t right_pipe_offset)
+static void mdss_scalar_phase(struct LayerInfo *layer, int pipe, uint32_t pipe_base)
+{
+	if (pipe == LEFT_PIPE) {
+		writel(layer->left_pipe.scale_data->init_phase_x[0], pipe_base + PIPE_COMP0_3_INIT_PHASE_X);
+		writel(layer->left_pipe.scale_data->init_phase_y[0], pipe_base + PIPE_COMP0_3_INIT_PHASE_Y);
+		writel(layer->left_pipe.scale_data->phase_step_x[0], pipe_base + PIPE_COMP0_3_PHASE_STEP_X);
+		writel(layer->left_pipe.scale_data->phase_step_y[0], pipe_base + PIPE_COMP0_3_PHASE_STEP_Y);
+
+		writel(layer->left_pipe.scale_data->init_phase_x[1], pipe_base + PIPE_COMP1_2_INIT_PHASE_X);
+		writel(layer->left_pipe.scale_data->init_phase_y[1], pipe_base + PIPE_COMP1_2_INIT_PHASE_Y);
+		writel(layer->left_pipe.scale_data->phase_step_x[1], pipe_base + PIPE_COMP1_2_PHASE_STEP_X);
+		writel(layer->left_pipe.scale_data->phase_step_y[1], pipe_base + PIPE_COMP1_2_PHASE_STEP_Y);
+	} else {
+		writel(layer->right_pipe.scale_data->init_phase_x[0], pipe_base + PIPE_COMP0_3_INIT_PHASE_X);
+		writel(layer->right_pipe.scale_data->init_phase_y[0], pipe_base + PIPE_COMP0_3_INIT_PHASE_Y);
+		writel(layer->right_pipe.scale_data->phase_step_x[0], pipe_base + PIPE_COMP0_3_PHASE_STEP_X);
+		writel(layer->right_pipe.scale_data->phase_step_y[0], pipe_base + PIPE_COMP0_3_PHASE_STEP_Y);
+
+		writel(layer->right_pipe.scale_data->init_phase_x[1], pipe_base + PIPE_COMP1_2_INIT_PHASE_X);
+		writel(layer->right_pipe.scale_data->init_phase_y[1], pipe_base + PIPE_COMP1_2_INIT_PHASE_Y);
+		writel(layer->right_pipe.scale_data->phase_step_x[1], pipe_base + PIPE_COMP1_2_PHASE_STEP_X);
+		writel(layer->right_pipe.scale_data->phase_step_y[1], pipe_base + PIPE_COMP1_2_PHASE_STEP_Y);
+	}
+}
+
+static void mdss_scalar_ext(struct LayerInfo *layer, struct msm_panel_info *pinfo, int pipe, uint32_t pipe_base)
 {
 	struct Scale *left_scale, *right_scale;
 	uint32_t lr_pe[4], tb_pe[4], tot_req_pixels[4];
 	int color, roi_height;
 	uint32_t bytemask = 0xff;
 	uint32_t shortmask = 0xffff;
+
+	left_scale = layer->left_pipe.scale_data;
+	right_scale = layer->right_pipe.scale_data;
+
+	if (pipe == LEFT_PIPE) {
+		for (color = 0; color < 4; color++) {
+			/* color 2 has the same set of registers as color 1 */
+			if (color == 2)
+				continue;
+
+			lr_pe[color] = ((left_scale->right.overfetch[color] & bytemask) << 24)|
+				((left_scale->right.repeat[color] & bytemask) << 16)|
+				((left_scale->left.overfetch[color] & bytemask) << 8)|
+				(left_scale->left.repeat[color] & bytemask);
+
+			tb_pe[color] = ((left_scale->bottom.overfetch[color] & bytemask) << 24)|
+				((left_scale->bottom.repeat[color] & bytemask) << 16)|
+				((left_scale->top.overfetch[color] & bytemask) << 8)|
+				(left_scale->top.repeat[color] & bytemask);
+
+			roi_height = layer->left_pipe.src_height;
+
+			tot_req_pixels[color] = (((roi_height +
+							left_scale->top.extension[color] +
+							left_scale->bottom.extension[color]) & shortmask) << 16) |
+				((left_scale->roi_width[color] +
+				  left_scale->left.extension[color] +
+				  left_scale->right.extension[color]) & shortmask);
+		}
+
+		/* color 0 */
+		writel(lr_pe[0], pipe_base + PIPE_SSPP_SW_PIX_EXT_CO_LR);
+		writel(tb_pe[0], pipe_base + PIPE_SSPP_SW_PIX_EXT_CO_TB);
+		writel(tot_req_pixels[0], pipe_base + PIPE_SSPP_SW_PIX_EXT_CO_REQ_PIXELS);
+
+		/* color 1 and color 2 */
+		writel(lr_pe[1], pipe_base + PIPE_SSPP_SW_PIX_EXT_C1C2_LR);
+		writel(tb_pe[1], pipe_base + PIPE_SSPP_SW_PIX_EXT_C1C2_TB);
+		writel(tot_req_pixels[1], pipe_base + PIPE_SSPP_SW_PIX_EXT_C1C2_REQ_PIXELS);
+
+		/* color 3 */
+		writel(lr_pe[3], pipe_base + PIPE_SSPP_SW_PIX_EXT_C3_LR);
+		writel(tb_pe[3], pipe_base + PIPE_SSPP_SW_PIX_EXT_C3_TB);
+		writel(tot_req_pixels[3], pipe_base + PIPE_SSPP_SW_PIX_EXT_C3_REQ_PIXELS);
+
+		dprintf(SPEW, "left pipe setup tot_req:%x %x %x\n",
+			tot_req_pixels[0], tot_req_pixels[1],tot_req_pixels[3]);
+		dprintf(SPEW, "left pipe setup lr:%x %x %x  tb:%x %x %x\n",
+			lr_pe[0], lr_pe[1], lr_pe[3],tb_pe[0], tb_pe[1], tb_pe[3]);
+	} else {
+		// Setup right pipe for dual pipe case
+		for (color = 0; color < 4; color++) {
+			/* color 2 has the same set of registers as color 1 */
+			if (color == 2)
+				continue;
+
+			lr_pe[color] = ((right_scale->right.overfetch[color] & bytemask) << 24)|
+				((right_scale->right.repeat[color] & bytemask) << 16)|
+				((right_scale->left.overfetch[color] & bytemask) << 8)|
+				(right_scale->left.repeat[color] & bytemask);
+
+			tb_pe[color] = ((right_scale->bottom.overfetch[color] & bytemask) << 24)|
+				((right_scale->bottom.repeat[color] & bytemask) << 16)|
+				((right_scale->top.overfetch[color] & bytemask) << 8)|
+				(right_scale->top.repeat[color] & bytemask);
+
+			roi_height = layer->right_pipe.src_height;
+
+			tot_req_pixels[color] = (((roi_height +
+							right_scale->top.extension[color] +
+							right_scale->bottom.extension[color]) & shortmask) << 16) |
+				((right_scale->roi_width[color] +
+				  right_scale->left.extension[color] +
+				  right_scale->right.extension[color]) & shortmask);
+		}
+
+		/* color 0 */
+		writel(lr_pe[0], pipe_base + PIPE_SSPP_SW_PIX_EXT_CO_LR);
+		writel(tb_pe[0], pipe_base + PIPE_SSPP_SW_PIX_EXT_CO_TB);
+		writel(tot_req_pixels[0], pipe_base + PIPE_SSPP_SW_PIX_EXT_CO_REQ_PIXELS);
+
+		/* color 1 and color 2 */
+		writel(lr_pe[1], pipe_base + PIPE_SSPP_SW_PIX_EXT_C1C2_LR);
+		writel(tb_pe[1], pipe_base + PIPE_SSPP_SW_PIX_EXT_C1C2_TB);
+		writel(tot_req_pixels[1], pipe_base + PIPE_SSPP_SW_PIX_EXT_C1C2_REQ_PIXELS);
+
+		/* color 3 */
+		writel(lr_pe[3], pipe_base + PIPE_SSPP_SW_PIX_EXT_C3_LR);
+		writel(tb_pe[3], pipe_base + PIPE_SSPP_SW_PIX_EXT_C3_TB);
+		writel(tot_req_pixels[3], pipe_base + PIPE_SSPP_SW_PIX_EXT_C3_REQ_PIXELS);
+
+		dprintf(SPEW, "right pipe setup tot_req:%x %x %x\n",
+			tot_req_pixels[0], tot_req_pixels[1],tot_req_pixels[3]);
+		dprintf(SPEW, "right pipe setup lr:%x %x %x  tb:%x %x %x\n",
+			lr_pe[0], lr_pe[1], lr_pe[3],tb_pe[0], tb_pe[1], tb_pe[3]);
+	}
+}
+
+#if ENABLE_QSEED_SCALAR
+int mdp_scalar_config(struct LayerInfo* layer, struct msm_panel_info *pinfo,
+			uint32_t left_pipe_offset, uint32_t right_pipe_offset)
+{
 	bool v_scale_up = false;
 	bool h_scale_up = false;
 	bool v_scale_down = false;
@@ -477,103 +602,10 @@ int mdp_scalar_config(struct LayerInfo* layer, struct msm_panel_info *pinfo,
 	else if	(layer->left_pipe.src_rect.h > layer->left_pipe.dst_rect.h)
 		v_scale_down = true;
 
-	left_scale = layer->left_pipe.scale_data;
-	right_scale = layer->right_pipe.scale_data;
+	mdss_scalar_ext(layer, pinfo, LEFT_PIPE, left_pipe_offset);
 
-	for (color = 0; color < 4; color++) {
-		/* color 2 has the same set of registers as color 1 */
-		if (color == 2)
-			continue;
-
-		lr_pe[color] = ((left_scale->right.overfetch[color] & bytemask) << 24)|
-			((left_scale->right.repeat[color] & bytemask) << 16)|
-			((left_scale->left.overfetch[color] & bytemask) << 8)|
-			(left_scale->left.repeat[color] & bytemask);
-
-		tb_pe[color] = ((left_scale->bottom.overfetch[color] & bytemask) << 24)|
-			((left_scale->bottom.repeat[color] & bytemask) << 16)|
-			((left_scale->top.overfetch[color] & bytemask) << 8)|
-			(left_scale->top.repeat[color] & bytemask);
-
-		roi_height = layer->left_pipe.src_height;
-
-		tot_req_pixels[color] = (((roi_height +
-			left_scale->top.extension[color] +
-			left_scale->bottom.extension[color]) & shortmask) << 16) |
-			((left_scale->roi_width[color] +
-			left_scale->left.extension[color] +
-			left_scale->right.extension[color]) & shortmask);
-	}
-
-	/* color 0 */
-	writel(lr_pe[0], left_pipe_offset + PIPE_SSPP_SW_PIX_EXT_CO_LR);
-	writel(tb_pe[0], left_pipe_offset + PIPE_SSPP_SW_PIX_EXT_CO_TB);
-	writel(tot_req_pixels[0], left_pipe_offset + PIPE_SSPP_SW_PIX_EXT_CO_REQ_PIXELS);
-
-	/* color 1 and color 2 */
-	writel(lr_pe[1], left_pipe_offset + PIPE_SSPP_SW_PIX_EXT_C1C2_LR);
-	writel(tb_pe[1], left_pipe_offset + PIPE_SSPP_SW_PIX_EXT_C1C2_TB);
-	writel(tot_req_pixels[1], left_pipe_offset + PIPE_SSPP_SW_PIX_EXT_C1C2_REQ_PIXELS);
-
-	/* color 3 */
-	writel(lr_pe[3], left_pipe_offset + PIPE_SSPP_SW_PIX_EXT_C3_LR);
-	writel(tb_pe[3], left_pipe_offset + PIPE_SSPP_SW_PIX_EXT_C3_TB);
-	writel(tot_req_pixels[3], left_pipe_offset + PIPE_SSPP_SW_PIX_EXT_C3_REQ_PIXELS);
-
-	dprintf(SPEW, "left pipe setup tot_req:%x %x %x\n",
-		tot_req_pixels[0], tot_req_pixels[1],tot_req_pixels[3]);
-
-	dprintf(SPEW, "left pipe setup lr:%x %x %x  tb:%x %x %x\n",
-		lr_pe[0], lr_pe[1], lr_pe[3],tb_pe[0], tb_pe[1], tb_pe[3]);
-
-	// Setup right pipe for dual pipe case
-	if (pinfo->lcdc.dual_pipe && !pinfo->splitter_is_enabled) {
-		for (color = 0; color < 4; color++) {
-			/* color 2 has the same set of registers as color 1 */
-			if (color == 2)
-				continue;
-
-			lr_pe[color] = ((right_scale->right.overfetch[color] & bytemask) << 24)|
-				((right_scale->right.repeat[color] & bytemask) << 16)|
-				((right_scale->left.overfetch[color] & bytemask) << 8)|
-				(right_scale->left.repeat[color] & bytemask);
-
-			tb_pe[color] = ((right_scale->bottom.overfetch[color] & bytemask) << 24)|
-				((right_scale->bottom.repeat[color] & bytemask) << 16)|
-				((right_scale->top.overfetch[color] & bytemask) << 8)|
-				(right_scale->top.repeat[color] & bytemask);
-
-			roi_height = layer->right_pipe.src_height;
-
-			tot_req_pixels[color] = (((roi_height +
-			right_scale->top.extension[color] +
-			right_scale->bottom.extension[color]) & shortmask) << 16) |
-			((right_scale->roi_width[color] +
-			right_scale->left.extension[color] +
-			right_scale->right.extension[color]) & shortmask);
-		}
-
-		/* color 0 */
-		writel(lr_pe[0], right_pipe_offset + PIPE_SSPP_SW_PIX_EXT_CO_LR);
-		writel(tb_pe[0], right_pipe_offset + PIPE_SSPP_SW_PIX_EXT_CO_TB);
-		writel(tot_req_pixels[0], right_pipe_offset + PIPE_SSPP_SW_PIX_EXT_CO_REQ_PIXELS);
-
-		/* color 1 and color 2 */
-		writel(lr_pe[1], right_pipe_offset + PIPE_SSPP_SW_PIX_EXT_C1C2_LR);
-		writel(tb_pe[1], right_pipe_offset + PIPE_SSPP_SW_PIX_EXT_C1C2_TB);
-		writel(tot_req_pixels[1], right_pipe_offset + PIPE_SSPP_SW_PIX_EXT_C1C2_REQ_PIXELS);
-
-		/* color 3 */
-		writel(lr_pe[3], right_pipe_offset + PIPE_SSPP_SW_PIX_EXT_C3_LR);
-		writel(tb_pe[3], right_pipe_offset + PIPE_SSPP_SW_PIX_EXT_C3_TB);
-		writel(tot_req_pixels[3], right_pipe_offset + PIPE_SSPP_SW_PIX_EXT_C3_REQ_PIXELS);
-
-		dprintf(SPEW, "right pipe setup:%x %x %x\n",
-			tot_req_pixels[0], tot_req_pixels[1],tot_req_pixels[3]);
-
-		dprintf(SPEW, "right pipe setup lr:%x %x %x  tb:%x %x %x\n",
-			lr_pe[0], lr_pe[1], lr_pe[3],tb_pe[0], tb_pe[1], tb_pe[3]);
-	}
+	if(pinfo->lcdc.dual_pipe && !pinfo->splitter_is_enabled)
+		mdss_scalar_ext(layer, pinfo, RIGHT_PIPE, right_pipe_offset);
 
 	/* skip scaling data if no scaling */
 	if (!h_scale_up && !h_scale_down && !v_scale_up && !v_scale_down)
@@ -594,19 +626,8 @@ int mdp_scalar_config(struct LayerInfo* layer, struct msm_panel_info *pinfo,
 				reg |= 0x88802;
 			writel(reg, left_pipe_offset + PIPE_VP_0_QSEEP2_CONFIG);
 
-			left_scale = layer->left_pipe.scale_data;
-			right_scale = layer->right_pipe.scale_data;
-
-			/* Setup Phase */
-			writel(left_scale->init_phase_x[0], left_pipe_offset + PIPE_COMP0_3_INIT_PHASE_X);
-			writel(left_scale->init_phase_y[0], left_pipe_offset + PIPE_COMP0_3_INIT_PHASE_Y);
-			writel(left_scale->phase_step_x[0], left_pipe_offset + PIPE_COMP0_3_PHASE_STEP_X);
-			writel(left_scale->phase_step_y[0], left_pipe_offset + PIPE_COMP0_3_PHASE_STEP_Y);
-
-			writel(left_scale->init_phase_x[1], left_pipe_offset + PIPE_COMP1_2_INIT_PHASE_X);
-			writel(left_scale->init_phase_y[1], left_pipe_offset + PIPE_COMP1_2_INIT_PHASE_Y);
-			writel(left_scale->phase_step_x[1], left_pipe_offset + PIPE_COMP1_2_PHASE_STEP_X);
-			writel(left_scale->phase_step_y[1], left_pipe_offset + PIPE_COMP1_2_PHASE_STEP_Y);
+			//Setup phase
+			mdss_scalar_phase(layer, LEFT_PIPE, left_pipe_offset);
 
 			writel(0x00000020, left_pipe_offset + PIPE_VP_0_QSEEP2_SHARP_SMOOTH_STRENGTH);
 			writel(0x00000070, left_pipe_offset + PIPE_VP_0_QSEEP2_SHARP_THRESHOLD_EDGE);
@@ -636,15 +657,8 @@ int mdp_scalar_config(struct LayerInfo* layer, struct msm_panel_info *pinfo,
 
 				writel(reg, right_pipe_offset + PIPE_VP_0_QSEEP2_CONFIG);
 
-				writel(right_scale->init_phase_x[0], right_pipe_offset + PIPE_COMP0_3_INIT_PHASE_X);
-				writel(right_scale->init_phase_y[0], right_pipe_offset + PIPE_COMP0_3_INIT_PHASE_Y);
-				writel(right_scale->phase_step_x[0], right_pipe_offset + PIPE_COMP0_3_PHASE_STEP_X);
-				writel(right_scale->phase_step_y[0], right_pipe_offset + PIPE_COMP0_3_PHASE_STEP_Y);
-
-				writel(right_scale->init_phase_x[1], right_pipe_offset + PIPE_COMP1_2_INIT_PHASE_X);
-				writel(right_scale->init_phase_y[1], right_pipe_offset + PIPE_COMP1_2_INIT_PHASE_Y);
-				writel(right_scale->phase_step_x[1], right_pipe_offset + PIPE_COMP1_2_PHASE_STEP_X);
-				writel(right_scale->phase_step_y[1], right_pipe_offset + PIPE_COMP1_2_PHASE_STEP_Y);
+				//Setup phase
+				mdss_scalar_phase(layer, RIGHT_PIPE, right_pipe_offset);
 
 				writel(0x00000020, right_pipe_offset + PIPE_VP_0_QSEEP2_SHARP_SMOOTH_STRENGTH);
 				writel(0x00000070, right_pipe_offset + PIPE_VP_0_QSEEP2_SHARP_THRESHOLD_EDGE);
@@ -1008,31 +1022,12 @@ static void mdss_source_pipe_config(struct fbcon_config *fb, struct msm_panel_in
 				writel(0x02d10281, pipe_base + PIPE_SSPP_SW_PIX_EXT_C3_REQ_PIXELS);
 			else
 				writel(0x02d10501, pipe_base + PIPE_SSPP_SW_PIX_EXT_C3_REQ_PIXELS);
-		}
-#if ENABLE_QSEED_SCALAR
-		if (fb->layer_scale) {
-			if (fb_off == 0) {
-				writel(fb->layer_scale->left_pipe.scale_data->init_phase_x[0], pipe_base + PIPE_COMP0_3_INIT_PHASE_X);
-				writel(fb->layer_scale->left_pipe.scale_data->init_phase_y[0], pipe_base + PIPE_COMP0_3_INIT_PHASE_Y);
-				writel(fb->layer_scale->left_pipe.scale_data->phase_step_x[0], pipe_base + PIPE_COMP0_3_PHASE_STEP_X);
-				writel(fb->layer_scale->left_pipe.scale_data->phase_step_y[0], pipe_base + PIPE_COMP0_3_PHASE_STEP_Y);
-
-				writel(fb->layer_scale->left_pipe.scale_data->init_phase_x[1], pipe_base + PIPE_COMP1_2_INIT_PHASE_X);
-				writel(fb->layer_scale->left_pipe.scale_data->init_phase_y[1], pipe_base + PIPE_COMP1_2_INIT_PHASE_Y);
-				writel(fb->layer_scale->left_pipe.scale_data->phase_step_x[1], pipe_base + PIPE_COMP1_2_PHASE_STEP_X);
-				writel(fb->layer_scale->left_pipe.scale_data->phase_step_y[1], pipe_base + PIPE_COMP1_2_PHASE_STEP_Y);
-			} else {
-				writel(fb->layer_scale->right_pipe.scale_data->init_phase_x[0], pipe_base + PIPE_COMP0_3_INIT_PHASE_X);
-				writel(fb->layer_scale->right_pipe.scale_data->init_phase_y[0], pipe_base + PIPE_COMP0_3_INIT_PHASE_Y);
-				writel(fb->layer_scale->right_pipe.scale_data->phase_step_x[0], pipe_base + PIPE_COMP0_3_PHASE_STEP_X);
-				writel(fb->layer_scale->right_pipe.scale_data->phase_step_y[0], pipe_base + PIPE_COMP0_3_PHASE_STEP_Y);
-
-				writel(fb->layer_scale->right_pipe.scale_data->init_phase_x[1], pipe_base + PIPE_COMP1_2_INIT_PHASE_X);
-				writel(fb->layer_scale->right_pipe.scale_data->init_phase_y[1], pipe_base + PIPE_COMP1_2_INIT_PHASE_Y);
-				writel(fb->layer_scale->right_pipe.scale_data->phase_step_x[1], pipe_base + PIPE_COMP1_2_PHASE_STEP_X);
-				writel(fb->layer_scale->right_pipe.scale_data->phase_step_y[1], pipe_base + PIPE_COMP1_2_PHASE_STEP_Y);
 			}
-		}
+#if ENABLE_QSEED_SCALAR
+	if (fb->layer_scale) {
+		mdss_scalar_phase(fb->layer_scale, fb_off, pipe_base);
+		mdss_scalar_ext(fb->layer_scale, pinfo, fb_off, pipe_base);
+	}
 #endif
 	}
 	writel(flip_bits, pipe_base + PIPE_SSPP_SRC_OP_MODE);
