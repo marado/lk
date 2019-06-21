@@ -2124,7 +2124,6 @@ static void early_camera_setup_layer(int display_id,
 	if (disp->splitter_display_enabled)
 		cam_layer->dst_width[fb_index] /= MAX_SPLIT_DISPLAY;
 
-	dprintf(INFO, "fb_cnt in camera_layer = %d\n", cam_layer->valid_fb_cnt);
 }
 
 static void early_camera_remove_layer(struct target_layer *cam_layer)
