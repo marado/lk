@@ -468,7 +468,7 @@ struct scm_response {
  * Used for checking if armv8 SCM support present
  */
 void scm_init();
-uint32_t is_secure_boot_enable();
+bool is_secure_boot_enable();
 int scm_dload_mode();
 
 /* Is armv8 supported */

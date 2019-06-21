@@ -53,11 +53,21 @@
                                    SCM_CLASS_REGISTER | \
                                    SCM_MASK_IRQS | \
                                    ((n) & 0xf))
+								   
+#define SECBOOT_FUSE_BIT                  0
+#define SECBOOT_FUSE_SHK_BIT              1
+#define SECBOOT_FUSE_DEBUG_DISABLED_BIT   2
+#define SECBOOT_FUSE_ANTI_ROLLBACK_BIT    3
+#define SECBOOT_FUSE_FEC_ENABLED_BIT      4
+#define SECBOOT_FUSE_RPMB_ENABLED_BIT     5
+#define SECBOOT_FUSE_DEBUG_RE_ENABLED_BIT 6
+#define CHECK_BIT(var, pos) ((var) & (1 << (pos)))
 
 /* SCM interface as per ARM spec present? */
 bool scm_arm_support;
 static uint32_t scm_io_write(addr_t address, uint32_t val);
 static bool scm_initialized;
+bool secure_boot_enabled = false;
 
 bool is_scm_armv8_support()
 {
@@ -1247,7 +1257,10 @@ uint32_t scm_call2(scmcall_arg *arg, scmcall_ret *ret)
 	return 0;
 }
 
-uint32_t is_secure_boot_enable()
+
+static bool wdog_debug_fuse_disabled = true;
+
+void scm_check_boot_fuses()
 {
 	uint32_t ret = 0;
 	uint32_t *resp = NULL;
@@ -1272,14 +1285,26 @@ uint32_t is_secure_boot_enable()
 	* Bit 0 - SECBOOT_ENABLE_CHECK
 	* Bit 2 - DEBUG_DISABLE_CHECK
 	*/
-	if(!ret) {
-
-		if(!(resp[0] & 0x5))
-			ret = 1;
+	if (!ret) {
+		/* Check for secure device: Bit#0 = 0, Bit#1 = 0 Bit#2 = 0 , Bit#5 = 0 , Bit#6 = 1 */
+        	if (!CHECK_BIT(resp[0], SECBOOT_FUSE_BIT) && !CHECK_BIT(resp[0], SECBOOT_FUSE_SHK_BIT) &&
+        		!CHECK_BIT(resp[0], SECBOOT_FUSE_DEBUG_DISABLED_BIT) &&
+        		!CHECK_BIT(resp[0], SECBOOT_FUSE_RPMB_ENABLED_BIT) &&
+        		CHECK_BIT(resp[0], SECBOOT_FUSE_DEBUG_RE_ENABLED_BIT)) {
+        		secure_boot_enabled = true;
+        	}
+		/* Bit 2 - DEBUG_DISABLE_CHECK */
+		if (CHECK_BIT(resp[0], SECBOOT_FUSE_DEBUG_DISABLED_BIT))
+			wdog_debug_fuse_disabled = false;
 	} else
-		dprintf(CRITICAL, "scm call is_secure_boot_enable failed\n");
+		dprintf(CRITICAL, "scm call to check secure boot fuses failed\n");
 	free(resp);
-	return ret;
+}
+
+bool is_secure_boot_enable()
+{
+	scm_check_boot_fuses();
+	return secure_boot_enabled;
 }
 
 static uint32_t scm_io_read(addr_t address)

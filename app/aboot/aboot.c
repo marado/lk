@@ -89,6 +89,7 @@ extern void platform_uninit(void);
 extern void target_uninit(void);
 extern int get_target_boot_params(const char *cmdline, const char *part,
 				  char *buf, int buflen);
+extern bool secure_boot_enabled;
 
 void *info_buf;
 void write_device_info_mmc(device_info *dev);
@@ -160,6 +161,9 @@ static const char *baseband_dsda    = " androidboot.baseband=dsda";
 static const char *baseband_dsda2   = " androidboot.baseband=dsda2";
 static const char *baseband_sglte2  = " androidboot.baseband=sglte2";
 static const char *warmboot_cmdline = " qpnp-power-on.warm_boot=1";
+
+static const char *sec_boot = " secure_boot_enabled=true";
+static const char *non_sec_boot = " secure_boot_enabled=false";
 
 #if VERIFIED_BOOT
 #if !VBOOT_MOTA
@@ -302,6 +306,9 @@ unsigned char *update_cmdline(const char * cmdline)
 	int have_target_boot_params = 0;
 	char *boot_dev_buf = NULL;
         bool is_mdtp_activated = 0;
+		
+ 
+
 #if VERIFIED_BOOT
 #if !VBOOT_MOTA
     uint32_t boot_state = 0;
@@ -363,7 +370,12 @@ unsigned char *update_cmdline(const char * cmdline)
 	if(target_use_signed_kernel() && auth_kernel_img) {
 		cmdline_len += strlen(auth_kernel);
 	}
-
+	if(secure_boot_enabled) {
+			cmdline_len += strlen(sec_boot);
+		}else{
+			cmdline_len += strlen(non_sec_boot);
+		}
+	
 	if (get_target_boot_params(cmdline, boot_into_recovery ? "recoveryfs" :
 								 "system",
 				   target_boot_params,
@@ -534,6 +546,12 @@ unsigned char *update_cmdline(const char * cmdline)
 			if (have_cmdline) --dst;
 			while ((*dst++ = *src++));
 		}
+		
+		/*appending secure boot status in cmdline*/
+		src = secure_boot_enabled?sec_boot:non_sec_boot;
+		if (have_cmdline) --dst;
+			while ((*dst++ = *src++));
+			
 
 		switch(target_baseband())
 		{
