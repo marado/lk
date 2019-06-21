@@ -1252,6 +1252,7 @@ int animated_splash() {
 	bool mode_change[disp_cnt];
 	bool stop_display_splash = false;
 	bool firstframe[disp_cnt];
+	bool firstCameraFrame[disp_cnt];
 	int camera_error_count = 0;
 	int camera_status = 0;
 	bool request_shutdown = false;
@@ -1276,6 +1277,7 @@ int animated_splash() {
 	for (j = 0; j < disp_cnt; j ++) {
 		frame_cnt[j] = 0;
 		firstframe[j] = true;
+		firstCameraFrame[j] = true;
 		mode_change[j] = false;
 		disp_ptr = target_display_open(j);
 		if (disp_ptr == NULL) {
@@ -1382,7 +1384,7 @@ int animated_splash() {
 			if ((j == rvc_display_id) && (early_camera_enabled == 1)) {
 				if (camera_on) {
 					if (!layer_list_mode_unchanged(&layer_list[j],
-										&cached_rvc_layer_list)) {
+							&cached_rvc_layer_list) || firstCameraFrame[j]) {
 						animated_splash_handle_layer_list(&layer_list[j],
 								&cached_rvc_layer_list,
 								&mode_change[j]);
@@ -1418,10 +1420,11 @@ int animated_splash() {
 				} else {
 					/* going to animation case once camera is disabled */
 					if (!layer_list_mode_unchanged(&layer_list[j],
-						&cached_splash_layer_list[j])) {
-							animated_splash_handle_layer_list(&layer_list[j],
-								&cached_splash_layer_list[j],
-								&mode_change[j]);
+						       &cached_splash_layer_list[j])) {
+
+						animated_splash_handle_layer_list(&layer_list[j],
+							&cached_splash_layer_list[j],
+							&mode_change[j]);
 
 						if(!layer_list[j].layer) {
 							layer_ptr = target_display_acquire_layer(update[j].disp,
@@ -1495,10 +1498,11 @@ int animated_splash() {
 				camera_error_count++;
 				mdelay_optimal(16);
 			} else {
-				if (firstframe[rvc_display_id]) {
+				if (firstCameraFrame[rvc_display_id]) {
 					animated_splash_handle_layer_list(&cached_rvc_layer_list,
 						&layer_list[rvc_display_id], &mode_change[rvc_display_id]);
 					firstframe[rvc_display_id] = false;
+					firstCameraFrame[rvc_display_id] = false;
 				}
 
 				if (mode_change[rvc_display_id])
