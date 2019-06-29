@@ -2572,7 +2572,6 @@ int early_camera_on(void)
 		gpio_triggered = TRUE;
 	// else Neither RVC GPIO is set correctly nor RVC time out is set correctly.
 	// Exit with GPIO Triggered as False (default value)
-
 	return gpio_triggered;
 }
 
@@ -2717,15 +2716,10 @@ int early_camera_flip(void *cam_layer, bool firstframe, bool mode_change)
 		}
 
 		if (firstframe || mode_change) {
-			if (firstframe) {
 				/* setup one inactive fb for status switching between RVC and animation */
-				if (firstframe) {
 					target_display_setup_fb(&camera_layer->fb[camera_layer->valid_fb_cnt],
 						NULL, kFormatRGB888, SPLASH_SPLIT_0_LAYER_ZORDER, false, 24);
 					camera_layer->valid_fb_cnt++;
-				}
-			}
-
 			if (firstframe)
 				dprintf(INFO, "camera flip setup once(display id=%d)\n", rvc_display_id);
 			target_display_update(&update_cam, 1, rvc_display_id, true, firstframe);
