@@ -298,6 +298,13 @@
 #define DSI1_INT_CTRL			REG_MDP(0x96110)
 #define DSI_INT_CTRL_RESET_STATUS	0x51115501
 
+struct border_rect {
+	uint32_t left;
+	uint32_t right;
+	uint32_t top;
+	uint32_t bottom;
+};
+
 enum mdp_stage {
 	MDP_STAGE_BASE = 0,
 	MDP_STAGE_0,
@@ -322,8 +329,12 @@ enum mdp_stage {
 
 void mdp_set_revision(int rev);
 int mdp_get_revision();
-int mdp_dsi_video_config(struct msm_panel_info *pinfo, struct fbcon_config *fb);
-int mdp_dsi_video_update_pipe(struct msm_panel_info *pinfo, struct fbcon_config *fb);
+int mdp_dsi_video_config(struct msm_panel_info *pinfo, struct fbcon_config *fb,
+							uint32_t fb_cnt);
+
+int mdp_update_pipe(struct msm_panel_info *pinfo, struct fbcon_config *fb,
+	uint32_t fb_cnt);
+
 int mdp_dsi_cmd_config(struct msm_panel_info *pinfo, struct fbcon_config *fb);
 int mipi_dsi_cmd_config(struct fbcon_config mipi_fb_cfg,
 			unsigned short num_of_lanes);
@@ -354,9 +365,9 @@ int mdss_hdmi_init(void);
 void mdss_hdmi_display_init(uint32_t rev, void *base, bool splitter_display_is_enabled);
 int mdss_hdmi_on(struct msm_panel_info *pinfo);
 int mdss_hdmi_off(struct msm_panel_info *pinfo);
-int mdss_hdmi_config(struct msm_panel_info *pinfo, struct fbcon_config *fb);
+int mdss_hdmi_config(struct msm_panel_info *pinfo, struct fbcon_config *fb,
+	uint32_t fb_cnt);
 int mdss_hdmi_update(struct msm_panel_info *pinfo);
-int mdss_hdmi_update_pipe(struct msm_panel_info *pinfo, struct fbcon_config *fb);
 void mdss_hdmi_get_vic(char *buf);
 void hdmi_phy_init(void);
 int msm_display_off();
@@ -369,10 +380,19 @@ void mdss_dsc_mdp_config(struct msm_panel_info *pinfo,
 	unsigned int pp_base, unsigned int dsc_base,
 	bool mux, bool split_mode);
 
-int mdss_layer_mixer_hide_pipe(struct msm_panel_info *pinfo, struct fbcon_config *fb);
+int mdss_layer_mixer_hide_pipe(struct msm_panel_info *pinfo,
+	struct fbcon_config *fb, uint32_t fb_cnt);
 
 int mdss_spi_init(void);
 int mdss_spi_panel_init(struct msm_panel_info *pinfo);
 int mdss_spi_on(struct msm_panel_info *pinfo, struct fbcon_config *fb);
 int mdss_spi_cmd_post_on(struct msm_panel_info *pinfo);
+
+int mdp_config_pipe(struct msm_panel_info *pinfo,
+	struct fbcon_config *fb, uint32_t fb_cnt);
+int mdp_trigger_flush(struct msm_panel_info *pinfo,
+	struct fbcon_config *fb, uint32_t fb_cnt,
+	uint32_t *left_ctl_reg_mask, uint32_t *right_ctl_reg_mask);
+int mdp_config_external_pipe(struct msm_panel_info *pinfo,
+	struct fbcon_config *fb, char *actual_pipe_name);
 #endif

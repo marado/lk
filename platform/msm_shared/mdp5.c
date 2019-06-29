@@ -48,6 +48,8 @@
 
 #define MDSS_MDP_MAX_PREFILL_FETCH	25
 
+static uint32_t external_fb_offset = 0;
+
 int restore_secure_cfg(uint32_t id);
 
 static int mdp_rev;
@@ -401,6 +403,51 @@ static inline uint32_t mdp_get_stage_level(uint32_t mix, uint32_t pipe_base)
 	return stage_val;
 }
 
+static inline void _mdp_fill_border_rect(uint32 left, uint32_t right,
+	uint32_t top, uint32_t bottom, struct border_rect *rect)
+{
+	rect->left = left;
+	rect->right = right;
+	rect->top = top;
+	rect->bottom = bottom;
+}
+
+/* find the pipe in resource manager with the same zorder and pipe_type */
+static uint32_t _mdp_get_pipe(struct resource_req *res_mgr,
+	uint32_t search_start, uint32_t zorder,
+	uint32_t pipe_type, uint32_t *pipe_idx)
+{
+	uint32_t i = 0;
+
+	for (i = search_start; i < MDP_STAGE_6; i++) {
+		if ((res_mgr->pp_state[i].zorder == zorder) &&
+			(res_mgr->pp_state[i].type == pipe_type)) {
+			*pipe_idx = i;
+			return res_mgr->pp_state[i].base;
+		}
+	}
+
+	dprintf(CRITICAL, "not get pipe base\n");
+	dprintf(INFO, "input zorder=%d, pipe_type=%d\n", zorder, pipe_type);
+	for (i = search_start; i < MDP_STAGE_6; i++)
+		dprintf(INFO, "pp_state[%d]: zorder=%d, type=%d, base=0x%x\n", i,
+		res_mgr->pp_state[i].zorder, res_mgr->pp_state[i].type, res_mgr->pp_state[i].base);
+	return 0;
+}
+
+static void _mdp_get_external_fb_offset(struct resource_req *res_mgr)
+{
+	uint32_t i = 0;
+
+	for (i = 0; i < MDP_STAGE_6; i++) {
+		/* a pipe base != 0 means the pipe is filled by external layer */
+		if (res_mgr->pp_state[i].base == 0) {
+			external_fb_offset = i;
+			break;
+		}
+	}
+}
+
 #if ENABLE_QSEED_SCALAR
 int mdp_scalar_config(struct LayerInfo* layer, struct msm_panel_info *pinfo,
 			uint32_t left_pipe_offset, uint32_t right_pipe_offset)
@@ -618,34 +665,70 @@ int mdp_scalar_config(struct LayerInfo* layer, struct msm_panel_info *pinfo,
 }
 #endif
 
-static void mdss_mdp_flush_pipe(struct msm_panel_info *pinfo,
-				uint32_t *ctl0_reg_val, uint32_t *ctl1_reg_val,
-				bool stage_right)
+static void _mdp_trigger_flush(struct resource_req *res_mgr,
+	uint32_t left_ctl_reg_mask, uint32_t right_ctl_reg_mask)
 {
-	uint32_t left_pipe_bit = 0;
-	uint32_t right_pipe_bit = 0;
-	struct resource_req *rm = NULL;
+	writel(left_ctl_reg_mask, res_mgr->ctl_base[SPLIT_DISPLAY_0] + CTL_FLUSH);
 
-	rm = mdp_rm_retrieve_resource(pinfo->dest);
-	if (!rm) {
-		dprintf(CRITICAL, "%s: get hardware resource failed\n", __func__);
-		return;
+	if (res_mgr->num_ctl == 2)
+		writel(right_ctl_reg_mask, res_mgr->ctl_base[SPLIT_DISPLAY_1] + CTL_FLUSH);
+}
+
+static void mdp_wait_for_flush_done(struct resource_req *res_mgr,
+	uint32_t left_ctl_reg_val, uint32_t right_ctl_reg_val, bool flush_right)
+{
+	uint32_t i = 0, flush_register = 0;
+
+	/* wait for pipe flush done for ctrl index 0 */
+	for (i = 0; i < SSPP_FLUSH_TIMEOUT_MS; i++) {
+		flush_register =
+			readl(res_mgr->ctl_base[SPLIT_DISPLAY_0] + CTL_FLUSH);
+		dprintf(INFO, "left flush reg=0x%x\n", flush_register);
+		if ((flush_register & left_ctl_reg_val) != 0)
+			mdelay_optimal(1);
+		else
+			break;
 	}
 
-	left_pipe_bit = mdp_get_bitmask_sspp(rm->pipe_base[SPLIT_DISPLAY_0]);
-	right_pipe_bit = mdp_get_bitmask_sspp(rm->pipe_base[SPLIT_DISPLAY_1]);
+	/* wait for pipe flush done for ctrl index 1 if there is */
+	if (res_mgr->num_ctl == 2 && flush_right) {
+		for (i = 0; i < SSPP_FLUSH_TIMEOUT_MS; i++) {
+			dprintf(INFO, "right flush_reg=0x%x\n", flush_register);
+			flush_register =
+				readl(res_mgr->ctl_base[SPLIT_DISPLAY_1] + CTL_FLUSH);
+			if ((flush_register & right_ctl_reg_val) != 0)
+				mdelay_optimal(1);
+			else
+				break;
+		}
+	}
 
-	*ctl0_reg_val |= left_pipe_bit;
-	if (pinfo->lcdc.dual_pipe && stage_right) {
-		if (pinfo->lcdc.split_display)
-			*ctl1_reg_val |= right_pipe_bit;
-		else
-			*ctl0_reg_val |= right_pipe_bit;
+	/* print one error for awareness if there is */
+	if (i == SSPP_FLUSH_TIMEOUT_MS)
+		dprintf(CRITICAL, "pipe flush may have error.\n");
+}
+
+static void mdss_mdp_flush_pipe(struct resource_req *res_mgr,
+				uint32_t *left_ctl_mask, uint32_t *right_ctl_mask,
+				bool stage_right)
+{
+	uint32_t i = 0;
+
+	for (i = 0; i < MDP_STAGE_6; i++) {
+		if ((res_mgr->pending_pipe_mask & (1 << i)) &&
+			(res_mgr->pp_state[i].zorder >= MDP_STAGE_1)) {
+			if (res_mgr->pp_state[i].lm_idx == LM_LEFT)
+				*left_ctl_mask |=
+					mdp_get_bitmask_sspp(res_mgr->pp_state[i].base);
+			else if (res_mgr->pp_state[i].lm_idx == LM_RIGHT && stage_right)
+				*right_ctl_mask |=
+					mdp_get_bitmask_sspp(res_mgr->pp_state[i].base);
+		}
 	}
 }
 
 static void mdss_mdp_set_flush(struct msm_panel_info *pinfo,
-				uint32_t *ctl0_reg_val, uint32_t *ctl1_reg_val)
+				uint32_t *left_flush_mask, uint32_t *right_flush_mask)
 {
 	uint32_t mdss_mdp_rev = readl(MDP_HW_REV);
 	bool dual_pipe_single_ctl = pinfo->lcdc.dual_pipe &&
@@ -660,19 +743,23 @@ static void mdss_mdp_set_flush(struct msm_panel_info *pinfo,
 		return;
 	}
 
-	mdss_mdp_flush_pipe(pinfo, ctl0_reg_val, ctl1_reg_val, true);
+	mdss_mdp_flush_pipe(rm, left_flush_mask, right_flush_mask, true);
+	dprintf(INFO, "display_id%d: left_flush_mask=0x%x, right_flush_mask =0x%x\n",
+		pinfo->dest, *left_flush_mask, *right_flush_mask);
+
+	mdp_rm_clear_pipe_mask(rm);
 
 	left_lm_base = rm->lm_base[SPLIT_DISPLAY_0];
 	right_lm_base = rm->lm_base[SPLIT_DISPLAY_1];
 
-	*ctl0_reg_val |= mdp_get_lm_mask(left_lm_base);
+	*left_flush_mask |= mdp_get_lm_mask(left_lm_base);
 	if (rm->num_lm == 2)
-		*ctl1_reg_val |= mdp_get_lm_mask(right_lm_base);
+		*right_flush_mask |= mdp_get_lm_mask(right_lm_base);
 
-	*ctl0_reg_val |= BIT(17);  //CTL
-	*ctl1_reg_val |= BIT(17);  //CTL
+	*left_flush_mask |= BIT(17);  //CTL
+	*right_flush_mask |= BIT(17);  //CTL
 	if (dual_pipe_single_ctl)
-		*ctl0_reg_val |= *ctl1_reg_val;
+		*left_flush_mask |= *right_flush_mask;
 
 	/* For targets from MDP v1.5, MDP INTF registers are double buffered */
 	if ((mdss_mdp_rev == MDSS_MDP_HW_REV_106) ||
@@ -680,11 +767,11 @@ static void mdss_mdp_set_flush(struct msm_panel_info *pinfo,
 		(mdss_mdp_rev == MDSS_MDP_HW_REV_111) ||
 		(mdss_mdp_rev == MDSS_MDP_HW_REV_112)) {
 		if (pinfo->dest == DISPLAY_2) {
-			*ctl0_reg_val |= BIT(31);
-			*ctl1_reg_val |= BIT(30);
+			*left_flush_mask |= BIT(31);
+			*right_flush_mask |= BIT(30);
 		} else {
-			*ctl0_reg_val |= BIT(30);
-			*ctl1_reg_val |= BIT(31);
+			*left_flush_mask |= BIT(30);
+			*right_flush_mask |= BIT(31);
 		}
 	} else if ((mdss_mdp_rev == MDSS_MDP_HW_REV_105) ||
 		(mdss_mdp_rev == MDSS_MDP_HW_REV_109) ||
@@ -717,17 +804,17 @@ static void mdss_mdp_set_flush(struct msm_panel_info *pinfo,
 
 		if ((use_second_dsi && !pinfo->lcdc.pipe_swap) ||
 			(!use_second_dsi && pinfo->lcdc.pipe_swap)) {
-			*ctl0_reg_val |= BIT(29);
-			*ctl1_reg_val |= BIT(30);
+			*left_flush_mask |= BIT(29);
+			*right_flush_mask |= BIT(30);
 		} else {
-			*ctl0_reg_val |= BIT(30);
-			*ctl1_reg_val |= BIT(29);
+			*left_flush_mask |= BIT(30);
+			*right_flush_mask |= BIT(29);
 		}
 	}
 }
 
 static void mdss_source_pipe_config(struct fbcon_config *fb, struct msm_panel_info
-		*pinfo, uint32_t pipe_base, uint32_t fb_index)
+		*pinfo, uint32_t pipe_base, struct border_rect *rect, uint32_t offset_pp_index)
 {
 	uint32_t img_size, roi_size, out_size, stride;
 	uint32_t fb_off = 0;
@@ -754,8 +841,8 @@ static void mdss_source_pipe_config(struct fbcon_config *fb, struct msm_panel_in
 				fb->layer_scale->left_pipe.dst_rect.w;
 	} else {
 #endif
-		height = fb->height - pinfo->border_top[fb_index] - pinfo->border_bottom[fb_index];
-		width = fb->width - pinfo->border_left[fb_index] - pinfo->border_right[fb_index];
+		height = fb->height - rect->top - rect->bottom;
+		width = fb->width - rect->left - rect->right;
 		/* write active region size*/
 		img_size = (height << 16) | width;
 		if (pinfo->lcdc.dual_pipe && !pinfo->splitter_is_enabled) {
@@ -771,7 +858,7 @@ static void mdss_source_pipe_config(struct fbcon_config *fb, struct msm_panel_in
 #endif
 
 	if (pinfo->lcdc.dual_pipe && !pinfo->splitter_is_enabled) {
-		if (rm->pipe_base[SPLIT_DISPLAY_0] == pipe_base){
+		if (rm->pp_state[offset_pp_index].base == pipe_base){
 			//Left pipe
 			fb_off = 0;
 		} else {
@@ -797,7 +884,8 @@ static void mdss_source_pipe_config(struct fbcon_config *fb, struct msm_panel_in
 				fb->layer_scale->left_pipe.src_rect.x;
 		} else {
 			dst_xy = (fb->layer_scale->right_pipe.dst_rect.y << 16) |
-				(fb->layer_scale->left_pipe.dst_rect.x + fb->layer_scale->left_pipe.dst_rect.w);
+				(fb->layer_scale->left_pipe.dst_rect.x +
+				fb->layer_scale->left_pipe.dst_rect.w);
 			src_xy = (fb->layer_scale->right_pipe.src_rect.y << 16) |
 				fb->layer_scale->right_pipe.src_rect.x;
 		}
@@ -806,14 +894,18 @@ static void mdss_source_pipe_config(struct fbcon_config *fb, struct msm_panel_in
 		if (fb_off == 0) {	/* left */
 			src_xy = 0;
 
-			if (pinfo->splitter_is_enabled && (rm->pipe_base[SPLIT_DISPLAY_1] == pipe_base)) {
-				/* for shared display case, dst_xy of pipe should move to right part with one offset lm_split[0] */
-				dst_xy = (pinfo->border_top[fb_index] << 16) |
-						(pinfo->border_left[fb_index] + pinfo->lm_split[SPLIT_DISPLAY_0]);
+			if (pinfo->splitter_is_enabled &&
+				(rm->pp_state[offset_pp_index + 1].base == pipe_base)) {
+				/*
+				 * for shared display case, dst_xy of pipe should move to
+				 * right part with one offset lm_split[0].
+				 */
+				dst_xy = (rect->top << 16) |
+						(rect->left + pinfo->lm_split[SPLIT_DISPLAY_0]);
 			} else
-				dst_xy = (pinfo->border_top[fb_index] << 16) | pinfo->border_left[fb_index];
+				dst_xy = (rect->top << 16) | rect->left;
 		} else {	/* right */
-			dst_xy = (pinfo->border_top[fb_index] << 16) | fb_off;
+			dst_xy = (rect->left << 16) | fb_off;
 			src_xy = fb_off;
 		}
 #if ENABLE_QSEED_SCALAR
@@ -1322,12 +1414,229 @@ static void mdss_intf_fetch_start_config(struct msm_panel_info *pinfo,
 	writel_relaxed(fetch_enable, MDP_INTF_CONFIG + intf_base);
 }
 
-int mdss_layer_mixer_hide_pipe(struct msm_panel_info *pinfo, struct fbcon_config *fb) {
-	uint32_t left_pipe_base = 0, right_pipe_base = 0;
+static int mdp_acquire_pipe(uint32_t dest_display_id, struct fbcon_config *fb,
+	uint32_t *pipe_base, bool right_stage, char *explicit_pipe_name)
+{
+	uint32_t index;
+	uint32_t pipe_type;
+	int ret;
+
+	if (target_is_yuv_format(fb->format))
+		pipe_type = MDSS_MDP_PIPE_TYPE_VIG;
+	else
+		pipe_type = MDSS_MDP_PIPE_TYPE_RGB;
+
+	ret = mdp_rm_search_pipe(pipe_type, dest_display_id,
+			&index, explicit_pipe_name);
+	if (ret) {
+		dprintf(CRITICAL, "%s: pipe search failed\n", __func__);
+		return ret;
+	}
+
+	dprintf(INFO, "%s:index=0x%x\n", __func__, index);
+	ret = mdp_rm_update_pipe_status(index, dest_display_id,
+		fb->z_order, right_stage, pipe_base);
+
+	return ret;
+}
+
+static bool mdp_check_pipe_right_mixer(struct msm_panel_info *pinfo)
+{
+	if (pinfo->lcdc.dual_pipe) {
+		if (pinfo->splitter_is_enabled && pinfo->lcdc.force_merge)
+			return false;
+		else if (pinfo->lcdc.split_display ||
+			(pinfo->splitter_is_enabled && !pinfo->lcdc.force_merge))
+			return true;
+	}
+
+	return false;
+}
+
+int mdp_setup_pipe(struct msm_panel_info *pinfo,
+		struct fbcon_config *fb, uint32_t fb_cnt,
+		uint32_t *left_pipe, uint32_t *right_pipe)
+{
+	uint32_t pipe_base = 0, fb_index = SPLIT_DISPLAY_0;
+	struct border_rect rect;
+	uint32_t ret = 0, real_fb_cnt = 0;
+	bool pipe_on_right = false;
+	struct resource_req *res_mgr = NULL;
+	uint32_t search_start = 0, pp_index = 0, pipe_type;
+
+	dprintf(INFO, "%s:input fb_cnt=%d\n", __func__, fb_cnt);
+	real_fb_cnt = fb_cnt;
+
+	res_mgr = mdp_rm_retrieve_resource(pinfo->dest);
+	if (!res_mgr) {
+		dprintf(CRITICAL, "%s:get hardware resource failed\n", __func__);
+		return ERR_NOT_VALID;
+	}
+
+	_mdp_get_external_fb_offset(res_mgr);
+
+	/*
+	* In dual pipe & non-spliiter case like 4K or DSI split case, as each fb
+	* will use 2 pipes, so fb_cnt * 2 should not exceed the max value of blend stage.
+	*/
+	if (pinfo->lcdc.dual_pipe & !pinfo->splitter_is_enabled) {
+		if (fb_cnt * MAX_SPLIT_DISPLAY > MDP_STAGE_6) {
+			dprintf(CRITICAL, "invalid user fb number\n");
+			real_fb_cnt = MDP_STAGE_6 / MAX_SPLIT_DISPLAY;
+		}
+	}
+
+	dprintf(CRITICAL, "%s:real_fb=%d\n", __func__, real_fb_cnt);
+
+	for (fb_index = SPLIT_DISPLAY_0; fb_index < real_fb_cnt; fb_index++) {
+		dprintf(INFO, "%s: fb_index=%d", __func__, fb_index);
+		pipe_on_right = false;
+		search_start = 0;
+
+		/* If one fb's format is invalid, continue for next fb */
+		if (!target_format_is_valid(fb[fb_index].format))
+			continue;
+
+		ret = mdp_acquire_pipe(pinfo->dest, &fb[fb_index],
+				&pipe_base, pipe_on_right, NULL);
+		if (ret) {
+			dprintf(CRITICAL, "Acquire pipe for fb%d failed\n", fb_index);
+			continue;
+		}
+		dprintf(INFO, "Acquire pipe base=0x%x\n", pipe_base);
+		if (target_is_yuv_format(fb[fb_index].format))
+			pipe_type = MDSS_MDP_PIPE_TYPE_VIG;
+		else
+			pipe_type = MDSS_MDP_PIPE_TYPE_RGB;
+
+		if (pipe_base != _mdp_get_pipe(res_mgr, search_start,
+			fb[fb_index].z_order, pipe_type, &pp_index)) {
+			dprintf(CRITICAL, "pipe_base is not the same, aborted\n");
+			continue;
+		}
+
+		if ((fb[fb_index].base == NULL) &&
+			target_format_is_valid(fb[fb_index].format)) {
+			/* set layer to be transparent */
+			dprintf(INFO, "transparent base=0x%x\n", pipe_base);
+			mdss_mdp_set_layer_transparent(pinfo, pipe_base,
+				target_is_yuv_format(fb[fb_index].format));
+		} else {
+			/* normal layer */
+			dprintf(INFO, "normal base=0x%x\n", pipe_base);
+			_mdp_fill_border_rect(pinfo->border_left[fb_index],
+						pinfo->border_right[fb_index],
+						pinfo->border_top[fb_index],
+						pinfo->border_bottom[fb_index],
+						&rect);
+
+			mdss_source_pipe_config(&fb[fb_index], pinfo,
+				pipe_base, &rect, external_fb_offset);
+		}
+
+		mdp_rm_update_pipe_pending_mask(res_mgr, pp_index);
+
+		/* For dual pipe & non-splitter case, fetch from the same FB */
+		if (pinfo->lcdc.dual_pipe & !pinfo->splitter_is_enabled) {
+			/*
+			 * For dual pipe & non-splitter case fetching from the same FB,
+			 * there are two pipes allocated in resource manager. So when searching
+			 * it, it's needed to exclude the the former pipe who has the same zorder
+			 * and pipe_type. So the search start will start from actual position + 1.
+			 */
+			search_start = pp_index + 1;
+
+			pipe_on_right = mdp_check_pipe_right_mixer(pinfo);
+
+			ret = mdp_acquire_pipe(pinfo->dest, &fb[fb_index],
+					&pipe_base, pipe_on_right, NULL);
+			if (ret) {
+				dprintf(CRITICAL,
+					"Acquire pipe for fb%d failed in dual pipe case\n", fb_index);
+				continue;
+			}
+
+			if (pipe_base != _mdp_get_pipe(res_mgr, search_start,
+				fb[fb_index].z_order, pipe_type, &pp_index)) {
+				dprintf(INFO, "pipe_base is not the same in dual pipe case\n");
+				continue;
+			}
+
+			if ((fb[fb_index].base == NULL) &&
+				target_format_is_valid(fb[fb_index].format)) {
+				/* set layer to be transparent */
+				mdss_mdp_set_layer_transparent(pinfo, pipe_base,
+					target_is_yuv_format(fb[fb_index].format));
+			} else {
+				/* normal layer */
+				mdss_source_pipe_config(&fb[fb_index], pinfo,
+					pipe_base, &rect, external_fb_offset);
+			}
+
+			mdp_rm_update_pipe_pending_mask(res_mgr, pp_index);
+			++fb_index;
+		}
+	}
+
+	/* to backward compatible with legacy code */
+	if ((external_fb_offset + 1) < MDP_STAGE_6) {
+		*left_pipe = res_mgr->pp_state[external_fb_offset].base;
+		*right_pipe = res_mgr->pp_state[external_fb_offset + 1].base;
+	}
+
+	dprintf(INFO, "%s:left_pipe=0x%x, right_pipe=0x%x\n", __func__, *left_pipe, *right_pipe);
+
+	return NO_ERROR;
+}
+
+static int mdp_get_pipe_stage_level(struct resource_req *rm,
+	uint32_t *left_stage, uint32_t *right_stage)
+{
+	uint32_t i = 0;
+
+	dprintf(INFO, "%s: pending_pipe_mask=0x%x\n", __func__, rm->pending_pipe_mask);
+	for (i = 0; i < MDP_STAGE_6; i++) {
+		if ((rm->pending_pipe_mask & (1 << i)) &&
+			(rm->pp_state[i].zorder >= MDP_STAGE_1)) {
+			if (rm->pp_state[i].lm_idx == LM_LEFT)
+				*left_stage |= mdp_get_stage_level(rm->pp_state[i].zorder,
+								rm->pp_state[i].base);
+			else
+				*right_stage |= mdp_get_stage_level(rm->pp_state[i].zorder,
+								rm->pp_state[i].base);
+		}
+	}
+
+	return NO_ERROR;
+}
+
+static int mdp_blend_setup(struct resource_req *rm,
+		uint32_t left_lm_base, uint32_t right_lm_base)
+{
+	uint32_t i = 0;
+
+	for (i = 0; i < MDP_STAGE_6; i++) {
+		if (rm->pp_state[i].zorder >= MDP_STAGE_1) {
+			if (rm->pp_state[i].lm_idx == LM_LEFT)
+				mdss_layer_mixer_setup_blend_config(left_lm_base,
+				rm->pp_state[i].zorder, rm->pp_state[i].type);
+			else
+				mdss_layer_mixer_setup_blend_config(right_lm_base,
+				rm->pp_state[i].zorder, rm->pp_state[i].type);
+		} else
+			break;
+	}
+
+	return NO_ERROR;
+}
+
+int mdss_layer_mixer_hide_pipe(struct msm_panel_info *pinfo,
+	struct fbcon_config *fb, uint32_t fb_cnt)
+{
 	struct resource_req *rm = NULL;
 	bool flush_right = true;
-	uint32_t left_ctl_reg_val = 0, right_ctl_reg_val = 0;
-	uint32_t flush_register = 0, i = 0;
+	uint32_t left_ctl_mask = 0, right_ctl_mask = 0;
+	int ret = 0;
 
 	if (!pinfo) {
 		dprintf(CRITICAL, "Invalid input\n");
@@ -1340,51 +1649,35 @@ int mdss_layer_mixer_hide_pipe(struct msm_panel_info *pinfo, struct fbcon_config
 		return ERR_NOT_VALID;
 	}
 
-	left_pipe_base = rm->pipe_base[SPLIT_DISPLAY_0];
-	right_pipe_base = rm->pipe_base[SPLIT_DISPLAY_1];
+	ret = mdp_config_pipe(pinfo, fb, fb_cnt);
+	if (ret) {
+		dprintf(CRITICAL, "call mdp_config_pipe(fb_cnt=%d) failed\n",
+			fb_cnt);
+		return ret;
+	}
 
-	if (pinfo->splitter_is_enabled && fb[SPLIT_DISPLAY_1].base == NULL)
+	dprintf(INFO, "pending mask=0x%x\n", rm->pending_pipe_mask);
+
+	ret = mdp_trigger_flush(pinfo, fb, fb_cnt,
+		&left_ctl_mask, &right_ctl_mask);
+	if (ret) {
+		dprintf(CRITICAL, "call mdp_trigger_flush(fb_cnt=%d) failed\n",
+			fb_cnt);
+		return ret;
+	}
+
+	if (pinfo->splitter_is_enabled &&
+		(fb[SPLIT_DISPLAY_1].base == NULL) &&
+		!target_format_is_valid(fb[SPLIT_DISPLAY_1].format))
 		flush_right = false;
 
-	mdss_mdp_set_layer_transparent(pinfo, left_pipe_base,
-		(pinfo->pipe_type == MDSS_MDP_PIPE_TYPE_VIG) ? true : false);
+	dprintf(INFO, "%s:left_ctl_mask=0x%x, right_ctl_mask=0x%x\n",
+		__func__, left_ctl_mask, right_ctl_mask);
 
-	if (pinfo->lcdc.dual_pipe && flush_right) {
-		mdss_mdp_set_layer_transparent(pinfo, right_pipe_base,
-			(pinfo->pipe_type == MDSS_MDP_PIPE_TYPE_VIG) ? true : false);
-	}
+	mdp_wait_for_flush_done(rm, left_ctl_mask,
+		right_ctl_mask, flush_right);
 
-	mdss_mdp_flush_pipe(pinfo, &left_ctl_reg_val, &right_ctl_reg_val, flush_right);
-
-	writel(left_ctl_reg_val, rm->ctl_base[SPLIT_DISPLAY_0] + CTL_FLUSH);
-	if (rm->num_ctl == 2 && flush_right)
-		writel(right_ctl_reg_val, rm->ctl_base[SPLIT_DISPLAY_1] + CTL_FLUSH);
-
-	/* wait for pipe flush done for ctrl index 0 */
-	for (i = 0; i < SSPP_FLUSH_TIMEOUT_MS; i++) {
-		flush_register = readl(rm->ctl_base[SPLIT_DISPLAY_0] + CTL_FLUSH);
-		if ((flush_register & left_ctl_reg_val) != 0)
-			mdelay_optimal(1);
-		else
-			break;
-	}
-
-	/* wait for pipe flush done for ctrl index 1 if there is */
-	if (rm->num_ctl == 2 && flush_right) {
-		for (i = 0; i < SSPP_FLUSH_TIMEOUT_MS; i++) {
-			flush_register = readl(rm->ctl_base[SPLIT_DISPLAY_1] + CTL_FLUSH);
-			if ((flush_register & right_ctl_reg_val) != 0)
-				mdelay_optimal(1);
-			else
-				break;
-		}
-	}
-
-	/* print one error for awareness if there is */
-	if (i == SSPP_FLUSH_TIMEOUT_MS)
-		dprintf(CRITICAL, "pipe flush may have error.\n");
-
-	return 0;
+	return ret;
 }
 
 void mdss_layer_mixer_setup(struct fbcon_config *fb, struct msm_panel_info *pinfo)
@@ -1393,8 +1686,7 @@ void mdss_layer_mixer_setup(struct fbcon_config *fb, struct msm_panel_info *pinf
 	uint32_t left_staging_level = 0, right_staging_level = 0;
 	uint32_t left_mixer_base = 0, right_mixer_base = 0;
 	uint32_t left_ctl_base = 0, right_ctl_base = 0;
-	uint32_t left_pipe_base = 0, right_pipe_base = 0;
-	struct resource_req *rm = NULL;
+	struct resource_req *rm= NULL;
 	struct resource_req *display_1_rm = NULL;
 
 	/* Update mixer per destination */
@@ -1418,8 +1710,6 @@ void mdss_layer_mixer_setup(struct fbcon_config *fb, struct msm_panel_info *pinf
 	right_mixer_base = rm->lm_base[SPLIT_DISPLAY_1];
 	left_ctl_base = rm->ctl_base[SPLIT_DISPLAY_0];
 	right_ctl_base = rm->ctl_base[SPLIT_DISPLAY_1];
-	left_pipe_base = rm->pipe_base[SPLIT_DISPLAY_0];
-	right_pipe_base = rm->pipe_base[SPLIT_DISPLAY_1];
 
 	height = fb[SPLIT_DISPLAY_0].height;
 	width = fb[SPLIT_DISPLAY_0].width;
@@ -1475,14 +1765,11 @@ void mdss_layer_mixer_setup(struct fbcon_config *fb, struct msm_panel_info *pinf
 		writel(0xFF, right_mixer_base + LAYER_5_BLEND0_FG_ALPHA);
 	}
 
-	mdss_layer_mixer_setup_blend_config(left_mixer_base, pinfo->zorder[SPLIT_DISPLAY_0], pinfo->pipe_type);
-	if (pinfo->lcdc.dual_pipe && pinfo->lcdc.force_merge)
-		mdss_layer_mixer_setup_blend_config(left_mixer_base, pinfo->zorder[SPLIT_DISPLAY_1], pinfo->pipe_type);
-	else if (pinfo->lcdc.dual_pipe && !pinfo->lcdc.force_merge)
-		mdss_layer_mixer_setup_blend_config(right_mixer_base, pinfo->zorder[SPLIT_DISPLAY_1], pinfo->pipe_type);
+	mdp_blend_setup(rm, left_mixer_base, right_mixer_base);
 
-	left_staging_level = mdp_get_stage_level(pinfo->zorder[SPLIT_DISPLAY_0], left_pipe_base);
-	right_staging_level = mdp_get_stage_level(pinfo->zorder[SPLIT_DISPLAY_1], right_pipe_base);
+	mdp_get_pipe_stage_level(rm, &left_staging_level, &right_staging_level);
+	dprintf(CRITICAL, "left_stage_level=0x%x, right_stage_level=0x%x\n",
+		left_staging_level, right_staging_level);
 
 	/* border fill */
 	left_staging_level |= BIT(24);
@@ -1533,6 +1820,7 @@ void mdss_layer_mixer_setup(struct fbcon_config *fb, struct msm_panel_info *pinf
 			}
 			break;
 	}
+
 }
 
 void mdss_fbc_cfg(struct msm_panel_info *pinfo)
@@ -1722,16 +2010,17 @@ static void mdp_set_intf_base(struct msm_panel_info *pinfo,
 }
 
 int mdp_dsi_video_config(struct msm_panel_info *pinfo,
-		struct fbcon_config *fb)
+		struct fbcon_config *fb, uint32_t fb_cnt)
 {
 	uint32_t intf_sel, sintf_sel, old_intf_sel;
 	uint32_t intf_base, sintf_base;
 	uint32_t left_pipe, right_pipe;
 	uint32_t reg;
-	int i = 0, fb_index = SPLIT_DISPLAY_0;
+	int i = 0;
 	bool use_second_dsi = false;
 	struct resource_req *rm = NULL;
 
+	dprintf(INFO, "%s:destdisplay=%d\n", __func__, pinfo->dest);
 	// scan the display resource to see any display is already using DSI0
 	for (i = 0; i < MAX_NUM_DISPLAY; i++) {
 		if (i == (int)(pinfo->dest - DISPLAY_1))
@@ -1771,22 +2060,17 @@ int mdp_dsi_video_config(struct msm_panel_info *pinfo,
 
 	mdp_clk_gating_ctrl();
 
-	mdp_rm_select_pipe(pinfo, &left_pipe, &right_pipe);
+	mdp_setup_pipe(pinfo, fb, fb_cnt,
+		&left_pipe, &right_pipe);
+	dprintf(INFO, "%s:fb_cnt %d, left_pipe=0x%x, right_pipe=0x%x\n",
+		__func__, fb_cnt, left_pipe, right_pipe);
+
 	mdss_vbif_setup();
 	if (!has_fixed_size_smp())
 		mdss_smp_setup(pinfo, left_pipe, right_pipe);
 
 	mdss_qos_remapper_setup();
 	mdss_vbif_qos_remapper_setup(pinfo);
-
-	mdss_source_pipe_config(&fb[fb_index], pinfo, left_pipe, fb_index);
-
-	if (pinfo->lcdc.dual_pipe) {
-		if (pinfo->splitter_is_enabled)
-			++fb_index;
-
-		mdss_source_pipe_config(&fb[fb_index], pinfo, right_pipe, fb_index);
-	}
 
 #if ENABLE_QSEED_SCALAR
 	if (fb->layer_scale) {
@@ -1806,7 +2090,7 @@ int mdp_dsi_video_config(struct msm_panel_info *pinfo,
 
 	/* enable 3D mux for dual_pipe but single interface config */
 	if (pinfo->lcdc.dual_pipe && !pinfo->mipi.dual_dsi &&
-		!pinfo->lcdc.split_display) {
+		!pinfo->lcdc.split_display && !pinfo->lcdc.force_merge) {
 
 		if (pinfo->num_dsc_enc != 2)
 			reg |= BIT(19) | BIT(20);
@@ -1882,23 +2166,20 @@ int mdp_dsi_video_config(struct msm_panel_info *pinfo,
 
 int mdp_edp_config(struct msm_panel_info *pinfo, struct fbcon_config *fb)
 {
-	uint32_t fb_index = SPLIT_DISPLAY_0;
 	uint32_t left_pipe, right_pipe;
 
 	mdss_intf_tg_setup(pinfo, MDP_INTF_0_BASE);
 
-	mdp_rm_select_pipe(pinfo, &left_pipe, &right_pipe);
 	mdp_clk_gating_ctrl();
 
 	mdss_vbif_setup();
+
+	mdp_setup_pipe(pinfo, fb, 1, &left_pipe, &right_pipe);
+
 	mdss_smp_setup(pinfo, left_pipe, right_pipe);
 
 	mdss_qos_remapper_setup();
 	mdss_vbif_qos_remapper_setup(pinfo);
-
-	mdss_source_pipe_config(&fb[fb_index], pinfo, left_pipe, fb_index);
-	if (pinfo->lcdc.dual_pipe)
-		mdss_source_pipe_config(&fb[fb_index], pinfo, right_pipe, fb_index);
 
 	mdss_layer_mixer_setup(fb, pinfo);
 
@@ -1915,12 +2196,195 @@ int mdp_edp_config(struct msm_panel_info *pinfo, struct fbcon_config *fb)
 	return 0;
 }
 
-int mdss_hdmi_config(struct msm_panel_info *pinfo, struct fbcon_config *fb)
+int mdp_config_external_pipe(struct msm_panel_info *pinfo,
+	struct fbcon_config *fb, char *actual_pipe_name)
 {
-	uint32_t left_pipe, right_pipe, out_size;
-	uint32_t old_intf_sel, prg_fetch_start_en;
+	struct resource_req *rm = NULL;
+	bool pipe_on_right = false;
+	int ret = NO_ERROR;
+	uint32_t pipe_base = 0, pp_index = 0;
+	uint32_t search_start = 0;
+	uint32_t pipe_type;
+
+	/* When entering this function, FB will only be configured as transparent. */
+	if (fb->base != NULL || !target_format_is_valid(fb->format))
+		return ERR_NOT_VALID;
+
+	rm = mdp_rm_retrieve_resource(pinfo->dest);
+	if (!rm) {
+		dprintf(CRITICAL, "%s:get hardware resource failed\n", __func__);
+		return ERR_NOT_VALID;
+	}
+
+	ret = mdp_acquire_pipe(pinfo->dest, fb, &pipe_base,
+		pipe_on_right, actual_pipe_name);
+	if (ret) {
+		dprintf(CRITICAL, "acquire %s pipe failed\n", actual_pipe_name);
+		return ret;
+	}
+
+	if (target_is_yuv_format(fb->format))
+		pipe_type = MDSS_MDP_PIPE_TYPE_VIG;
+	else
+		pipe_type = MDSS_MDP_PIPE_TYPE_RGB;
+
+	if (pipe_base != _mdp_get_pipe(rm, search_start,
+		fb->z_order, pipe_type, &pp_index)) {
+		dprintf(CRITICAL, "pipe_base is not the same, aborted\n");
+		ret = ERR_NOT_VALID;
+		return ret;
+	}
+
+	/* set layer to be transparent */
+	mdss_mdp_set_layer_transparent(pinfo, pipe_base,
+		target_is_yuv_format(fb->format));
+
+	mdp_rm_update_pipe_pending_mask(rm, pp_index);
+
+	return ret;
+}
+
+int mdp_config_pipe(struct msm_panel_info *pinfo,
+	struct fbcon_config *fb, uint32_t fb_cnt)
+{
 	struct resource_req *rm = NULL;
 	uint32_t fb_index = SPLIT_DISPLAY_0;
+	uint32_t pipe_base = 0, pipe_type;
+	uint32_t real_fb_cnt = 0;
+	uint32_t pp_index = 0, search_start = 0;
+	struct border_rect rect;
+
+	rm = mdp_rm_retrieve_resource(pinfo->dest);
+	if (!rm) {
+		dprintf(CRITICAL, "%s:get hardware resource failed\n", __func__);
+		return ERR_NOT_VALID;
+	}
+
+	/*
+	* In dual pipe & non-splitter case like 4K, as each fb will use 2 pipes,
+	* so fb_cnt * 2 should not exceed the max value of blend stage.
+	*/
+	real_fb_cnt = fb_cnt;
+	if (pinfo->lcdc.dual_pipe & !pinfo->splitter_is_enabled) {
+		if (fb_cnt * MAX_SPLIT_DISPLAY > MDP_STAGE_6)
+			dprintf(CRITICAL, "invalid user fb number\n");
+			real_fb_cnt = MDP_STAGE_6 / MAX_SPLIT_DISPLAY;
+	}
+
+	for (fb_index = SPLIT_DISPLAY_0; fb_index < real_fb_cnt; fb_index++) {
+		search_start = 0;
+
+		/* If one fb's format is invalid, continue for next fb */
+		if (!target_format_is_valid(fb[fb_index].format))
+			continue;
+
+		if (target_is_yuv_format(fb[fb_index].format))
+			pipe_type = MDSS_MDP_PIPE_TYPE_VIG;
+		else
+			pipe_type = MDSS_MDP_PIPE_TYPE_RGB;
+
+		pipe_base = _mdp_get_pipe(rm, search_start,
+			fb[fb_index].z_order, pipe_type, &pp_index);
+
+		/* continue for next fb if pipe_base is 0 */
+		if (pipe_base == 0)
+			continue;
+
+		if ((fb[fb_index].base == NULL) &&
+			target_format_is_valid(fb[fb_index].format)) {
+			mdss_mdp_set_layer_transparent(pinfo, pipe_base,
+				target_is_yuv_format(fb[fb_index].format));
+		} else {
+			_mdp_fill_border_rect(pinfo->border_left[fb_index],
+					pinfo->border_right[fb_index],
+					pinfo->border_top[fb_index],
+					pinfo->border_bottom[fb_index],
+					&rect);
+
+			mdss_source_pipe_config(&fb[fb_index],
+				pinfo, pipe_base, &rect, external_fb_offset);
+		}
+
+		mdp_rm_update_pipe_pending_mask(rm, pp_index);
+		/*
+		 * For dual pipe & non-splitter case fetching from the same FB,
+		 * there are two pipes allocated in resource manager. So when searching
+		 * it, it's needed to exclude the the former pipe who has the same zorder
+		 * and pipe_type. So the search start will start from actual position + 1.
+		 */
+		 search_start = pp_index + 1;
+		if (pinfo->lcdc.dual_pipe & !pinfo->splitter_is_enabled) {
+			pipe_base = _mdp_get_pipe(rm, search_start,
+				fb[fb_index].z_order, pipe_type, &pp_index);
+
+			/* continue for next fb if pipe_base is 0 */
+			if (pipe_base == 0)
+				continue;
+
+			if ((fb[fb_index].base == NULL) &&
+				target_format_is_valid(fb[fb_index].format)) {
+				mdss_mdp_set_layer_transparent(pinfo, pipe_base,
+					target_is_yuv_format(fb[fb_index].format));
+			} else {
+				_mdp_fill_border_rect(pinfo->border_left[fb_index],
+						pinfo->border_right[fb_index],
+						pinfo->border_top[fb_index],
+						pinfo->border_bottom[fb_index],
+						&rect);
+
+				mdss_source_pipe_config(&fb[fb_index],
+					pinfo, pipe_base, &rect, external_fb_offset);
+			}
+
+			mdp_rm_update_pipe_pending_mask(rm, pp_index);
+
+			fb_index++;
+		}
+	}
+
+	return NO_ERROR;
+}
+
+int mdp_trigger_flush(struct msm_panel_info *pinfo,
+	struct fbcon_config *fb, uint32_t fb_cnt,
+	uint32_t *left_ctl_reg_mask, uint32_t *right_ctl_reg_mask)
+{
+	uint32_t flush_right = true;
+	uint32_t left_mask = 0, right_mask = 0;
+	struct resource_req *res_mgr = NULL;
+
+	res_mgr = mdp_rm_retrieve_resource(pinfo->dest);
+	if (!res_mgr) {
+		dprintf(CRITICAL, "Get hardware resource failed\n");
+		return ERR_NOT_VALID;
+	}
+
+	if (pinfo->splitter_is_enabled &&
+		(fb[SPLIT_DISPLAY_1].base == NULL) &&
+		!target_format_is_valid(fb[SPLIT_DISPLAY_1].format))
+		flush_right = false;
+
+	mdss_mdp_flush_pipe(res_mgr, &left_mask,
+		&right_mask, flush_right);
+
+	_mdp_trigger_flush(res_mgr, left_mask, right_mask);
+
+	mdp_rm_clear_pipe_mask(res_mgr);
+
+	*left_ctl_reg_mask = left_mask;
+	*right_ctl_reg_mask = right_mask;
+
+	return NO_ERROR;
+}
+
+int mdss_hdmi_config(struct msm_panel_info *pinfo,
+	struct fbcon_config *fb, uint32_t fb_cnt)
+{
+	uint32_t left_pipe = 0, right_pipe = 0, out_size;
+	uint32_t old_intf_sel, prg_fetch_start_en;
+	struct resource_req *rm = NULL;
+
+	dprintf(INFO, "%s:destdisplay=%d\n", __func__, pinfo->dest);
 
 	/* update resource manager per config and retrieve it next */
 	mdp_rm_update_resource(pinfo, false);
@@ -1934,22 +2398,15 @@ int mdss_hdmi_config(struct msm_panel_info *pinfo, struct fbcon_config *fb)
 	mdss_intf_tg_setup(pinfo, MDP_INTF_3_BASE + mdss_mdp_intf_offset());
 	mdss_intf_fetch_start_config(pinfo, MDP_INTF_3_BASE + mdss_mdp_intf_offset());
 
-	mdp_rm_select_pipe(pinfo, &left_pipe, &right_pipe);
-
 	mdp_clk_gating_ctrl();
 	mdss_vbif_setup();
+
+	mdp_setup_pipe(pinfo, fb, fb_cnt,
+		&left_pipe, &right_pipe);
 
 	mdss_smp_setup(pinfo, left_pipe, right_pipe);
 
 	mdss_qos_remapper_setup();
-
-	mdss_source_pipe_config(&fb[fb_index], pinfo, left_pipe, fb_index);
-	if (pinfo->lcdc.dual_pipe) {
-		if (pinfo->splitter_is_enabled)
-			++fb_index;
-
-		mdss_source_pipe_config(&fb[fb_index], pinfo, right_pipe, fb_index);
-	}
 
 #if ENABLE_QSEED_SCALAR
 	if (fb[SPLIT_DISPLAY_0].layer_scale) {
@@ -1999,7 +2456,6 @@ int mdp_dsi_cmd_config(struct msm_panel_info *pinfo,
 	uint32_t reg;
 	int ret = NO_ERROR;
 	uint32_t left_pipe, right_pipe;
-	uint32_t fb_index = SPLIT_DISPLAY_0;
 
 	struct lcdc_panel_info *lcdc = NULL;
 
@@ -2038,17 +2494,13 @@ int mdp_dsi_cmd_config(struct msm_panel_info *pinfo,
 
 	writel(intf_sel, MDP_DISP_INTF_SEL);
 
-	mdp_rm_select_pipe(pinfo, &left_pipe, &right_pipe);
+	mdp_setup_pipe(pinfo, fb, 1, &left_pipe, &right_pipe);
+
 	mdss_vbif_setup();
 	if (!has_fixed_size_smp())
 		mdss_smp_setup(pinfo, left_pipe, right_pipe);
 	mdss_qos_remapper_setup();
 	mdss_vbif_qos_remapper_setup(pinfo);
-
-	mdss_source_pipe_config(&fb[fb_index], pinfo, left_pipe, fb_index);
-
-	if (pinfo->lcdc.dual_pipe)
-		mdss_source_pipe_config(&fb[fb_index], pinfo, right_pipe, fb_index);
 
 	mdss_layer_mixer_setup(fb, pinfo);
 
@@ -2098,8 +2550,7 @@ int mdp_dsi_cmd_config(struct msm_panel_info *pinfo,
 
 int mdp_dsi_video_on(struct msm_panel_info *pinfo)
 {
-	uint32_t ctl0_reg_val = 0;
-	uint32_t ctl1_reg_val = 0;
+	uint32_t left_ctl_mask = 0, right_ctl_mask = 0;
 	struct resource_req *rm = NULL;
 
 	rm = mdp_rm_retrieve_resource(pinfo->dest);
@@ -2108,13 +2559,11 @@ int mdp_dsi_video_on(struct msm_panel_info *pinfo)
 		return ERR_NOT_VALID;
 	}
 
-	mdss_mdp_set_flush(pinfo, &ctl0_reg_val, &ctl1_reg_val);
+	mdss_mdp_set_flush(pinfo, &left_ctl_mask, &right_ctl_mask);
 	dprintf(SPEW, "dsi video_on Disp%d flush ctl0:0x%x  ctl1:0x%x\n",
-			pinfo->dest, ctl0_reg_val, ctl1_reg_val);
+			pinfo->dest, left_ctl_mask, right_ctl_mask);
 
-	writel(ctl0_reg_val, rm->ctl_base[0] + CTL_FLUSH);
-	if (rm->num_ctl == 2)
-		writel(ctl1_reg_val, rm->ctl_base[1] + CTL_FLUSH);
+	_mdp_trigger_flush(rm, left_ctl_mask, right_ctl_mask);
 
 	// clear and disable DSI interrupts
 	writel(DSI_ERR_INT_RESET_STATUS, DSI0_ERR_INT_MASK);
@@ -2137,8 +2586,7 @@ int mdp_dsi_video_on(struct msm_panel_info *pinfo)
 
 int mdp_dsi_video_update(struct msm_panel_info *pinfo)
 {
-	uint32_t ctl0_reg_val = 0;
-	uint32_t ctl1_reg_val = 0;
+	uint32_t left_ctl_reg_mask = 0, right_ctl_reg_mask = 0;
 	struct resource_req *rm = NULL;
 
 	rm = mdp_rm_retrieve_resource(pinfo->dest);
@@ -2147,20 +2595,25 @@ int mdp_dsi_video_update(struct msm_panel_info *pinfo)
 		return ERR_NOT_VALID;
 	}
 
-	mdss_mdp_set_flush(pinfo, &ctl0_reg_val, &ctl1_reg_val);
-	writel(ctl0_reg_val, rm->ctl_base[0] + CTL_FLUSH);
-	if (rm->num_ctl == 2)
-		writel(ctl1_reg_val, rm->ctl_base[1] + CTL_FLUSH);
+	mdss_mdp_set_flush(pinfo, &left_ctl_reg_mask,
+		&right_ctl_reg_mask);
+
+	_mdp_trigger_flush(rm, left_ctl_reg_mask,
+		right_ctl_reg_mask);
 
 	return NO_ERROR;
 }
 
-int mdp_dsi_video_update_pipe(struct msm_panel_info *pinfo,  struct fbcon_config *fb)
+int mdp_update_pipe(struct msm_panel_info *pinfo,
+	struct fbcon_config *fb, uint32_t fb_cnt)
 {
-	uint32_t ctl0_reg_val = 0, ctl1_reg_val = 0;
-	uint32_t left_pipe, right_pipe;
+	uint32_t left_ctl_reg_mask = 0, right_ctl_reg_mask = 0;
+	uint32_t pipe_base = 0, pp_index = 0;
 	struct resource_req *rm = NULL;
-	bool stage_right = true;
+	bool flush_right = true;
+	uint32_t fb_index = 0, search_start = 0;
+	uint32_t pipe_type;
+	static int cnt = 0;
 
 	rm = mdp_rm_retrieve_resource(pinfo->dest);
 	if (!rm) {
@@ -2168,23 +2621,57 @@ int mdp_dsi_video_update_pipe(struct msm_panel_info *pinfo,  struct fbcon_config
 		return ERR_NOT_VALID;
 	}
 
-	left_pipe = rm->pipe_base[SPLIT_DISPLAY_0];
-	right_pipe = rm->pipe_base[SPLIT_DISPLAY_1];
+	for (fb_index = SPLIT_DISPLAY_0; fb_index < fb_cnt; fb_index++) {
+		search_start = 0;
 
-	writel((uint32_t) fb[SPLIT_DISPLAY_0].base, left_pipe + PIPE_SSPP_SRC0_ADDR);
-	if (pinfo->splitter_is_enabled && fb[SPLIT_DISPLAY_1].base != NULL)
-		writel((uint32_t) fb[SPLIT_DISPLAY_1].base, right_pipe + PIPE_SSPP_SRC0_ADDR);
-	else if (pinfo->lcdc.split_display)
-		writel((uint32_t) fb[SPLIT_DISPLAY_0].base, right_pipe + PIPE_SSPP_SRC0_ADDR);
+		if (cnt++ < 6)
+			dprintf(INFO, "fb%d: zorder=%d, format=%d, base=0x%x\n",
+			fb_index, fb[fb_index].z_order, fb[fb_index].format,
+			fb[fb_index].base == NULL ? 0 : (uint32_t)fb[fb_index].base);
 
-	if (pinfo->splitter_is_enabled && fb[SPLIT_DISPLAY_1].base == NULL)
-		stage_right = false;
+		/* When calling this function, fb should be filled by user correctly. */
+		if ((fb[fb_index].base == NULL) ||
+			!target_format_is_valid(fb[fb_index].format))
+			continue;
 
-	mdss_mdp_flush_pipe(pinfo, &ctl0_reg_val, &ctl1_reg_val, stage_right);
+		if (target_is_yuv_format(fb[fb_index].format))
+			pipe_type = MDSS_MDP_PIPE_TYPE_VIG;
+		else
+			pipe_type = MDSS_MDP_PIPE_TYPE_RGB;
 
-	writel(ctl0_reg_val, rm->ctl_base[0] + CTL_FLUSH);
-	if (rm->num_ctl == 2)
-		writel(ctl1_reg_val, rm->ctl_base[1] + CTL_FLUSH);
+		pipe_base = _mdp_get_pipe(rm, search_start,
+					fb[fb_index].z_order,
+					pipe_type, &pp_index);
+
+		writel((uint32_t)fb[fb_index].base,
+			pipe_base + PIPE_SSPP_SRC0_ADDR);
+
+		mdp_rm_update_pipe_pending_mask(rm, pp_index);
+
+		if (pinfo->lcdc.split_display) {
+			/* In split case, right pipe will stage on another ctl */
+			search_start = pp_index + 1;
+
+			pipe_base = _mdp_get_pipe(rm, search_start,
+						fb[fb_index].z_order,
+						pipe_type, &pp_index);
+
+			writel((uint32_t)fb[fb_index].base,
+				pipe_base + PIPE_SSPP_SRC0_ADDR);
+
+			mdp_rm_update_pipe_pending_mask(rm, pp_index);
+
+			fb_index++;
+		}
+	}
+
+	mdss_mdp_flush_pipe(rm, &left_ctl_reg_mask,
+		&right_ctl_reg_mask, flush_right);
+
+	mdp_rm_clear_pipe_mask(rm);
+
+	_mdp_trigger_flush(rm, left_ctl_reg_mask,
+		right_ctl_reg_mask);
 
 	return 0;
 }
@@ -2291,8 +2778,7 @@ int mdp_edp_on(struct msm_panel_info *pinfo)
 
 int mdss_hdmi_on(struct msm_panel_info *pinfo)
 {
-	uint32_t ctl0_reg_val = 0;
-	uint32_t ctl1_reg_val = 0;
+	uint32_t left_ctl_flush_mask = 0, right_ctl_flush_mask = 0;
 	struct resource_req *rm = NULL;
 
 	rm = mdp_rm_retrieve_resource(pinfo->dest);
@@ -2301,11 +2787,11 @@ int mdss_hdmi_on(struct msm_panel_info *pinfo)
 		return ERR_NOT_VALID;
 	}
 
-	mdss_mdp_set_flush(pinfo, &ctl0_reg_val, &ctl1_reg_val);
-	ctl0_reg_val &= 0x0FFFFFFF;  // remove the interface setting
-	ctl0_reg_val |= BIT(28);     // enable interface 3
+	mdss_mdp_set_flush(pinfo, &left_ctl_flush_mask, &right_ctl_flush_mask);
+	left_ctl_flush_mask &= 0x0FFFFFFF;  // remove the interface setting
+	right_ctl_flush_mask |= BIT(28);     // enable interface 3
 
-	writel(ctl0_reg_val, rm->ctl_base[0] + CTL_FLUSH);
+	writel(left_ctl_flush_mask, rm->ctl_base[SPLIT_DISPLAY_0] + CTL_FLUSH);
 	writel(0x01, MDP_INTF_3_TIMING_ENGINE_EN + mdss_mdp_intf_offset());
 
 	return NO_ERROR;
@@ -2313,8 +2799,7 @@ int mdss_hdmi_on(struct msm_panel_info *pinfo)
 
 int mdss_hdmi_update(struct msm_panel_info *pinfo)
 {
-	uint32_t ctl0_reg_val = 0;
-	uint32_t ctl1_reg_val = 0;
+	uint32_t left_ctl_reg_mask = 0, right_ctl_reg_mask = 0;
 	struct resource_req *rm = NULL;
 
 	rm = mdp_rm_retrieve_resource(pinfo->dest);
@@ -2323,44 +2808,11 @@ int mdss_hdmi_update(struct msm_panel_info *pinfo)
 		return ERR_NOT_VALID;
 	}
 
-	mdss_mdp_set_flush(pinfo, &ctl0_reg_val, &ctl1_reg_val);
-	ctl0_reg_val &= 0x0FFFFFFF;  // remove the interface setting
-	ctl0_reg_val |= BIT(28);     // enable interface 3
+	mdss_mdp_set_flush(pinfo, &left_ctl_reg_mask, &right_ctl_reg_mask);
+	left_ctl_reg_mask &= 0x0FFFFFFF;  // remove the interface setting
+	right_ctl_reg_mask |= BIT(28);     // enable interface 3
 
-	writel(ctl0_reg_val, rm->ctl_base[0] + CTL_FLUSH);
-
-	return NO_ERROR;
-}
-
-int mdss_hdmi_update_pipe(struct msm_panel_info *pinfo,  struct fbcon_config *fb)
-{
-	uint32_t ctl0_reg_val = 0;
-	uint32_t ctl1_reg_val = 0;
-	uint32_t left_pipe, right_pipe;
-	struct resource_req *rm = NULL;
-	bool stage_right = true;
-
-	rm = mdp_rm_retrieve_resource(pinfo->dest);
-	if (!rm) {
-		dprintf(CRITICAL, "%s: get hardware resource failed\n", __func__);
-		return ERR_NOT_VALID;
-	}
-
-	left_pipe = rm->pipe_base[SPLIT_DISPLAY_0];
-	right_pipe = rm->pipe_base[SPLIT_DISPLAY_1];
-
-	writel((uint32_t) fb[SPLIT_DISPLAY_0].base, left_pipe + PIPE_SSPP_SRC0_ADDR);
-	if (pinfo->splitter_is_enabled && fb[SPLIT_DISPLAY_1].base != NULL)
-		writel((uint32_t) fb[SPLIT_DISPLAY_1].base, right_pipe + PIPE_SSPP_SRC0_ADDR);
-	else if (pinfo->lcdc.split_display)
-		writel((uint32_t) fb[SPLIT_DISPLAY_0].base, right_pipe + PIPE_SSPP_SRC0_ADDR);
-
-	if (pinfo->splitter_is_enabled && fb[SPLIT_DISPLAY_1].base == NULL)
-		stage_right = false;
-
-	mdss_mdp_flush_pipe(pinfo, &ctl0_reg_val, &ctl1_reg_val, stage_right);
-
-	writel(ctl0_reg_val, rm->ctl_base[0] + CTL_FLUSH);
+	_mdp_trigger_flush(rm, left_ctl_reg_mask, right_ctl_reg_mask);
 
 	return NO_ERROR;
 }

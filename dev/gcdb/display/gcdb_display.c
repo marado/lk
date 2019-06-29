@@ -569,12 +569,43 @@ static int update_dsi_display_config()
 	return ret;
 }
 
-int gcdb_display_init(const char *panel_name, uint32_t rev, void *base, bool splitter_display_is_enabled)
+static int mdss_dsi_update_frame_buffer_info(bool splitter_is_enabled,
+	void* base, uint32_t pixel_format, uint32_t dest)
+{
+	int i = 0, max_fb_cnt = 0;
+	void *fb_base = base;
+
+	max_fb_cnt = splitter_is_enabled ? MAX_SPLIT_DISPLAY : SPLIT_DISPLAY_1;
+
+	for (i = SPLIT_DISPLAY_0; i < max_fb_cnt; i++) {
+		panel.fb[i].base = fb_base;
+		panel.fb[i].width = panel.panel_info.xres / max_fb_cnt;
+		panel.fb[i].height = panel.panel_info.yres;
+		panel.fb[i].stride = (panel.panel_info.xres * panel.panel_info.bpp / 8) / max_fb_cnt;
+		panel.fb[i].bpp = panel.panel_info.bpp;
+		panel.fb[i].format = pixel_format;
+		panel.fb[i].z_order = SPLASH_SPLIT_0_LAYER_ZORDER + i;
+		panel.fb[i].right = LM_LEFT;
+
+		/* update FB base address */
+		fb_base = (void *)((int8_t *)panel.fb[i].base + panel.fb[i].stride * panel.fb[i].height);
+
+		dprintf(INFO, "DSI%d: FB[%d] width %d, height %d\n", dest - DISPLAY_1, i,
+			panel.fb[i].width, panel.fb[i].height);
+	}
+
+	return NO_ERROR;
+}
+
+int gcdb_display_init(const char *panel_name, uint32_t rev,
+	void *base, bool splitter_display_is_enabled)
 {
 	int ret = NO_ERROR;
 	int pan_type;
 	static bool is_first_display=1;
-	struct fbcon_config *fb;
+
+	/* clear and re-fill */
+	memset(&(panel.panel_info), 0, sizeof(panel.panel_info));
 
 	dsi_video_mode_phy_db.pll_type = DSI_PLL_TYPE_28NM;
 	panel.panel_info.disable_wled_labibb = false;
@@ -585,7 +616,9 @@ int gcdb_display_init(const char *panel_name, uint32_t rev, void *base, bool spl
 		is_first_display = 0;
 	}
 
-	fb = &panel.fb[SPLIT_DISPLAY_0];
+	panel.splitter_is_enabled = splitter_display_is_enabled;
+	panel.panel_info.splitter_is_enabled = splitter_display_is_enabled;
+
 	if (pan_type == PANEL_TYPE_DSI) {
 		if (update_dsi_display_config())
 			goto error_gcdb_display_init;
@@ -612,34 +645,28 @@ int gcdb_display_init(const char *panel_name, uint32_t rev, void *base, bool spl
 		panel.panel_info.dfps.dfps_fb_base = base;
 		base += DFPS_PLL_CODES_SIZE;
 
-		fb->base = base;
-		dprintf(SPEW, "dfps base=0x%p,d, fb_base=0x%p!\n",
-				panel.panel_info.dfps.dfps_fb_base, base);
-
-		fb->width =  panel.panel_info.xres;
-		fb->height =  panel.panel_info.yres;
-		fb->stride =  panel.panel_info.xres;
-		fb->bpp =  panel.panel_info.bpp;
-		fb->format = panel.panel_info.mipi.dst_format;
+		mdss_dsi_update_frame_buffer_info(splitter_display_is_enabled,
+			base, panel.panel_info.mipi.dst_format,
+			panel.panel_info.dest);
 	} else if (pan_type == PANEL_TYPE_EDP) {
 		mdss_edp_panel_init(&(panel.panel_info));
 		/* prepare func is set up at edp_panel_init */
                 panel.clk_func = mdss_edp_panel_clock;
                 panel.power_func = mdss_edp_panel_power;
 		panel.bl_func = mdss_edp_bl_enable;
-		fb->base = base;
-		fb->format = FB_FORMAT_RGB888;
+
+		mdss_dsi_update_frame_buffer_info(splitter_display_is_enabled,
+			base, FB_FORMAT_RGB888, panel.panel_info.dest);
 	} else if (pan_type == PANEL_TYPE_SPI) {
 		panel.panel_info.xres = panelstruct.panelres->panel_width;
 		panel.panel_info.yres = panelstruct.panelres->panel_height;
 		panel.panel_info.bpp = panelstruct.color->color_format;
 		panel.power_func = mdss_spi_panel_power;
 		panel.bl_func = mdss_spi_bl_enable;
-		fb->base = base;
-		fb->width = panel.panel_info.xres;
-		fb->height = panel.panel_info.yres;
-		fb->bpp = panel.panel_info.bpp;
-		fb->format = FB_FORMAT_RGB565;
+
+		mdss_dsi_update_frame_buffer_info(splitter_display_is_enabled,
+			base, FB_FORMAT_RGB565, panel.panel_info.dest);
+
 		panel.panel_info.type = SPI_PANEL;
 	} else {
 		dprintf(CRITICAL, "Target panel init not found!\n");

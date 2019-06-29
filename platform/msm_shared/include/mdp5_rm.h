@@ -31,8 +31,14 @@ IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #define _MDP_5_RM_H_
 
 #include <msm_panel.h>
+#include <mdp5.h>
 
-#define DUAL_HW_RESOURCE_PER_DISPLAY 2
+struct pipe_state {
+	uint32_t base;
+	uint32_t zorder;
+	uint32_t lm_idx;
+	uint32_t type;
+};
 
 struct resource_req {
 	int num_lm;
@@ -40,30 +46,44 @@ struct resource_req {
 	bool needs_split_display;
 	bool primary_dsi;
 
-	uint32_t ctl_base[DUAL_HW_RESOURCE_PER_DISPLAY];
-	uint32_t pipe_base[DUAL_HW_RESOURCE_PER_DISPLAY];
-	uint32_t lm_base[DUAL_HW_RESOURCE_PER_DISPLAY];
+	uint32_t ctl_base[MAX_SPLIT_DISPLAY];
+	uint32_t lm_base[MAX_SPLIT_DISPLAY];
+
+	struct pipe_state pp_state[MDP_STAGE_6];
+	uint32_t pending_pipe_mask;
 };
 
 /**
- * struct pipe_usage - define pipe allocation status
- * @type: pipe type
- * @left_base: base address of left pipe
- * @right_base: base address of right pipe
- * @valid: whether pipe is occuiped.
+ * struct source_pipe - define pipe allocation status
+ * @format_mask: formats pipe supports.
+ * @base: pipe base address.
+ * @valid: pipe is occupied.
+ * @dest_disp_id: targe display the pipe is attached to.
  */
-struct pipe_usage {
-	uint32_t type;
-	uint32_t left_base;
-	uint32_t right_base;
+struct source_pipe {
+	uint32_t format_mask;
+	uint32_t base;
 	bool valid;
+	uint32_t dest_disp_id;
+	char pipe_name[MAX_PIPE_NAME_LEN];
 };
 
-void mdp_rm_update_resource(struct msm_panel_info *pinfo, bool use_second_dsi);
+int mdp_rm_search_pipe(uint32_t pipe_type, uint32_t dest_display_id,
+	uint32_t *index, char *pipe_name);
 
-void mdp_rm_select_pipe(struct msm_panel_info *pinfo, uint32_t *left_pipe, uint32_t *right_pipe);
+int mdp_rm_update_pipe_status(uint32_t index, uint32_t dest_display_id,
+	uint32_t zorder, uint32_t right_mixer, uint32_t *pipe_base);
+
+void mdp_rm_update_resource(struct msm_panel_info *pinfo, bool use_second_dsi);
 
 void mdp_rm_select_mixer(struct msm_panel_info *pinfo);
 
 struct resource_req *mdp_rm_retrieve_resource(uint32_t display_id);
+
+void mdp_rm_clear_pipe_mask(struct resource_req *res_mgr);
+
+void mdp_rm_update_pipe_pending_mask(struct resource_req *res_mgr,
+	uint32_t pipe_index);
+
+void mdp_rm_reset_resource_manager();
 #endif

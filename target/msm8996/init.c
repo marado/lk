@@ -1215,15 +1215,24 @@ end:
 }
 
 static inline bool layer_list_mode_unchanged(
-				const struct target_layer *layer_list1,
-				const struct target_layer *layer_list2)
+				const struct target_layer *current,
+				const struct target_layer *target)
 {
-	if ((layer_list1->layer == layer_list2->layer) &&
-		(layer_list1->z_order[SPLIT_DISPLAY_0] ==
-		layer_list2->z_order[SPLIT_DISPLAY_0]))
+	if ((current->layer == target->layer) &&
+		(current->fb[SPLIT_DISPLAY_0].z_order ==
+		target->fb[SPLIT_DISPLAY_0].z_order))
 		return true;
 	else
 		return false;
+}
+
+static void animated_splash_handle_layer_list(struct target_layer *current,
+	struct target_layer *target, bool *mode_change)
+{
+	/* suppose both pointer of current and target are valid */
+	memcpy(current, target, sizeof(struct target_layer));
+
+	*mode_change = true;
 }
 
 int animated_splash() {
@@ -1239,7 +1248,7 @@ int animated_splash() {
 	uint32_t sleep_time = 0;
 	uint32_t disp_cnt = target_display_init_count();
 	bool camera_on = false;
-	bool mode_change = true;
+	bool mode_change[disp_cnt];
 	bool stop_display_splash = false;
 	bool firstframe[disp_cnt];
 	int camera_error_count = 0;
@@ -1266,6 +1275,7 @@ int animated_splash() {
 	for (j = 0; j < disp_cnt; j ++) {
 		frame_cnt[j] = 0;
 		firstframe[j] = true;
+		mode_change[j] = false;
 		disp_ptr = target_display_open(j);
 		if (disp_ptr == NULL) {
 			dprintf(CRITICAL, "Display open failed\n");
@@ -1290,7 +1300,6 @@ int animated_splash() {
 		sleep_time = 1000 / img_header[j].fps;
 
 		for (i = SPLIT_DISPLAY_0; i < MAX_SPLIT_DISPLAY; i++) {
-			layer_list[j].z_order[i] = SPLASH_SPLIT_0_LAYER_ZORDER + i;
 			layer_list[j].src_width[i] = img_header[j].width;
 			layer_list[j].src_height[i] = img_header[j].height;
 			layer_list[j].dst_width[i] = img_header[j].width;
@@ -1307,18 +1316,22 @@ int animated_splash() {
 				dprintf(CRITICAL, "frame buffer acquire failed\n");
 				return -1;
 			}
+			fb->z_order = SPLASH_SPLIT_0_LAYER_ZORDER + fb_index;
 			layer_list[j].fb[fb_index] = *fb;
 		} while((++fb_index < MAX_SPLIT_DISPLAY) && disp->splitter_display_enabled);
 
+		layer_list[j].valid_fb_cnt = fb_index;
 		/* back up original layer_list structure, and re-use in status switch */
 		memcpy(&cached_splash_layer_list[j], &layer_list[j], sizeof(struct target_layer));
 
 		if (disp->has_rvc) {
 			rvc_display_id = j;
+			dprintf(INFO, "rvc_display_id=%d\n", rvc_display_id);
 			memcpy(&cached_rvc_layer_list, &layer_list[j], sizeof(struct target_layer));
 		}
 		if (disp->splitter_display_enabled)
 			shared_display_id = j;
+
 		fb_index = 0;
 	}
 
@@ -1363,53 +1376,58 @@ int animated_splash() {
 		}
 
 		for (j = 0; j < disp_cnt; j++) {
-			if (j == rvc_display_id && early_camera_enabled == 1) {
+			layer_list[j].valid_fb_cnt = 0;
+
+			if ((j == rvc_display_id) && (early_camera_enabled == 1)) {
 				if (camera_on) {
 					if (!layer_list_mode_unchanged(&layer_list[j],
 										&cached_rvc_layer_list)) {
-						memcpy(&layer_list[j], &cached_rvc_layer_list,
-											sizeof(struct target_layer));
-						mode_change = true;
+						animated_splash_handle_layer_list(&layer_list[j],
+								&cached_rvc_layer_list,
+								&mode_change[j]);
+						dprintf(INFO, "mode_change becomes true to rvc case\n");
 					}
 
 					if(animation_layer_on_rvc) {
-						firstframe[j] = true; // reset firstframe for the RVC display
 						animation_layer_on_rvc = false;
 
 						/* camera module will set up display layer once */
 						layer_list[j].layer = NULL;
 					}
 
-					/* if RVC display is shared, RVC FB stays on the left, and on right
-					 * display, it's animation FB. Othwise, the address of right FB needs
-					 * to be set to NULL.
+					/*
+					 * If RVC display is shared, RVC FB stays on the left, and on right
+					 * display, it's animation FB. Right side FB needs to be set invalid in
+					 * normal cases and animation halt case in RVC splitter case.
 					 */
 					if ((rvc_display_id == shared_display_id) && !stop_display_splash) {
-						layer_list[j].fb[SPLIT_DISPLAY_1].base = buffers[j][frame_cnt[j]];
-						layer_list[j].fb[SPLIT_DISPLAY_1].format = kFormatRGB888;
-						layer_list[j].fb[SPLIT_DISPLAY_1].bpp = 24;
+						target_display_setup_fb(&layer_list[j].fb[SPLIT_DISPLAY_1],
+							buffers[j][frame_cnt[j]], kFormatRGB888,
+							SPLASH_SPLIT_1_LAYER_ZORDER, true, 24);
+						layer_list[j].valid_fb_cnt++;
+
 						frame_cnt[j]++;
 						if (frame_cnt[j] >= img_header[j].num_frames)
 							frame_cnt[j] = 0;
 					} else
-						layer_list[j].fb[SPLIT_DISPLAY_1].base = NULL;
+						target_display_setup_fb(&layer_list[j].fb[SPLIT_DISPLAY_1],
+							NULL, kFormatInvalid, 0, true, 24);
 
 					continue;
 				} else {
 					/* going to animation case once camera is disabled */
 					if (!layer_list_mode_unchanged(&layer_list[j],
 						&cached_splash_layer_list[j])) {
-						memcpy(&layer_list[j], &cached_splash_layer_list[j],
-							sizeof(struct target_layer));
+							animated_splash_handle_layer_list(&layer_list[j],
+								&cached_splash_layer_list[j],
+								&mode_change[j]);
 
 						if(!layer_list[j].layer) {
-							layer_ptr = target_display_acquire_layer(update[j].disp, "as", kFormatRGB888);
+							layer_ptr = target_display_acquire_layer(update[j].disp,
+										"as", kFormatRGB888);
 							layer_list[j].layer = layer_ptr;
-							layer_list[j].z_order[SPLIT_DISPLAY_0] = SPLASH_SPLIT_0_LAYER_ZORDER;
 						}
-
-						mode_change = true;
-						firstframe[j] = true;
+						dprintf(INFO, "mode_change becomes true to animation case\n");
 					}
 				}
 			}
@@ -1423,19 +1441,41 @@ int animated_splash() {
 				continue;
 			}
 
-			layer_list[j].fb[SPLIT_DISPLAY_0].base = buffers[j][frame_cnt[j]];
-			layer_list[j].fb[SPLIT_DISPLAY_0].format = kFormatRGB888;
-			layer_list[j].fb[SPLIT_DISPLAY_0].bpp = 24;
+			target_display_setup_fb(&layer_list[j].fb[layer_list[j].valid_fb_cnt],
+				buffers[j][frame_cnt[j]], kFormatRGB888,
+				SPLASH_SPLIT_0_LAYER_ZORDER, false, 24);
+			layer_list[j].valid_fb_cnt++;
 
 			if (j == shared_display_id) {
-				layer_list[j].fb[SPLIT_DISPLAY_1].base = buffers[j][frame_cnt[j]];
-				layer_list[j].fb[SPLIT_DISPLAY_1].format = kFormatRGB888;
-				layer_list[j].fb[SPLIT_DISPLAY_1].bpp = 24;
+				target_display_setup_fb(&layer_list[j].fb[layer_list[j].valid_fb_cnt],
+					buffers[j][frame_cnt[j]], kFormatRGB888,
+					SPLASH_SPLIT_1_LAYER_ZORDER, true, 24);
+				layer_list[j].valid_fb_cnt++;
 			}
 
-			if (firstframe[j] == true) {
-				ret = target_display_update(&update[j], 1, j);
+			if (firstframe[j] == true || mode_change[j]) {
+				/*
+				 * When RVC GPIO is off and animation image is showing in RVC case, RVC layer
+				 * needs to be attached to hardware ctl and lm as well with transparent status
+				 * before setting hardware display pipeline once.
+				 * The benifit to do this, hardware ctl/lm can be avoided configured
+				 * multiple times, which will exculde race problems.
+				 */
+				if ((early_camera_enabled == 1) &&
+					(j == rvc_display_id) && firstframe[j]) {
+					target_display_setup_fb(&layer_list[j].fb[layer_list[j].valid_fb_cnt],
+						NULL, kFormatYCbCr422H2V1Packed, RVC_LAYER_ZORDER, false, 16);
+					layer_list[j].valid_fb_cnt++;
+				}
+
+				ret = target_display_update(&update[j], 1, j,
+					(j == rvc_display_id) ? early_camera_enabled : false, firstframe[j]);
+
+				/* mask firstframe[j] to false to indicate display pipeline was setup */
 				firstframe[j] = false;
+				/* mode_change[j] is set false until user has switched between RVC and animation */
+				if (mode_change[j])
+					mode_change[j] = false;
 			} else
 				ret = target_display_update_pipe(&update[j], 1, j);
 
@@ -1447,17 +1487,23 @@ int animated_splash() {
 
 		if(early_camera_enabled == 1 && camera_on) {
 			// Rely on camera timing to flip.
-			camera_status = early_camera_flip(&layer_list[rvc_display_id], mode_change);
+			camera_status = early_camera_flip(&layer_list[rvc_display_id],
+				firstframe[rvc_display_id], mode_change[rvc_display_id]);
+
 			if(camera_status == -1) {
 				camera_error_count++;
 				mdelay_optimal(16);
 			} else {
-				camera_error_count = 0;
-				if (mode_change == true) {
-					memcpy(&cached_rvc_layer_list, &layer_list[rvc_display_id],
-						sizeof(struct target_layer));
-					mode_change = false;
+				if (firstframe[rvc_display_id]) {
+					animated_splash_handle_layer_list(&cached_rvc_layer_list,
+						&layer_list[rvc_display_id], &mode_change[rvc_display_id]);
+					firstframe[rvc_display_id] = false;
 				}
+
+				if (mode_change[rvc_display_id])
+					mode_change[rvc_display_id] = false;
+
+				camera_error_count = 0;
 			}
 
 			/* camera error occurs, exit camera flip and run animation splash instead */
@@ -1481,16 +1527,13 @@ int animated_splash() {
 			/* camera shutdown by kernel camera module or exceeds specified frame count */
 			if ((get_early_service_shutdown_request(EARLY_CAMERA)) ||
 			    (EARLYCAM_NO_GPIO_FRAME_LIMIT < frame_count && EARLYCAM_NO_GPIO_FRAME_LIMIT > 0)) {
-				if (early_camera_enabled) {
-					early_camera_stop(&layer_list[rvc_display_id]);
-					early_camera_enabled = 0;
-				}
+				early_camera_stop(&layer_list[rvc_display_id]);
+				early_camera_enabled = 0;
 
-				if(camera_on) {
-					memcpy(&layer_list[rvc_display_id],
+				if(camera_on)
+					animated_splash_handle_layer_list(&layer_list[rvc_display_id],
 						&cached_splash_layer_list[rvc_display_id],
-						sizeof(struct target_layer));
-				}
+						&mode_change[rvc_display_id]);
 			}
 
 			frame_count++;
