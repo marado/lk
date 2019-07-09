@@ -84,7 +84,7 @@
 #include <target/target_audio.h>
 
 #define ANIMATED_SPLAH_PARTITION "splash"
-#define ANIMATED_SPLASH_BUFFER   0x836a5580
+#define ANIMATED_SPLASH_BUFFER   0xC03A4580
 #define ANIMATED_SPLASH_LOOPS    150
 
 #if MOUNT_EMMC_LE
