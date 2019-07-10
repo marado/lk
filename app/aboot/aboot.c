@@ -4551,7 +4551,7 @@ void cmd_oem_boot_memory(const char *arg, void *data, unsigned sz)
 			if(length < DEVICE_MEMORY_SIZE)
 			{
 				memset(device.boot_memory,0,sizeof(device.boot_memory));
-				sprintf((char*)device.boot_memory,"%s",sp);
+				snprintf((char*)device.boot_memory,sizeof(device.boot_memory),"%s",sp);
 				write_device_info(&device);
 				dprintf(INFO,"set mem=%s\n",device.boot_memory);
 				fastboot_okay("");
