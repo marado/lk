@@ -1356,7 +1356,9 @@ int animated_splash() {
 		/* Check camera status at the beginning of each frame flip loop */
 		camera_on = early_camera_on();
 
-		request_shutdown = get_early_service_shutdown_request(EARLY_DISPLAY);
+		/* request_shutdown can either come from EARLY_CAMERA or EARLY_DISPLAY*/
+		request_shutdown = get_early_service_shutdown_request(EARLY_CAMERA)
+					| get_early_service_shutdown_request(EARLY_DISPLAY);
 
 		if (request_shutdown) {
 			// This means that kernel is up and has requested LK
