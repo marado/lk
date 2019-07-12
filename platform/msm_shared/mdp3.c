@@ -86,10 +86,20 @@ int mdp_dsi_video_config(struct msm_panel_info *pinfo,
 	struct lcdc_panel_info *lcdc = NULL;
 	int ystride = 3;
 	int mdp_rev = mdp_get_revision();
-	unsigned long long panic_config = mdp3_get_panic_lut_cfg(pinfo->xres);
+	unsigned long long panic_config = 0;
+	int display_start_x, display_end_x;
+	int display_start_y, display_end_y;
+	int active_start_x, active_end_x;
+	int active_start_y, active_end_y;
+	int xres = 0;
+	int yres = 0;
 
 	if (pinfo == NULL)
 		return ERR_INVALID_ARGS;
+
+	panic_config = mdp3_get_panic_lut_cfg(pinfo->xres);
+	xres = pinfo->xres;
+	yres = pinfo->yres;
 
 	lcdc =  &(pinfo->lcdc);
 	if (lcdc == NULL)
