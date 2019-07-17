@@ -120,6 +120,42 @@ static bool target_utils_parse_pipe_validity(char *pipe_name,
 	return ret;
 }
 
+static bool target_utils_parse_cordinates(struct layer_property *pipe, char *src_x, char *src_y, char *dst_x, char *dst_y)
+{
+	pipe->src_x = atoi(src_x);
+	pipe->src_y = atoi(src_y);
+	pipe->dst_x = atoi(dst_x);
+	pipe->dst_y = atoi(dst_y);
+
+	return true;
+}
+
+static bool target_utils_parse_resolution(struct layer_property *pipe, char *src_w, char *src_h, char *dst_w, char *dst_h)
+{
+        pipe->src_w = atoi(src_w);
+        pipe->src_h = atoi(src_h);
+        pipe->dst_w = atoi(dst_w);
+        pipe->dst_h = atoi(dst_h);
+
+	return true;
+}
+
+static bool target_utils_parse_format(struct layer_property *pipe, char *format)
+{
+	bool ret = false;
+	if(!strncmp(format, "uyvy", 4)) {
+		pipe->format = kFormatYCbCr422H2V1Packed;
+		ret = true;
+	} else if(!strncmp(format, "nv12", 4)) {
+		pipe->format = kFormatYCbCr420SemiPlanarVenus;
+		ret = true;
+	} else if (!strncmp(format, "rgb", 3)) {
+		pipe->format = kFormatRGB888;
+		ret = true;
+	}
+	return ret;
+}
+
 static int target_utils_parse_early_layer_number(char *early_layer_setup)
 {
 	int panel_count = 1;
@@ -142,6 +178,9 @@ static int target_utils_parse_early_layer(const char *panel_name,
 	uint32_t display_id = MAX_NUM_DISPLAY;
 	bool stage_valid = false;
 	bool pipe_valid = false;
+	bool resolution_valid = false;
+	bool cordinates_valid = false;
+	bool format_valid;
 	bool pipe_is_yuv = false;
 	char *token = NULL;
 	char *pipe_name_token = NULL;
@@ -152,6 +191,15 @@ static int target_utils_parse_early_layer(const char *panel_name,
 	char *outer_p = NULL;
 	char *inner_p = NULL;
 	char *buf = NULL, *subbuf = NULL;
+	char *src_x_token = NULL;
+        char *src_y_token = NULL;
+        char *src_w_token = NULL;
+        char *src_h_token = NULL;
+        char *dst_x_token = NULL;
+        char *dst_y_token = NULL;
+        char *dst_w_token = NULL;
+        char *dst_h_token = NULL;
+	char *format_token = NULL;
 
 	/* when searching string by strtok_r, not breaking original ones */
 	dup_panel_name = strdup(panel_name);
@@ -163,7 +211,7 @@ static int target_utils_parse_early_layer(const char *panel_name,
 	for (buf = dup_early_app_layer_setup; ; buf = NULL) {
 		pipe = &early_app_layer[early_app_layer_cnt];
 
-		token = strtok_r(buf, "+", &outer_p);
+		token = strtok_r(buf, ";", &outer_p);
 		if (token == NULL)
 			break;
 
@@ -171,12 +219,24 @@ static int target_utils_parse_early_layer(const char *panel_name,
 
 		pipe_name_token = strtok_r(subbuf, ",", &inner_p);
 		pipe_name_token += strspn(pipe_name_token, " ");
+		src_x_token = strtok_r(NULL, ",", &inner_p);
+                src_y_token = strtok_r(NULL, ",", &inner_p);
+                src_w_token = strtok_r(NULL, ",", &inner_p);
+                src_h_token = strtok_r(NULL, ",", &inner_p);
+                dst_x_token = strtok_r(NULL, ",", &inner_p);
+                dst_y_token = strtok_r(NULL, ",", &inner_p);
+                dst_w_token = strtok_r(NULL, ",", &inner_p);
+                dst_h_token = strtok_r(NULL, ",", &inner_p);
+		format_token = strtok_r(NULL, ",", &inner_p);
 		blend_stage_token = strtok_r(NULL, "@", &inner_p);
 		target_disp_name_token = inner_p;
-		dprintf(CRITICAL, "pipe_name=%s, blend_stage=%s, target_disp_name=%s\n",
-			pipe_name_token, blend_stage_token, target_disp_name_token);
 
-		if (!pipe_name_token || !blend_stage_token || !target_disp_name_token) {
+		dprintf(INFO, "pipe_name=%s, blend_stage=%s, target_disp_name=%s, src_x = %s, src_y = %s,"
+				" src_w = %s, src_h = %s, dst_x = %s, dst_y = %s dst_w = %s dst_h = %s format = %s\n",
+				pipe_name_token, blend_stage_token, target_disp_name_token, src_x_token, src_y_token,
+				src_w_token, src_h_token, dst_x_token, dst_y_token, dst_w_token, dst_h_token, format_token);
+
+		if (!pipe_name_token || !blend_stage_token || !target_disp_name_token || !src_h_token || !dst_h_token || !format_token) {
 			ret = ERR_INVALID_ARGS;
 			break;
 		}
@@ -187,8 +247,12 @@ static int target_utils_parse_early_layer(const char *panel_name,
 
 		stage_valid = target_utils_parse_blend_stage((uint32_t)(atoi(blend_stage_token)));
 		pipe_valid = target_utils_parse_pipe_validity(pipe_name_token, &pipe_is_yuv);
+		cordinates_valid = target_utils_parse_cordinates(pipe, src_x_token, src_y_token, dst_x_token, dst_y_token);
+		resolution_valid = target_utils_parse_resolution(pipe, src_w_token, src_h_token, dst_w_token, dst_h_token);
+		format_valid = target_utils_parse_format(pipe, format_token);
 
-		if ((display_id == MAX_NUM_DISPLAY) || !stage_valid || !pipe_valid) {
+		if ((display_id == MAX_NUM_DISPLAY) || !stage_valid || !pipe_valid ||
+				!resolution_valid || !format_valid || !cordinates_valid) {
 				dprintf(CRITICAL, "layer instance(%d) is not correct\n", early_app_layer_cnt);
 				ret = ERR_INVALID_ARGS;
 				break;
@@ -238,21 +302,50 @@ uint32_t target_utils_get_early_app_layer_cnt(uint32_t disp_id,
 }
 
 char *target_utils_translate_layer_to_fb(struct fbcon_config *fb,
-	uint32_t cached_fb_index)
+	uint32_t cached_fb_index, struct LayerInfo *layer)
 {
 		fb->base = NULL;
 
-		if (early_app_layer[cached_fb_index].yuv)
-			fb->format = kFormatYCbCr422H2V1Packed;
-		else
-			fb->format = kFormatRGB888;
+		layer->left_pipe.id = 1;
+		layer->right_pipe.id = 0;
+
+		layer->left_pipe.horz_deci = 0;
+		layer->left_pipe.vert_deci = 0;
+		layer->left_pipe.src_width = early_app_layer[cached_fb_index].src_w;
+		layer->left_pipe.src_height = early_app_layer[cached_fb_index].src_h;
+		layer->left_pipe.src_rect.x = early_app_layer[cached_fb_index].src_x;
+		layer->left_pipe.src_rect.y = early_app_layer[cached_fb_index].src_y;
+		layer->left_pipe.src_rect.w = early_app_layer[cached_fb_index].src_w;
+		layer->left_pipe.src_rect.h = early_app_layer[cached_fb_index].src_h;
+		layer->left_pipe.dst_rect.x = early_app_layer[cached_fb_index].dst_x;
+		layer->left_pipe.dst_rect.y = early_app_layer[cached_fb_index].dst_y;
+		layer->left_pipe.dst_rect.w = early_app_layer[cached_fb_index].dst_w;
+		layer->left_pipe.dst_rect.h = early_app_layer[cached_fb_index].dst_h;
+		layer->src_format = early_app_layer[cached_fb_index].format;
+		/* make sure the right pipe is empty for single pipe case */
+		memset((void*)&layer->right_pipe, 0, sizeof (struct PipeInfo));
 
 		fb->z_order = early_app_layer[cached_fb_index].zorder;
 		fb->right = false;
+		fb->format = early_app_layer[cached_fb_index].format;
 
 		return early_app_layer[cached_fb_index].pipe_name;
 }
 
+uint32_t get_edrm_format(uint32_t zorder, uint32_t display_id)
+{
+	uint32_t j = 0;
+	uint32_t format = kFormatRGB888;
+	for(j = 0; j < early_app_layer_cnt; j++) {
+                                if((early_app_layer[j].zorder == zorder)
+                                && (early_app_layer[j].dest_display_id == display_id)) {
+                                        format = early_app_layer[j].format;
+					return format;
+				}
+	}
+	/* For non-edrm layers return kFormatRGB888 as default value so that the layers are opaque*/
+	return format;
+}
 bool target_utils_validate_input_config(const char *panel_name,
 			uint32_t *disp_id, enum display_type disp_type)
 {

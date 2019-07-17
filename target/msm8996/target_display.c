@@ -1629,7 +1629,7 @@ struct fbcon_config *target_display_search_fb(struct target_layer *layer,
 
 int target_is_yuv_format(uint32_t format)
 {
-	if (format < kFormatYCbCr422H2V1Packed)
+	if (format < kFormatYCbCr420SemiPlanarVenus)
 		return 0;
 	else
 		return 1;

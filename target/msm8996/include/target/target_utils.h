@@ -52,6 +52,15 @@ struct layer_property {
 	bool yuv;
 	uint32_t dest_display_id;
 	char display_name[MAX_PANEL_ID_LEN];
+	uint32_t src_x;
+	uint32_t src_y;
+	uint32_t src_w;
+	uint32_t src_h;
+	uint32_t dst_x;
+	uint32_t dst_y;
+	uint32_t dst_w;
+	uint32_t dst_h;
+	uint32_t format;
 };
 
 struct early_display_property {
@@ -94,5 +103,7 @@ uint32_t target_utils_get_early_app_layer_cnt(uint32_t disp_id,
 	uint32_t *single, uint32_t *total, uint32_t *index_mask);
 
 char *target_utils_translate_layer_to_fb(struct fbcon_config *fb,
-	uint32_t cached_fb_index);
+	uint32_t cached_fb_index, struct LayerInfo *layer);
+
+uint32_t get_edrm_format(uint32_t zorder, uint32_t display_id);
 #endif

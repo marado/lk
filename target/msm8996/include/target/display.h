@@ -128,6 +128,8 @@ enum LayerBufferFormat {
      backward compatibility.
   */
 
+  kFormatYCbCr420SemiPlanarVenus = 0x202, // YUV420 Semiplanar
+
   kFormatYCbCr422H2V1Packed = 0x300,  //!< Y-plane interleaved with horizontally subsampled U/V by  186
                                       //!< factor of 2  187
                                       //!<    y(0), u(0), y(1), v(0), y(2), u(2), y(3), v(2)  188

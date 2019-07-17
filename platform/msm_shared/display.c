@@ -95,6 +95,18 @@ static void _msm_display_attach_external_layer(
 	int ret = 0;
 	char *pipe_name = NULL;
 	uint32_t i = 0, index = 0, j =0;
+	struct LayerInfo layer;
+	struct Scale left_scale_setting;
+        struct Scale right_scale_setting;
+
+        //setup Layer structure for scaling
+        memset((void*)&left_scale_setting, 0, sizeof (struct Scale));
+        memset((void*)&right_scale_setting, 0, sizeof (struct Scale));
+
+	layer.left_pipe.scale_data = &left_scale_setting;
+	layer.right_pipe.scale_data = &right_scale_setting;
+
+	layer.left_pipe.scale_data->enable_pxl_ext = 0;
 
 	index = index_mask;
 
@@ -105,13 +117,13 @@ static void _msm_display_attach_external_layer(
 		}
 		index &= ~(1 << j);
 
-		pipe_name = target_utils_translate_layer_to_fb(&fb[i], j);
+		pipe_name = target_utils_translate_layer_to_fb(&fb[i], j, &layer);
 		dprintf(INFO, "pipe_name(%d)=%s\n", i, pipe_name);
 
 		if (!pipe_name)
 			continue;
 
-		ret = mdp_config_external_pipe(pinfo, &fb[i], pipe_name);
+		ret = mdp_config_external_pipe(pinfo, &fb[i], pipe_name, &layer);
 		if (ret) {
 			dprintf(CRITICAL, "config early app fb(%s) failed", pipe_name);
 			continue;

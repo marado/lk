@@ -338,6 +338,8 @@ struct getvar_partition_info {
 #define F2FS_MAGIC   0xF2F52010  // F2FS Magic Number
 #define F2FS_MAGIC_OFFSET_SB 0x0
 
+#define MAX_EARLY_APP_STRING_SIZE 512
+
 typedef enum fs_signature_type {
 	EXT_FS_SIGNATURE = 1,
 	EXT_F2FS_SIGNATURE = 2,
@@ -363,6 +365,8 @@ char is_early_camera_enabled[MAX_RSP_SIZE];
 char is_early_audio_enabled[MAX_RSP_SIZE];
 char soc_version_str[MAX_RSP_SIZE];
 char block_size_string[MAX_RSP_SIZE];
+
+char early_app_layer_setup_string[MAX_EARLY_APP_STRING_SIZE];
 
 #if EARLYDOMAIN_SUPPORT
 bool update_early_domain_dt;
@@ -4690,13 +4694,22 @@ void cmd_oem_disable_early_audio(const char *arg, void *data, unsigned size)
 void cmd_oem_setup_early_app_layer(const char *arg, void *data, unsigned size)
 {
 	if (arg) {
-		strlcpy(device.early_app_layer_setup, arg,
-			sizeof(device.early_app_layer_setup));
 
-		write_device_info(&device);
-		fastboot_okay("");
+		if (arg[1] == '+') {
+			strlcpy(early_app_layer_setup_string + strlen(early_app_layer_setup_string), arg+2, sizeof(early_app_layer_setup_string));
+			fastboot_okay("");
 
-		dprintf(INFO, "Setup early app layer:%s\n", arg);
+		} else {
+			strlcpy(early_app_layer_setup_string + strlen(early_app_layer_setup_string), arg+1, sizeof(early_app_layer_setup_string));
+			/*copy to target string */
+			strlcpy(device.early_app_layer_setup, early_app_layer_setup_string,
+				sizeof(device.early_app_layer_setup));
+
+			write_device_info(&device);
+			fastboot_okay("");
+
+			memset(early_app_layer_setup_string, 0, sizeof(early_app_layer_setup_string));
+		}
 	}
 }
 
@@ -5334,7 +5347,7 @@ void aboot_fastboot_register_commands(void)
 						{"oem disable-shared-display", cmd_oem_disable_shared_display},
 						{"oem off-mode-charge", cmd_oem_off_mode_charger},
 						{"oem select-display-panel", cmd_oem_select_display_panel},
-						{"oem early-app-layer", cmd_oem_setup_early_app_layer},
+						{"oem edrm", cmd_oem_setup_early_app_layer},
 						{"set_active",cmd_set_active},
 						{"oem rvc-timeout", cmd_oem_rvc_timeout},
 						{"oem rvc-gpio", cmd_oem_rvc_gpio},

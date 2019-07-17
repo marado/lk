@@ -30,6 +30,8 @@
 #include <debug.h>
 #include <reg.h>
 #include <target/display.h>
+#include <target/target_utils.h>
+#include <target/scalar.h>
 #include <platform/timer.h>
 #include <platform/iomap.h>
 #include <dev/lcdc.h>
@@ -217,14 +219,14 @@ static void mdp_rm_stage_offset(uint32_t stage, uint32_t *blend_off, uint32_t *b
 }
 
 static void mdss_layer_mixer_setup_blend_config(uint32_t lm_base,
-	uint32_t stage, uint32_t pipe_type)
+	uint32_t stage, uint32_t pipe_type, uint32_t format)
 {
 	uint32_t blend_offset, blend_fg_alpha_offset;
 	uint32_t blend_op = 0;
 
 	mdp_rm_stage_offset(stage, &blend_offset, &blend_fg_alpha_offset);
 
-	if (pipe_type == MDSS_MDP_PIPE_TYPE_VIG)
+	if ((format == kFormatYCbCr422H2V1Packed) || (format == kFormatYCbCr420SemiPlanarVenus) || (format == kFormatRGB888))
 		blend_op = VIG_LAYER_ALPHA_BLEND;
 	else
 		blend_op = RGB_LAYER_ALPHA_BLEND;
@@ -233,10 +235,24 @@ static void mdss_layer_mixer_setup_blend_config(uint32_t lm_base,
 	writel(0xFF, lm_base + blend_fg_alpha_offset);
 }
 
+static void mdss_mdp_solid_fill(uint32_t pipe_base, bool yuv_pipe)
+{
+	/* solid fill of transparent color */
+	if (yuv_pipe) {
+		writel(SSPP_YUV_SOLID_FILL_FORMAT, pipe_base + PIPE_SSPP_SRC_FORMAT);
+		writel(SSPP_YUV_UNPACK_PATTERN, pipe_base + PIPE_SSPP_SRC_UNPACK_PATTERN);
+		writel(0xFFFFFFFF, pipe_base + PIPE_SSPP_CONSTANT_COLOR);
+	} else {
+		writel(SSPP_RGB_SOLID_FILL_FORMAT, pipe_base + PIPE_SSPP_SRC_FORMAT);
+		writel(SSPP_RGB_UNPACK_PATTERN, pipe_base + PIPE_SSPP_SRC_UNPACK_PATTERN);
+		writel(0x0, pipe_base + PIPE_SSPP_CONSTANT_COLOR);
+	}
+}
+
 static void mdss_mdp_set_layer_transparent(struct msm_panel_info *pinfo,
 				uint32_t pipe_base, bool yuv_pipe)
 {
-	uint32_t img_size, stride, dst_xy, width;
+	uint32_t img_size,stride, dst_xy, width;
 	struct resource_req *rm = NULL;
 	uint32_t op_mode = 0;
 
@@ -247,9 +263,9 @@ static void mdss_mdp_set_layer_transparent(struct msm_panel_info *pinfo,
 	}
 
 	if (pinfo->lcdc.dual_pipe)
-		width = pinfo->xres / MAX_SPLIT_DISPLAY;
+                width = pinfo->xres / MAX_SPLIT_DISPLAY;
 	else
-		width = pinfo->xres;
+                width = pinfo->xres;
 
 	img_size = (pinfo->yres << 16) | width;
 	stride = width * 4;
@@ -271,16 +287,7 @@ static void mdss_mdp_set_layer_transparent(struct msm_panel_info *pinfo,
 	writel(0x0, pipe_base + PIPE_SSPP_SW_PIX_EXT_C3_TB);
 	writel(img_size, pipe_base + PIPE_SSPP_SW_PIX_EXT_C3_REQ_PIXELS);
 
-	/* solid fill of transparent color */
-	if (yuv_pipe) {
-		writel(SSPP_YUV_SOLID_FILL_FORMAT, pipe_base + PIPE_SSPP_SRC_FORMAT);
-		writel(SSPP_YUV_UNPACK_PATTERN, pipe_base + PIPE_SSPP_SRC_UNPACK_PATTERN);
-		writel(0xFFFFFFFF, pipe_base + PIPE_SSPP_CONSTANT_COLOR);
-	} else {
-		writel(SSPP_RGB_SOLID_FILL_FORMAT, pipe_base + PIPE_SSPP_SRC_FORMAT);
-		writel(SSPP_RGB_UNPACK_PATTERN, pipe_base + PIPE_SSPP_SRC_UNPACK_PATTERN);
-		writel(0x0, pipe_base + PIPE_SSPP_CONSTANT_COLOR);
-	}
+	mdss_mdp_solid_fill(pipe_base, yuv_pipe);
 
 	if (pinfo->orientation & (1 << H_FLIP))
 		op_mode |= MDSS_MDP_OP_MODE_FLIP_LR;
@@ -288,8 +295,8 @@ static void mdss_mdp_set_layer_transparent(struct msm_panel_info *pinfo,
 		op_mode |= MDSS_MDP_OP_MODE_FLIP_UD;
 
 	/* CSC is also needed to be disabled. */
-	writel(op_mode, pipe_base + PIPE_SSPP_SRC_OP_MODE);
-	writel(0x0, pipe_base + PIPE_VP_0_QSEEP2_CONFIG);
+        writel(op_mode, pipe_base + PIPE_SSPP_SRC_OP_MODE);
+        writel(0x0, pipe_base + PIPE_VP_0_QSEEP2_CONFIG);
 }
 
 static inline uint32_t mdp_get_lm_mask(uint32_t lm_base)
@@ -826,7 +833,47 @@ static void mdss_mdp_set_flush(struct msm_panel_info *pinfo,
 		}
 	}
 }
+int mdss_pipe_configure_qseed(struct LayerInfo *layer, uint32_t pipe_base)
+{
+	uint32_t roi_size, out_size;
+	uint32_t src_height, src_width, dst_height, dst_width;
 
+	if(layer->src_format == kFormatRGB888)
+		singleRgbScalar(layer);
+	else
+		singleQseedScalar(layer);
+
+	src_height = layer->left_pipe.src_rect.h;
+	src_width  = layer->left_pipe.src_rect.w;
+
+	dst_height = layer->left_pipe.dst_rect.h;
+	dst_width  = layer->left_pipe.dst_rect.w;
+
+	roi_size = (src_height << 16) | src_width;
+	out_size = (dst_height << 16) | dst_width;
+
+        //QSEED
+	if (roi_size != out_size) {
+		if (layer->src_format == kFormatRGB888)
+			writel(0x00055503, pipe_base + PIPE_VP_0_QSEEP2_CONFIG);
+		else
+			writel(0x00055f03, pipe_base + PIPE_VP_0_QSEEP2_CONFIG);
+
+		writel(0x00100000, pipe_base + PIPE_COMP1_2_PHASE_STEP_X);
+		writel(0x00000020, pipe_base + PIPE_VP_0_QSEEP2_SHARP_SMOOTH_STRENGTH);
+		writel(0x00000070, pipe_base + PIPE_VP_0_QSEEP2_SHARP_THRESHOLD_EDGE);
+		writel(0x00000008, pipe_base + PIPE_VP_0_QSEEP2_SHARP_THRESHOLD_SMOOTH);
+		writel(0x00000002, pipe_base + PIPE_VP_0_QSEEP2_SHARP_THRESHHOLD_NOISE);
+	}
+
+	mdss_scalar_phase(layer, LEFT_PIPE, pipe_base);
+	mdss_scalar_ext(layer, NULL, LEFT_PIPE, pipe_base);
+
+	if(layer->src_format  == kFormatYCbCr420SemiPlanarVenus )
+		writel(0x0, pipe_base + PIPE_COMP1_2_INIT_PHASE_Y);
+
+	return 0;
+}
 static void mdss_source_pipe_config(struct fbcon_config *fb, struct msm_panel_info
 		*pinfo, uint32_t pipe_base, struct border_rect *rect, uint32_t offset_pp_index)
 {
@@ -1631,18 +1678,20 @@ static int mdp_get_pipe_stage_level(struct resource_req *rm,
 }
 
 static int mdp_blend_setup(struct resource_req *rm,
-		uint32_t left_lm_base, uint32_t right_lm_base)
+		uint32_t left_lm_base, uint32_t right_lm_base, uint32_t disp_id)
 {
 	uint32_t i = 0;
+	uint32_t format = kFormatInvalid;
 
 	for (i = 0; i < MDP_STAGE_6; i++) {
 		if (rm->pp_state[i].zorder >= MDP_STAGE_1) {
+			format = get_edrm_format(rm->pp_state[i].zorder, disp_id);
 			if (rm->pp_state[i].lm_idx == LM_LEFT)
 				mdss_layer_mixer_setup_blend_config(left_lm_base,
-				rm->pp_state[i].zorder, rm->pp_state[i].type);
+				rm->pp_state[i].zorder, rm->pp_state[i].type, format);
 			else
 				mdss_layer_mixer_setup_blend_config(right_lm_base,
-				rm->pp_state[i].zorder, rm->pp_state[i].type);
+				rm->pp_state[i].zorder, rm->pp_state[i].type, format);
 		} else
 			break;
 	}
@@ -1785,7 +1834,7 @@ void mdss_layer_mixer_setup(struct fbcon_config *fb, struct msm_panel_info *pinf
 		writel(0xFF, right_mixer_base + LAYER_5_BLEND0_FG_ALPHA);
 	}
 
-	mdp_blend_setup(rm, left_mixer_base, right_mixer_base);
+	mdp_blend_setup(rm, left_mixer_base, right_mixer_base, pinfo->dest);
 
 	mdp_get_pipe_stage_level(rm, &left_staging_level, &right_staging_level);
 	dprintf(CRITICAL, "left_stage_level=0x%x, right_stage_level=0x%x\n",
@@ -2217,7 +2266,7 @@ int mdp_edp_config(struct msm_panel_info *pinfo, struct fbcon_config *fb)
 }
 
 int mdp_config_external_pipe(struct msm_panel_info *pinfo,
-	struct fbcon_config *fb, char *actual_pipe_name)
+	struct fbcon_config *fb, char *actual_pipe_name, struct LayerInfo *layer)
 {
 	struct resource_req *rm = NULL;
 	bool pipe_on_right = false;
@@ -2243,7 +2292,7 @@ int mdp_config_external_pipe(struct msm_panel_info *pinfo,
 		return ret;
 	}
 
-	if (target_is_yuv_format(fb->format))
+	if (!strncmp("vig",actual_pipe_name,3))
 		pipe_type = MDSS_MDP_PIPE_TYPE_VIG;
 	else
 		pipe_type = MDSS_MDP_PIPE_TYPE_RGB;
@@ -2254,12 +2303,14 @@ int mdp_config_external_pipe(struct msm_panel_info *pinfo,
 		ret = ERR_NOT_VALID;
 		return ret;
 	}
-
+	mdss_pipe_configure_qseed(layer, pipe_base);
 	/* set layer to be transparent */
-	mdss_mdp_set_layer_transparent(pinfo, pipe_base,
-		target_is_yuv_format(fb->format));
+	mdss_mdp_solid_fill(pipe_base, (pipe_type == MDSS_MDP_PIPE_TYPE_VIG) ? 1: 0);
 
 	mdp_rm_update_pipe_pending_mask(rm, pp_index);
+	dprintf(INFO, "[LK]Configured pipe_base: %08X for Scaling with src_w: %d src_h: %d"
+			" dst_w: %d dst_h: %d\n",pipe_base, layer->left_pipe.src_rect.w, layer->left_pipe.src_rect.h,
+			layer->left_pipe.dst_rect.w, layer->left_pipe.src_rect.h);
 
 	return ret;
 }
