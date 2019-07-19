@@ -4538,7 +4538,7 @@ void cmd_oem_boot_memory(const char *arg, void *data, unsigned sz)
 			if(length < DEVICE_MEMORY_SIZE)
 			{
 				memset(device.boot_memory,0,sizeof(device.boot_memory));
-				sprintf((char*)device.boot_memory,"%s",sp);
+				snprintf((char*)device.boot_memory,sizeof(device.boot_memory),"%s",sp);
 				write_device_info(&device);
 				dprintf(INFO,"set mem=%s\n",device.boot_memory);
 				fastboot_okay("");
@@ -4709,21 +4709,26 @@ void cmd_oem_disable_shared_display(const char *arg, void *data, unsigned size)
 
 void cmd_oem_rvc_timeout(const char *arg, void *data, unsigned size)
 {
+       char *context = NULL;
        char *token = NULL;
-       token = strtok((char *)arg, " ");
-       device.rvc_timeout = (uint32_t)atoul(token);
-       dprintf(CRITICAL, "Setting RVC Timeout Value to : %u\n",device.rvc_timeout);
-       device.rvc_gpio = MAX_GPIO_COUNT; // Reset Tlmm GPIO Invalid value.
-       write_device_info(&device);
-       fastboot_okay("");
+       token = strtok_r((char *)arg, " ",&context);
+       if (token) {
+           device.rvc_timeout = (uint32_t)atoul(token);
+           dprintf(CRITICAL, "Setting RVC Timeout Value to : %u\n",device.rvc_timeout);
+           device.rvc_gpio = MAX_GPIO_COUNT; // Reset Tlmm GPIO Invalid value.
+           write_device_info(&device);
+           fastboot_okay("");
+	}
 }
 
 void cmd_oem_rvc_gpio(const char *arg, void *data, unsigned size)
 {
        char *token = NULL;
+       char *context = NULL;
        int gpio_num = 0;
-       token = strtok((char *)arg, " ");
-       gpio_num = (int)atoul(token);
+       token = strtok_r((char *)arg, " ",&context);
+       if (token)
+         gpio_num = (int)atoul(token);
 
        if( gpio_num >= 0 && gpio_num < MAX_GPIO_COUNT) {
                device.rvc_gpio = gpio_num;
@@ -4741,7 +4746,8 @@ void cmd_oem_rvc_gpio(const char *arg, void *data, unsigned size)
 void cmd_oem_select_camera_type(const char *arg, void *data, unsigned size)
 {
        char *token = NULL;
-       token = strtok((char *)arg, " ");
+       char *context = NULL;
+       token = strtok_r((char *)arg, " ",&context);
        dprintf(INFO, "Selecting camera type %s\n", token);
        if (token)
                strlcpy(device.camera_type, token,
