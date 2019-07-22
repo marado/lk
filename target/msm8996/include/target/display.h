@@ -67,7 +67,7 @@ static const uint32_t panel_physical_ctrl[] = { };
 /*---------------------------------------------------------------------------*/
 #define DISPLAY_CMDLINE_PREFIX " mdss_mdp.panel="
 
-#define MIPI_FB_ADDR  0x83401900
+#define MIPI_FB_ADDR  0xC0100900
 #define HDMI_FB_ADDR  0xBDD00000
 #define KERNEL_TRIGGER_VALUE         0xFEFEFEFE
 #define KERNEL_STOP_SPLASH_VALUE     0xDEADDEAD
