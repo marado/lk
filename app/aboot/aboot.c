@@ -529,6 +529,11 @@ unsigned char *update_cmdline(const char * cmdline)
 		cmdline_len += strlen(emmc_cmdline);
 #if USE_BOOTDEV_CMDLINE
 		boot_dev_buf = (char *) malloc(sizeof(char) * BOOT_DEV_MAX_LEN);
+		if (boot_dev_buf == NULL)
+		{
+			dprintf(CRITICAL, "boot_dev_buf is NULL\n");
+			return NULL;
+		}
 		ASSERT(boot_dev_buf);
 		platform_boot_dev_cmdline(boot_dev_buf);
 		cmdline_len += strlen(boot_dev_buf);
