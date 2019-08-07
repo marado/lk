@@ -170,6 +170,9 @@ static int target_utils_parse_early_layer(const char *panel_name,
 		subbuf = token;
 
 		pipe_name_token = strtok_r(subbuf, ",", &inner_p);
+		if (pipe_name_token == NULL)
+                        break;
+
 		pipe_name_token += strspn(pipe_name_token, " ");
 		blend_stage_token = strtok_r(NULL, "@", &inner_p);
 		target_disp_name_token = inner_p;
