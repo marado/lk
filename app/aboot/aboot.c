@@ -4401,7 +4401,7 @@ void cmd_set_active(const char *arg, void *data, unsigned sz)
 					if (current_slot_suffix &&
 						!strncmp(p, current_slot_suffix, strlen(current_slot_suffix)))
 					{
-						partition_switch_slots(current_active_slot, i);
+						partition_switch_slots(current_active_slot, i, true);
 						publish_getvar_multislot_vars();
 						fastboot_okay("");
 						return;
@@ -5007,8 +5007,14 @@ void aboot_fastboot_register_commands(void)
 		publish_getvar_multislot_vars();
 
 	/* Max download size supported */
+#if !VERIFIED_BOOT_2
 	snprintf(max_download_size, MAX_RSP_SIZE, "\t0x%x",
 			target_get_max_flash_size());
+#else
+	snprintf(max_download_size, MAX_RSP_SIZE, "\t0x%x",
+			SUB_SALT_BUFF_OFFSET(target_get_max_flash_size()));
+#endif
+
 	fastboot_publish("max-download-size", (const char *) max_download_size);
 	/* Is the charger screen check enabled */
 	snprintf(charger_screen_enabled, MAX_RSP_SIZE, "%d",
