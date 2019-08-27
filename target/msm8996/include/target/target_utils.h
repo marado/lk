@@ -89,7 +89,7 @@ void target_utils_set_input_config(bool enable,
 bool target_utils_validate_input_config(const char *panel_name,
 	uint32_t *disp_id, enum display_type disp_type);
 
-void target_utils_set_orientation(bool rotation_180);
+void target_utils_set_orientation(uint32_t rotation_direction);
 uint32_t target_utils_get_early_app_layer_cnt(uint32_t disp_id,
 	uint32_t *single, uint32_t *total, uint32_t *index_mask);
 

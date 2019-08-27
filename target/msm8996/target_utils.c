@@ -278,11 +278,11 @@ bool target_utils_validate_input_config(const char *panel_name,
 	return ret;
 }
 
-void target_utils_set_orientation(bool rotation_180)
+void target_utils_set_orientation(uint32_t rotation_direction)
 {
 	uint32_t rot_bit_mask = 0;
 
-	if (rotation_180)
+	if (rotation_direction == 180)
 		rot_bit_mask = (1 << H_FLIP) | (1 << V_FLIP);
 
 	msm_display_set_orientation(rot_bit_mask);

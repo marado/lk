@@ -283,8 +283,33 @@ static uint32_t recovery_dtbo_size = 0;
 /* Assuming unauthorized kernel image by default */
 static int auth_kernel_img = 0;
 
-static device_info device = {DEVICE_MAGIC,0,0,0,0,0,{0},{0},{0},1,0,"none",0,
-				"none",0,{0},0,{0},0,0,{0},0,0,{0},0,"none"};
+static device_info device = {DEVICE_MAGIC, /* magic */
+			0, /* is_unlocked */
+			0, /* is_tampered */
+			0, /* is_unlock_critical */
+			0, /* charger_screen_enabled */
+			0, /* early_domain_enabled */
+			{0}, /* display_panel */
+			{0}, /* bootloader_version */
+			{0}, /* radio_version */
+			1, /* verity_mode */
+			0, /* early_camera_enabled */
+			"none", /* rvc_display_name */
+			0, /* shared_display_enabled */
+			"none", /* shared_display_name */
+			0, /* early_audio_enabled */
+			{0}, /* rollback_index */
+			0, /* user_public_key_length */
+			{0}, /* user_public_key */
+			0, /* hibernation_golden_image */
+			0, /* hibernation */
+			{0}, /* boot_memory */
+			0, /* rvc_timeout */
+			0, /* rvc_gpio */
+			{0}, /* camera_type */
+			"none", /* early_app_layer_setup */
+			0, /* rotation_direction */
+};
 static char *vbcmdline;
 
 static bool is_allow_unlock = 0;
@@ -2279,7 +2304,7 @@ int boot_linux_from_flash(void)
 	if (UINT_MAX - page_size < imagesize_actual)
 	{
 		dprintf(CRITICAL,"Integer overflow detected in bootimage header fields %u %s\n", __LINE__,__func__);
-		return -ECORRUPTED_IMAGE; 
+		return -ECORRUPTED_IMAGE;
 	}
 
 	/*Check the availability of RAM before reading boot image + max signature length from flash*/
@@ -3810,7 +3835,7 @@ void cmd_flash_meta_img(const char *arg, void *data, unsigned sz)
 		}
 
 		if (VB_M <= target_get_vb_version() &&
-			!device.is_unlock_critical) 
+			!device.is_unlock_critical)
 		{
 			fastboot_fail("Device is critical locked, Meta image flashing is not allowed");
 			return;
@@ -4632,22 +4657,41 @@ void cmd_oem_select_display_panel(const char *arg, void *data, unsigned size)
 	fastboot_okay("");
 }
 
-void cmd_oem_enable_orientation(const char *arg, void *data, unsigned size)
+void cmd_oem_early_cam_rotation(const char *arg,
+				void *data, unsigned size)
 {
-	device.rotation_180 = true;
+	char *token = NULL;
+	char *context = NULL;
+
+	token = strtok_r((char *)arg, " ", &context);
+
+	if (token) {
+		if (!strcmp(token, "180")) {
+			device.rotation_direction = 180;
+			dprintf(INFO, "Enabling early camera rotation of 180 degrees\n");
+		} else if (!strcmp(token, "90")) {
+			device.rotation_direction = 90;
+			dprintf(INFO, "Enabling early camera rotation of 90 degrees\n");
+		} else if (!strcmp(token, "270")) {
+			device.rotation_direction = 270;
+			dprintf(INFO, "Enabling early camera rotation of 270 degrees\n");
+		} else if (!strcmp(token, "0")) {
+			device.rotation_direction = 0;
+			dprintf(INFO, "Disable early camera rotation\n");
+		} else {
+			goto rotation_error;
+		}
+	} else {
+		goto rotation_error;
+	}
+
 	write_device_info(&device);
 	fastboot_okay("");
+	return;
 
-	dprintf(INFO, "Enable 180 rotation\n");
-}
-
-void cmd_oem_disable_orientation(const char *arg, void *data, unsigned size)
-{
-	device.rotation_180 = false;
-	write_device_info(&device);
-	fastboot_okay("");
-
-	dprintf(INFO, "Disable 180 rotation\n");
+rotation_error:
+	fastboot_fail("");
+	dprintf(INFO, "ERROR: Invalid direction. Please enter 0, 90, 180 or 270.\n");
 }
 
 #if EARLYDOMAIN_SUPPORT
@@ -5363,8 +5407,7 @@ void aboot_fastboot_register_commands(void)
 						{"oem rvc-timeout", cmd_oem_rvc_timeout},
 						{"oem rvc-gpio", cmd_oem_rvc_gpio},
 						{"oem select-camera-type", cmd_oem_select_camera_type},
-						{"oem enable-180-rotation", cmd_oem_enable_orientation},
-						{"oem disable-180-rotation", cmd_oem_disable_orientation},
+						{"oem early-camera-rotation", cmd_oem_early_cam_rotation},
 #if HIBERNATION_SUPPORT
 						{"oem hibernation", cmd_oem_hibernation},
 #endif
@@ -5499,7 +5542,8 @@ void aboot_init(const struct app_descriptor *app)
 		update_early_domain_dt = true;
 		if (device.early_camera_enabled) {
 			set_early_camera_enabled(TRUE, device.rvc_timeout, device.rvc_gpio);
-			target_early_camera_init(device.camera_type);
+			target_early_camera_init(device.camera_type,
+					device.rotation_direction);
 		}
 		if (device.early_audio_enabled) {
 			set_early_audio_enabled(TRUE);
@@ -5529,7 +5573,7 @@ void aboot_init(const struct app_descriptor *app)
 				device.rvc_display_name, RVC_DISPLAY);
 	target_utils_set_input_config(device.shared_display_enabled,
 				device.shared_display_name, SHARE_DISPLAY);
-	target_utils_set_orientation(device.rotation_180);
+	target_utils_set_orientation(device.rotation_direction);
 
 #if EARLYDOMAIN_SUPPORT
 	if (device.early_domain_enabled)
