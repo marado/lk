@@ -52,8 +52,8 @@
 #endif
 #define pr_err dprintf
 
-
-#define CAMERA_SLAVEADDR 0x48
+#define SENSOR_ADDRESS   0x60  //actual sensor address
+#define CAMERA_SLAVEADDR 0x86  //The alias slave addr of the sensor
 #define BRIDGE_SLAVEADDR 0x7a
 
 #define ANALOG_CAMERA_SLAVEADDR 0x94 // REG_CSI_TXB_SADDR
@@ -77,8 +77,8 @@ static struct camera_i2c_reg_array ti960_init_regs[] =
 	{ 0x70, 0x1f, 0},
 	{ 0x58, 0x58, 0},
 	{ 0x5c, 0x18, 0},
-	{ 0x5d, 0x60, 0},
-	{ 0x65, 0x48, 0},
+	{ 0x5d, SENSOR_ADDRESS, 0},
+	{ 0x65, CAMERA_SLAVEADDR, 0},
 	{ 0x7c, 0x81, 0},
 	{ 0x6f, 0x8, 0},
 	{ 0x6d, 0x7f, 0}, };
@@ -94,8 +94,8 @@ static struct camera_i2c_reg_array ti960_start_regs[] = {
 
 // Start TI 960 RX 0 port
 static struct camera_i2c_reg_array ti960_stop_regs[] = {
-	{ 0x4c, 0x1, 0},
-	{ 0x6e, 0x8, 5000},
+	//{ 0x4c, 0x1, 0},
+	//{ 0x6e, 0x8, 5000},
 };
 
 // Camera init registers

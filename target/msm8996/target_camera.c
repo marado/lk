@@ -2170,6 +2170,7 @@ static int early_camera_start(void *arg) {
 	int i2c_wr_iter = 0;
 	int retry_count = 0;
 	int index = 0;
+	unsigned int irq_cci = 0;
 
 	num_configs = get_cam_data(csi, &cam_data);
 
@@ -2477,6 +2478,12 @@ static int early_camera_start(void *arg) {
 
 	// Signal Kernel early camera is active.
 	set_early_service_active_bit(EARLY_CAMERA);
+
+	//Clear the cci interrupts so it doesn't cause issues with kernel
+	irq_cci = msm_camera_io_r(CCI_DEV_BASE + CCI_IRQ_STATUS_0_ADDR);
+	msm_camera_io_w_mb(irq_cci, CCI_DEV_BASE + CCI_IRQ_CLEAR_0_ADDR);
+	msm_camera_io_w_mb(0x1, CCI_DEV_BASE + CCI_IRQ_GLOBAL_CLEAR_CMD_ADDR);
+
 
 	return 0;
 	exit:
