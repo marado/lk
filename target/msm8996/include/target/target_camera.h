@@ -65,7 +65,7 @@ enum camera_rotation_direction {
 int get_cam_data(int csi, struct i2c_config_data **cam_data);
 int early_camera_init(void);
 void target_early_camera_init(const char *camera_type,
-		uint32_t rotation_direction);
+		uint32_t rotation_direction, int frame_delay);
 int early_camera_flip(void *cam_layer, bool firstframe, bool mode_change);
 int early_camera_on(void);
 
@@ -76,6 +76,8 @@ void set_early_camera_enabled(bool enabled, uint32_t rvc_timeout, uint32_t rvc_g
 void early_camera_rotate(char *rotated, const char *img_buff,
 		const int width, const int height,
 		const enum camera_rotation_direction direction);
+
+uint32_t early_camera_frame_delay(int ping);
 
 int msm_cci_i2c_read(uint32_t address,
 						 int32_t length,

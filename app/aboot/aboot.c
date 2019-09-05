@@ -309,6 +309,7 @@ static device_info device = {DEVICE_MAGIC, /* magic */
 			{0}, /* camera_type */
 			"none", /* early_app_layer_setup */
 			0, /* rotation_direction */
+			0, /* frame_delay */
 };
 static char *vbcmdline;
 
@@ -4657,24 +4658,74 @@ void cmd_oem_select_display_panel(const char *arg, void *data, unsigned size)
 	fastboot_okay("");
 }
 
+void cmd_oem_early_cam_frame_delay(const char *arg,
+				void *data, unsigned size)
+{
+	char *context = NULL;
+	char *token = NULL;
+	token = strtok_r((char *)arg, " ", &context);
+
+	if (token) {
+		int delay = (int)atoi(token);
+
+		if (delay < 0 || delay > 2) {
+			goto delay_error;
+		}
+		device.frame_delay = delay;
+
+		if (device.frame_delay == 0) {
+			dprintf(CRITICAL, "Frame Delay disabled\n");
+		} else {
+			dprintf(CRITICAL, "Delay %d frames in Early Camera.\n", device.frame_delay);
+
+			if (device.rotation_direction != 0
+				&& device.rotation_direction != 180) {
+				device.rotation_direction = 0;
+				dprintf(INFO, "Disable Early Camera rotation.\n");
+			}
+		}
+	} else {
+		goto delay_error;
+	}
+
+	write_device_info(&device);
+	fastboot_okay("");
+	return;
+
+delay_error:
+	fastboot_fail("");
+	dprintf(CRITICAL, "Invalid number of frames or Early Camera does not support it. Please try another number such as 1 or 2.\n");
+}
+
 void cmd_oem_early_cam_rotation(const char *arg,
 				void *data, unsigned size)
 {
 	char *token = NULL;
 	char *context = NULL;
-
 	token = strtok_r((char *)arg, " ", &context);
 
 	if (token) {
 		if (!strcmp(token, "180")) {
 			device.rotation_direction = 180;
+			device.frame_delay = 1;
 			dprintf(INFO, "Enabling early camera rotation of 180 degrees\n");
 		} else if (!strcmp(token, "90")) {
 			device.rotation_direction = 90;
 			dprintf(INFO, "Enabling early camera rotation of 90 degrees\n");
+
+			if (device.frame_delay != 0) {
+				device.frame_delay = 0;
+				dprintf(INFO, "Disable Early Camera Frame Delay.\n");
+			}
 		} else if (!strcmp(token, "270")) {
 			device.rotation_direction = 270;
 			dprintf(INFO, "Enabling early camera rotation of 270 degrees\n");
+
+			if (device.frame_delay != 0) {
+				device.frame_delay = 0;
+				dprintf(INFO, "Disable Early Camera Frame Delay.\n");
+			}
+
 		} else if (!strcmp(token, "0")) {
 			device.rotation_direction = 0;
 			dprintf(INFO, "Disable early camera rotation\n");
@@ -5408,6 +5459,7 @@ void aboot_fastboot_register_commands(void)
 						{"oem rvc-gpio", cmd_oem_rvc_gpio},
 						{"oem select-camera-type", cmd_oem_select_camera_type},
 						{"oem early-camera-rotation", cmd_oem_early_cam_rotation},
+						{"oem early-camera-frame-delay", cmd_oem_early_cam_frame_delay},
 #if HIBERNATION_SUPPORT
 						{"oem hibernation", cmd_oem_hibernation},
 #endif
@@ -5543,7 +5595,8 @@ void aboot_init(const struct app_descriptor *app)
 		if (device.early_camera_enabled) {
 			set_early_camera_enabled(TRUE, device.rvc_timeout, device.rvc_gpio);
 			target_early_camera_init(device.camera_type,
-					device.rotation_direction);
+					device.rotation_direction,
+					device.frame_delay);
 		}
 		if (device.early_audio_enabled) {
 			set_early_audio_enabled(TRUE);

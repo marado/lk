@@ -75,6 +75,11 @@
 #define VFE_ROTATED_PING_ADDR 0xB43FF000
 #define VFE_ROTATED_PONG_ADDR 0xB45FF000
 
+#define LK_FRAME_0_ADDR 0xB3FFF000
+#define LK_FRAME_1_ADDR 0xB41FF000
+#define LK_FRAME_2_ADDR 0xB43FF000
+#define LK_FRAME_3_ADDR 0xB45FF000
+
 #define PING_PONG_IRQ_MASK 0x100
 
 #define EARLY_CAM_NUM_FRAMES 60*20
@@ -91,8 +96,20 @@ int queue_id = 1;
 
 #define MAX_POLL_COUNT 100
 #define CVBS_HEADER_SIZE 13*720*2
+
 int raw_size;
 int rotated_img_size;
+
+uint32_t frame_queue[] = {LK_FRAME_0_ADDR,
+					LK_FRAME_1_ADDR,
+					LK_FRAME_2_ADDR,
+					LK_FRAME_3_ADDR};
+int ping_index = 0;
+int pong_index = 1;
+int post_frame = -1;
+int frame_delay_num = 1;
+int frame_queue_num = 4;
+
 int csi;
 int cci_master;
 int msg_count;
@@ -2031,7 +2048,7 @@ static void msm_cci_flush_queue(int master)
 }
 
 void target_early_camera_init(const char *camera_type,
-				uint32_t rotation_direction)
+				uint32_t rotation_direction, int frame_delay)
 {
 
 	if (!strcmp(camera_type,"analog")) {
@@ -2054,6 +2071,8 @@ void target_early_camera_init(const char *camera_type,
 	}
 
 	rot_direction = rotation_direction;
+	frame_delay_num = frame_delay;
+	post_frame = -frame_delay;
 
 #ifdef EARLYDOMAIN_SUPPORT
 	num_configs = get_cam_data(csi, &cam_data);
@@ -2206,14 +2225,22 @@ static int early_camera_start(void *arg) {
 
 	if (cam_type == ANALOG) {
 		hw_vfe0_init_regs_adv7481[46].reg_data = (unsigned int)VFE_PING_ADDR;
-		hw_vfe0_init_regs_adv7481[47].reg_data = hw_vfe0_init_regs_adv7481[46].reg_data +raw_size;
+		hw_vfe0_init_regs_adv7481[47].reg_data = hw_vfe0_init_regs_adv7481[46].reg_data+raw_size;
 		hw_vfe0_init_regs_adv7481[48].reg_data = (unsigned int)VFE_PONG_ADDR;
-		hw_vfe0_init_regs_adv7481[49].reg_data = hw_vfe0_init_regs_adv7481[48].reg_data+ raw_size;
+		hw_vfe0_init_regs_adv7481[49].reg_data = hw_vfe0_init_regs_adv7481[48].reg_data+raw_size;
 	} else if (cam_type == DIGITAL) {
-		hw_vfe0_init_regs[46].reg_data = (unsigned int)VFE_PING_ADDR;
-		hw_vfe0_init_regs[47].reg_data = hw_vfe0_init_regs[46].reg_data +raw_size;
-		hw_vfe0_init_regs[48].reg_data = (unsigned int)VFE_PONG_ADDR;
-		hw_vfe0_init_regs[49].reg_data = hw_vfe0_init_regs[48].reg_data+ raw_size;
+		if (frame_delay_num == 0) {
+			hw_vfe0_init_regs[46].reg_data = (unsigned int)VFE_PING_ADDR;
+			hw_vfe0_init_regs[47].reg_data = hw_vfe0_init_regs[46].reg_data+raw_size;
+			hw_vfe0_init_regs[48].reg_data = (unsigned int)VFE_PONG_ADDR;
+			hw_vfe0_init_regs[49].reg_data = hw_vfe0_init_regs[48].reg_data+raw_size;
+		} else {
+			hw_vfe0_init_regs[46].reg_data = (unsigned int)LK_FRAME_0_ADDR;
+			hw_vfe0_init_regs[47].reg_data = hw_vfe0_init_regs[46].reg_data+raw_size;
+			hw_vfe0_init_regs[48].reg_data = (unsigned int)LK_FRAME_1_ADDR;
+			hw_vfe0_init_regs[49].reg_data = hw_vfe0_init_regs[48].reg_data+raw_size;
+		}
+
 	}
 
 	read_val = 0;
@@ -2597,11 +2624,22 @@ int early_camera_on(void)
 	return gpio_triggered;
 }
 
-//Clear frame buffer in case of error
+// Clear frame buffer in case of error
 void early_camera_clear_buffers(void)
 {
-	memset((void *)VFE_PING_ADDR, EARLY_CAMERA_FILL_PATTERN, raw_size);
-	memset((void *)VFE_PONG_ADDR, EARLY_CAMERA_FILL_PATTERN, raw_size);
+	if (frame_delay_num == 0) {
+		memset((void *)VFE_PING_ADDR, EARLY_CAMERA_FILL_PATTERN, raw_size);
+		memset((void *)VFE_PONG_ADDR, EARLY_CAMERA_FILL_PATTERN, raw_size);
+		memset((void *)VFE_ROTATED_PING_ADDR,
+				EARLY_CAMERA_FILL_PATTERN, rotated_img_size);
+		memset((void *)VFE_ROTATED_PONG_ADDR,
+				EARLY_CAMERA_FILL_PATTERN, rotated_img_size);
+	} else {
+		memset((void *)LK_FRAME_0_ADDR, EARLY_CAMERA_FILL_PATTERN, raw_size);
+		memset((void *)LK_FRAME_1_ADDR, EARLY_CAMERA_FILL_PATTERN, raw_size);
+		memset((void *)LK_FRAME_2_ADDR, EARLY_CAMERA_FILL_PATTERN, raw_size);
+		memset((void *)LK_FRAME_3_ADDR, EARLY_CAMERA_FILL_PATTERN, raw_size);
+	}
 }
 
 int early_camera_flip(void *cam_layer, bool firstframe, bool mode_change)
@@ -2734,12 +2772,17 @@ int early_camera_flip(void *cam_layer, bool firstframe, bool mode_change)
 			} else if (cam_type == DIGITAL) {
 				if (rot_direction == ROTATION_0
 					|| rot_direction == ROTATION_180) {
-					if (ping)
-						camera_layer->fb[SPLIT_DISPLAY_0].base =
-						(void *)VFE_PING_ADDR;
-					else
-						camera_layer->fb[SPLIT_DISPLAY_0].base =
-						(void *)VFE_PONG_ADDR;
+						if (frame_delay_num == 0) {
+						if (ping)
+							camera_layer->fb[SPLIT_DISPLAY_0].base =
+							(void *)VFE_PING_ADDR;
+						else
+							camera_layer->fb[SPLIT_DISPLAY_0].base =
+							(void *)VFE_PONG_ADDR;
+						} else {
+							camera_layer->fb[SPLIT_DISPLAY_0].base =
+								(void *)early_camera_frame_delay(ping);
+						}
 				} else {
 					if (ping) {
 						early_camera_rotate(
@@ -2766,10 +2809,12 @@ int early_camera_flip(void *cam_layer, bool firstframe, bool mode_change)
 		}
 
 		if (firstframe || mode_change) {
-				/* setup one inactive fb for status switching between RVC and animation */
-					target_display_setup_fb(&camera_layer->fb[camera_layer->valid_fb_cnt],
-						NULL, kFormatRGB888, SPLASH_SPLIT_0_LAYER_ZORDER, false, 24);
-					camera_layer->valid_fb_cnt++;
+
+		/* setup one inactive fb for status switching between RVC and animation */
+			target_display_setup_fb(&camera_layer->fb[camera_layer->valid_fb_cnt],
+				NULL, kFormatRGB888, SPLASH_SPLIT_0_LAYER_ZORDER, false, 24);
+			camera_layer->valid_fb_cnt++;
+
 			if (firstframe)
 				dprintf(INFO, "camera flip setup once(display id=%d)\n", rvc_display_id);
 			target_display_update(&update_cam, 1, rvc_display_id, true, firstframe);
@@ -2902,5 +2947,38 @@ void early_camera_rotate(char *rotated, const char *img_buff,
 		}
 	} else {
 		cam_place_kpi_marker("Early camera rotation direction Error");
+	}
+}
+
+uint32_t early_camera_frame_delay(int ping)
+{
+	if (ping) { /* ping active */
+
+		if (ping_index != pong_index - 1) {
+			ping_index = pong_index - 1;
+			post_frame = ping_index - frame_delay_num;
+		}
+		ping_index += 2;
+		ping_index %= frame_queue_num;
+		hw_vfe0_init_regs[46].reg_data = frame_queue[ping_index];
+		hw_vfe0_init_regs[47].reg_data = hw_vfe0_init_regs[46].reg_data + raw_size;
+		msm_hw_init(&hw_vfe0_init_regs[46], 1, 0);
+		msm_hw_init(&hw_vfe0_init_regs[47], 1, 0);
+	} else { /* pong active */
+		pong_index += 2;
+		pong_index %= frame_queue_num;
+		hw_vfe0_init_regs[48].reg_data = frame_queue[pong_index];
+		hw_vfe0_init_regs[49].reg_data = hw_vfe0_init_regs[48].reg_data + raw_size;
+		msm_hw_init(&hw_vfe0_init_regs[48], 1, 0);
+		msm_hw_init(&hw_vfe0_init_regs[49], 1, 0);
+	}
+	if (post_frame >= 0) {
+		int temp = post_frame;
+		post_frame++;
+		post_frame %= frame_queue_num;
+		return frame_queue[temp];
+	} else {
+		post_frame++;
+		return frame_queue[0];
 	}
 }

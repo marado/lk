@@ -77,5 +77,6 @@ struct device_info
 	char camera_type[MAX_CAMERA_TYPE_LEN];
 	char early_app_layer_setup[MAX_EDRM_PIPE_SETUP_LEN];
 	uint32_t rotation_direction;
+	int frame_delay;
 };
 #endif
