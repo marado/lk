@@ -90,7 +90,7 @@ enum split_framebuffer_index {
 enum layer_zorder {
 	SPLASH_SPLIT_0_LAYER_ZORDER = 2,	/* default layer zorder */
 	SPLASH_SPLIT_1_LAYER_ZORDER = 3,	/* active in spliiter case */
-	RVC_LAYER_ZORDER = 6,			/* rvc layer zorder, not topest due to kernel early app stays on top */
+	RVC_LAYER_ZORDER = 7,			/* rvc layer zorder, not topest due to kernel early app stays on top */
 };
 
 enum mdss_mdp_pipe_type {
