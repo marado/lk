@@ -200,8 +200,9 @@ void regulator_enable(uint32_t enable)
 		rpm_send_data(&ldo17[GENERIC_ENABLE][0], 36, RPM_REQUEST_TYPE);
 
 	if (enable & REG_LDO6) {
-		if ((platform_is_sdm429() || platform_is_sdm429w()) && hw_subtype
-				== HW_PLATFORM_SUBTYPE_429W_PM660)
+		if ((platform_is_sdm429() || platform_is_sdm429w())
+			&& ((hw_subtype == HW_PLATFORM_SUBTYPE_429W_PM660)
+			|| (hw_subtype == HW_PLATFORM_SUBTYPE_429W_PM660_WTP)))
 			rpm_send_data(&ldo6_pm660[GENERIC_ENABLE][0], 36, RPM_REQUEST_TYPE);
 		else
 			rpm_send_data(&ldo6[GENERIC_ENABLE][0], 36, RPM_REQUEST_TYPE);

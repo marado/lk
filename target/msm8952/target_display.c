@@ -710,8 +710,9 @@ int target_ldo_ctrl(uint8_t enable, struct msm_panel_info *pinfo)
 		 */
 		regulator_disable(REG_LDO17);
 
-		if ((platform_is_sdm429() || platform_is_sdm429w()) && hw_subtype
-			== HW_PLATFORM_SUBTYPE_429W_PM660)
+		if ((platform_is_sdm429() || platform_is_sdm429w())
+			&& ((hw_subtype == HW_PLATFORM_SUBTYPE_429W_PM660)
+			|| (hw_subtype == HW_PLATFORM_SUBTYPE_429W_PM660_WTP)))
 			regulator_disable(REG_LDO13 | REG_LDO15);
 	}
 
