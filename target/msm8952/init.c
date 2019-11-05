@@ -438,6 +438,7 @@ void target_baseband_detect(struct board_data *board)
 	case APQ8017:
 	case SDA429:
 	case SDA439:
+	case SDA429W:
 		board->baseband = BASEBAND_APQ;
 		break;
 	default:
