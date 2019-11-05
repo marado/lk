@@ -322,6 +322,7 @@ int platform_is_sdm429w()
 	switch(platform)
 	{
 	case SDM429W:
+	case SDA429W:
 		ret = 1;
 		break;
 	default:
