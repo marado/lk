@@ -1587,14 +1587,6 @@ void earlydomain_services()
 
 	dprintf(CRITICAL, "Early Camera starting\n");
 
-	/* starting early domain services */
-	if (early_camera_init() == -1) {
-		early_camera_enabled = 0;
-		dprintf(CRITICAL, "earlydomain_services: Early Camera exit init failed\n");
-	} else {
-		dprintf(CRITICAL, "earlydomain_services: Early Camera starting\n");
-	}
-
 	/* starting early audio */
 	if (early_audio_init() == -1) {
 		early_audio_enabled = 0;
@@ -1610,6 +1602,12 @@ void earlydomain_services()
 	{
 		ret = animated_splash_screen_mmc();
 		mmc_read_done = true;
+		if (early_camera_init() == -1) {
+			early_camera_enabled = 0;
+			dprintf(CRITICAL, "earlydomain_services: Early Camera exit init failed\n");
+		} else {
+			dprintf(CRITICAL, "earlydomain_services: Early Camera starting\n");
+		}
 		dprintf(CRITICAL, "earlydomain_services: mmc read done\n");
 		if (ret) {
 			dprintf(CRITICAL, "Error in reading memory. Skip Animated splash\n");
