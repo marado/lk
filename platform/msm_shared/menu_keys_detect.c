@@ -1,4 +1,4 @@
-/* Copyright (c) 2015-2017, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2015-2018, The Linux Foundation. All rights reserved.
 *
 * Redistribution and use in source and binary forms, with or without
 * modification, are permitted provided that the following conditions are
@@ -155,6 +155,7 @@ static void update_device_status(struct select_msg_info* msg_info, int reason)
 
 			break;
 		case FFBM:
+			memset(&ffbm_page_buffer, 0, sizeof(ffbm_page_buffer));
 			snprintf(ffbm_page_buffer, sizeof(ffbm_page_buffer), "ffbm-00");
 			write_misc(0, ffbm_page_buffer, sizeof(ffbm_page_buffer));
 
