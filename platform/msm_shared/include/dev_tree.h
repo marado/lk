@@ -144,7 +144,7 @@ typedef struct pmic_info
 	uint32_t dt_match_val;
 }pmic_info;
 
-struct dt_entry_v2
+struct __PACKED dt_entry_v2
 {
 	uint32_t platform_id;
 	uint32_t variant_id;
@@ -154,7 +154,7 @@ struct dt_entry_v2
 	uint32_t size;
 };
 
-struct dt_entry
+struct __PACKED dt_entry
 {
 	uint32_t platform_id;
 	uint32_t variant_id;
@@ -173,19 +173,19 @@ struct dt_table
 	uint32_t num_entries;
 };
 
-struct plat_id
+struct __PACKED plat_id
 {
 	uint32_t platform_id;
 	uint32_t soc_rev;
 };
 
-struct board_id
+struct __PACKED board_id
 {
 	uint32_t variant_id;
 	uint32_t platform_subtype;
 };
 
-struct pmic_id
+struct __PACKED pmic_id
 {
 	uint32_t pmic_version[4];
 };
@@ -223,7 +223,7 @@ typedef struct dt_entry_node {
 	struct dt_entry * dt_entry_m;
 }dt_node;
 
-struct dtbo_table_hdr {
+struct __PACKED dtbo_table_hdr {
 	uint32_t magic;           //dtb table magic
 	uint32_t total_size;       //Includes dt_table_hdr + all dt_table_entry and all dtb/dtbo
 	uint32_t hdr_size;      //sizeof(dt_table_hdr)
@@ -234,7 +234,7 @@ struct dtbo_table_hdr {
 	uint32_t reserved[1];     //must zeros
 };
 
-struct dtbo_table_entry {
+struct __PACKED dtbo_table_entry {
 	uint32_t dt_size;
 	uint32_t dt_offset;     //offset from head of dt_table_hdr
 	uint32_t id;           //optional, must zero if unused
