@@ -1262,6 +1262,7 @@ int animated_splash() {
 	uint32_t shared_display_id = MAX_NUM_DISPLAY;
 	uint32_t fb_index = 0;
 	bool animation_layer_on_rvc = true;
+	bool firstIteration = true;
 
 	if (!buffers[0]) {
 		dprintf(CRITICAL, "Unexpected error in read\n");
@@ -1354,7 +1355,10 @@ int animated_splash() {
 		}
 
 		/* Check camera status at the beginning of each frame flip loop */
-		camera_on = early_camera_on();
+		if (!firstIteration)
+			camera_on = early_camera_on();
+		else
+			firstIteration = false;
 
 		/* request_shutdown can either come from EARLY_CAMERA or EARLY_DISPLAY*/
 		request_shutdown = get_early_service_shutdown_request(EARLY_CAMERA)
