@@ -116,6 +116,10 @@ ifeq ($(VERIFIED_BOOT),1)
   endif
 endif
 
+ifeq ($(VB1_KEY_USED),1)
+ DEFINES += VB1_KEY_USED=1
+endif
+
 ifeq ($(VERIFIED_BOOT_LE),1)
   DEFINES += VERIFIED_BOOT_LE=1
   ifeq ($(DEFAULT_UNLOCK),true)
