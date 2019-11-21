@@ -1075,7 +1075,7 @@ int oem_panel_select(const char *panel_name, struct panel_struct *panelstruct,
 			panel_id = HX8399C_FHD_PLUSE_VIDEO_PANEL;
 		}
 
-		if (platform_is_sdm429() || platform_is_sdm429w()) {
+		if (platform_is_sdm429() || platform_is_sdm429w() || platform_is_sda429w()) {
 			if ((hw_subtype == HW_PLATFORM_SUBTYPE_429W_PM660) ||
 			(hw_subtype == HW_PLATFORM_SUBTYPE_429W_PM660_WTP)) /* WTP 2700 / 3300  DVT */
 			  panel_id = RM67162_QVGA_CMD_PANEL;
@@ -1119,7 +1119,7 @@ panel_init:
 	 * Update all data structures after 'panel_init' label. Only panel
 	 * selection is supposed to happen before that.
 	 */
-	if (platform_is_sdm439() || platform_is_sdm429() || platform_is_sdm429w()) {
+	if (platform_is_sdm439() || platform_is_sdm429() || platform_is_sdm429w() || platform_is_sda429w()) {
 		phy_db->pll_type = DSI_PLL_TYPE_12NM;
 		pinfo->lane_config = mdss_dsi_lane_config;
 		goto end;
