@@ -109,6 +109,10 @@ ifeq ($(VERIFIED_BOOT),1)
   endif
 endif
 
+ifeq ($(VB1_KEY_USED),1)
+ DEFINES += VB1_KEY_USED=1
+endif
+
 ifeq ($(OSVERSION_IN_BOOTIMAGE),1)
  DEFINES += OSVERSION_IN_BOOTIMAGE=1
 endif
