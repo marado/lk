@@ -4733,17 +4733,6 @@ void cmd_oem_disable_shared_display(const char *arg, void *data, unsigned size)
 	fastboot_okay("");
 }
 
-void cmd_oem_rvc_timeout(const char *arg, void *data, unsigned size)
-{
-       char *token = NULL;
-       token = strtok((char *)arg, " ");
-       device.rvc_timeout = (uint32_t)atoul(token);
-       dprintf(CRITICAL, "Setting RVC Timeout Value to : %u\n",device.rvc_timeout);
-       device.rvc_gpio = MAX_GPIO_COUNT; // Reset Tlmm GPIO Invalid value.
-       write_device_info(&device);
-       fastboot_okay("");
-}
-
 void cmd_oem_rvc_gpio(const char *arg, void *data, unsigned size)
 {
        char *token = NULL;
@@ -4810,10 +4799,6 @@ void cmd_oem_enable_shared_display(const char *arg, void *data, unsigned size)
 }
 
 void cmd_oem_disable_shared_display(const char *arg, void *data, unsigned size)
-{
-}
-
-void cmd_oem_rvc_timeout(const char *arg, void *data, unsigned size)
 {
 }
 
@@ -5349,7 +5334,6 @@ void aboot_fastboot_register_commands(void)
 						{"oem select-display-panel", cmd_oem_select_display_panel},
 						{"oem edrm", cmd_oem_setup_early_app_layer},
 						{"set_active",cmd_set_active},
-						{"oem rvc-timeout", cmd_oem_rvc_timeout},
 						{"oem rvc-gpio", cmd_oem_rvc_gpio},
 						{"oem select-camera-type", cmd_oem_select_camera_type},
 						{"oem enable-180-rotation", cmd_oem_enable_orientation},
