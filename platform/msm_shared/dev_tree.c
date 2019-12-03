@@ -65,7 +65,7 @@ static event_t dtbo_event;
 
 dtbo_error ret = DTBO_SUCCESS;
 
-struct dt_entry_v1
+struct __PACKED dt_entry_v1
 {
 	uint32_t platform_id;
 	uint32_t variant_id;

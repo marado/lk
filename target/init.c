@@ -408,6 +408,7 @@ void get_vibration_type(struct qpnp_hap *config)
 		case QM215:
 		case QCM2150:
 		case SDM429W:
+		case SDA429W:
 			config->vib_type = VIB_LRA_TYPE;
 			config->hap_rate_cfg1 = QPNP_HAP_RATE_CFG1_41;
 			config->hap_rate_cfg2 = QPNP_HAP_RATE_CFG2_03;

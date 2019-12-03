@@ -1275,9 +1275,10 @@ int getimage(void **image_buffer, uint32_t *imgsize,
 		dprintf(CRITICAL, "getimage: invalid parameters\n");
 		return -1;
 	}
-	for (loadedindex = 0; loadedindex < info.num_loaded_images; loadedindex++) {
-		if (!strncmp(info.images[loadedindex].name, imgname,
-		                  strlen(imgname))) {
+	for (loadedindex = 0; loadedindex < IMG_MAX; loadedindex++) {
+		if ((NULL != info.images[loadedindex].name) &&
+			(!strncmp(info.images[loadedindex].name, imgname,
+					                  strlen(imgname)))) {
 			*image_buffer = info.images[loadedindex].image_buffer;
 			*imgsize = info.images[loadedindex].imgsize;
 			dprintf(SPEW, "getimage(): Loaded image [%s|%d]\n",
