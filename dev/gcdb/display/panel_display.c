@@ -1,4 +1,4 @@
-/* Copyright (c) 2013-2016, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2013-2016, 2019 The Linux Foundation. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -135,6 +135,8 @@ int dsi_panel_init(struct msm_panel_info *pinfo,
 	pinfo->lcdc.v_front_porch = pstruct->panelres->vfront_porch;
 	pinfo->lcdc.v_pulse_width = pstruct->panelres->vpulse_width;
 	pinfo->lcdc.hsync_skew = pstruct->panelres->hsync_skew;
+	pinfo->lcdc.vsync_polarity = pstruct->panelres->invert_vsync_polarity;
+	pinfo->lcdc.hsync_polarity = pstruct->panelres->invert_hsync_polarity;
 
 	pinfo->border_top = pstruct->panelres->vtop_border;
 	pinfo->border_bottom = pstruct->panelres->vbottom_border;

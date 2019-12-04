@@ -46,6 +46,7 @@
 #endif
 
 #define MDSS_MDP_MAX_PREFILL_FETCH	25
+#define DEN_POLARITY			0
 
 int restore_secure_cfg(uint32_t id);
 
@@ -1068,6 +1069,7 @@ static void mdss_intf_tg_setup(struct msm_panel_info *pinfo, uint32_t intf_base)
 	uint32_t display_hctl, hsync_ctl, display_vstart, display_vend;
 	uint32_t adjust_xres = 0;
 	uint32_t upper = 0, lower = 0;
+	uint32_t polarity_ctl, hsync_polarity, vsync_polarity;
 
 	struct lcdc_panel_info *lcdc = NULL;
 	struct intf_timing_params itp = {0};
@@ -1161,6 +1163,12 @@ static void mdss_intf_tg_setup(struct msm_panel_info *pinfo, uint32_t intf_base)
 		display_vend -= itp.h_front_porch;
 	}
 
+	hsync_polarity = pinfo->lcdc.hsync_polarity;
+	vsync_polarity = pinfo->lcdc.vsync_polarity;
+	polarity_ctl   = (DEN_POLARITY << 2) | /*  DEN Polarity  */
+			(vsync_polarity << 1) | /* VSYNC Polarity */
+			(hsync_polarity << 0);  /* HSYNC Polarity */
+
 	hsync_ctl = (hsync_period << 16) | itp.hsync_pulse_width;
 	display_hctl = (hsync_end_x << 16) | hsync_start_x;
 
@@ -1185,6 +1193,8 @@ static void mdss_intf_tg_setup(struct msm_panel_info *pinfo, uint32_t intf_base)
 	writel(0x00, MDP_ACTIVE_V_END_F0 + intf_base);
 	writel(0x00, MDP_ACTIVE_V_END_F1 + intf_base);
 	writel(0xFF, MDP_UNDERFFLOW_COLOR + intf_base);
+
+	writel(polarity_ctl, MDP_POLARITY_CTL + intf_base);
 
 	if (intf_base == (MDP_INTF_0_BASE + mdss_mdp_intf_offset())) /* eDP */
 		writel(0x212A, MDP_PANEL_FORMAT + intf_base);
