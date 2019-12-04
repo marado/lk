@@ -1,4 +1,4 @@
-/* Copyright (c) 2012-2019, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2012-2018, 2019 The Linux Foundation. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -171,6 +171,10 @@ struct lcdc_panel_info {
 	uint8_t dst_split;
 	/* to determine the layer mixer number in shared display case */
 	uint8_t force_merge;
+	/* v-sync polarity */
+	uint32_t vsync_polarity;
+	/* h-sync polarity */
+	uint32_t hsync_polarity;
 };
 
 enum {

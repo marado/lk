@@ -1102,6 +1102,9 @@ static void mdss_hdmi_panel_init(struct msm_panel_info *pinfo, bool splitter_is_
 	pinfo->lcdc.v_front_porch = tinfo.front_porch_v;
 	pinfo->lcdc.v_pulse_width = tinfo.pulse_width_v;
 
+	pinfo->lcdc.hsync_polarity = tinfo.active_low_h;
+	pinfo->lcdc.vsync_polarity = tinfo.active_low_v;
+
 	pinfo->lcdc.hsync_skew = 0;
 	pinfo->lcdc.xres_pad   = 0;
 	pinfo->lcdc.yres_pad   = 0;
