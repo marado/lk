@@ -79,6 +79,10 @@ int num_configs = 0;
 #define VFE_TIME_OUT_POLL_NUM 33 * 3
 int queue_id = 1;
 
+#ifdef ENABLE_CSID_ERROR
+#define CSID_TIME_OUT_POLL_NUM 10
+#endif
+
 #define MAX_POLL_COUNT 100
 #define CVBS_HEADER_SIZE 13*720*2
 int raw_size;
@@ -395,6 +399,11 @@ struct sensor_id_info_t {
 #define CSI1_CLK_MUX_BASE 0x00A00038
 #define CSI1_D_BASE 0x00A30400
 
+#ifdef ENABLE_CSID_ERROR
+#define CSID_IRQ_CLEAR_CMD 0x64
+#define CSID_IRQ_MASK 0x68
+#define CSID_IRQ_STATUS 0x6C
+#endif
 
 #define VFE0_BASE 0x00A10000
 #define VFE_SIZE 801
@@ -706,6 +715,22 @@ struct sensor_id_info_t {
 	{_csi_phy_base_+0x850,0x000000ff,0}, \
 	{_csi_phy_base_+0x854,0x000000ff,0},
 
+#ifdef ENABLE_CSID_ERROR
+#define CSI_D_INIT(_csid_base_) \
+	{_csid_base_+0x10,0x00007fff,10}, \
+	{_csid_base_+0x64,0x800,0}, \
+	{_csid_base_+0x04,0x32103,0}, \
+	{_csid_base_+0x08,0x0004000f,0}, \
+	{_csid_base_+0x14,0x0000001f,0}, \
+	{_csid_base_+0x24,0x23,0}, \
+	{_csid_base_+0x18,0x0000001f,0}, \
+	{_csid_base_+0x34,0x23,0}, \
+	{_csid_base_+0x1c,0x0000001f,0}, \
+	{_csid_base_+0x44,0x23,0}, \
+	{_csid_base_+0x20,0x0000001f,0}, \
+	{_csid_base_+0x54,0x23,0}, \
+	{_csid_base_+0x68,0x73f00800,0},
+#else
 #define CSI_D_INIT(_csid_base_) \
 	{_csid_base_+0x10,0x00007fff,10}, \
 	{_csid_base_+0x64,0x800,0}, \
@@ -719,6 +744,7 @@ struct sensor_id_info_t {
 	{_csid_base_+0x44,0x23,0}, \
 	{_csid_base_+0x20,0x0000001f,0}, \
 	{_csid_base_+0x54,0x23,0},
+#endif
 
 #ifdef ENABLE_LINE_BASED_MODE
 #define VFE_INIT(_vfe_base_, _vfe_vbif_base_) \
@@ -1124,6 +1150,50 @@ void camera_adv_pmic_gpio_init(void)
 	mdelay_optimal(10);
 	pm8x41_gpio_set(4, 1);
 }
+
+#ifdef ENABLE_CSID_ERROR
+int msm_csid_err_poll_irq(int csid_num)
+{
+	uint32_t irq;
+	int poll_count=0;
+	if (csid_num == 1) {
+		irq = msm_camera_io_r_mb(CSI1_D_BASE + CSID_IRQ_STATUS);
+		irq &= msm_camera_io_r_mb(CSI1_D_BASE + CSID_IRQ_MASK);
+		while(!irq) {
+			mdelay_optimal(1);
+			irq = msm_camera_io_r_mb(CSI1_D_BASE + CSID_IRQ_STATUS);
+			irq &= msm_camera_io_r_mb(CSI1_D_BASE + CSID_IRQ_MASK);
+			poll_count++;
+			if(poll_count > CSID_TIME_OUT_POLL_NUM)
+				break;
+		}
+		if(irq) {
+			msm_camera_io_w_mb(irq, CSI1_D_BASE + CSID_IRQ_CLEAR_CMD);
+			goto error_exit;
+		}
+	} else if (csid_num == 2) {
+		irq = msm_camera_io_r_mb(CSI2_D_BASE + CSID_IRQ_STATUS);
+		irq &= msm_camera_io_r_mb(CSI2_D_BASE + CSID_IRQ_MASK);
+		while(!irq) {
+			mdelay_optimal(1);
+			irq = msm_camera_io_r_mb(CSI2_D_BASE + CSID_IRQ_STATUS);
+			irq &= msm_camera_io_r_mb(CSI2_D_BASE + CSID_IRQ_MASK);
+			poll_count++;
+			if(poll_count > CSID_TIME_OUT_POLL_NUM)
+				break;
+		}
+		if(irq) {
+			msm_camera_io_w_mb(irq, CSI2_D_BASE + CSID_IRQ_CLEAR_CMD);
+			goto error_exit;
+		}
+	}
+
+	return 0;
+error_exit:
+	pr_err(CRITICAL, "%s: CSID%d_IRQ_STATUS_ADDR = 0x%x\n", __func__, csid_num, irq);
+	return -1;
+}
+#endif
 
 int msm_vfe_poll_irq(int irq_num, int timeout_poll_num)
 {
@@ -2661,7 +2731,9 @@ int early_camera_flip(void *cam_layer, bool firstframe, bool mode_change)
 {
 	static int buffer_cleared = 0;
 	uint32_t rvc_display_id;
-
+#ifdef ENABLE_CSID_ERROR
+	int err_val = 0;
+#endif
 	struct target_layer *camera_layer;
 #ifdef DEBUG_T32
 	while(delay_to_attach_t32 != 1) {
@@ -2730,6 +2802,31 @@ int early_camera_flip(void *cam_layer, bool firstframe, bool mode_change)
 		if(camera_lock_status == 0)
 			goto ERROR;
 	}
+
+#ifdef ENABLE_CSID_ERROR
+	err_val = msm_csid_err_poll_irq(csi);
+	if (err_val == -1) {
+		mdelay(100);
+
+		// Stop vfe
+		msm_camera_io_w_mb(0,0x00A100a0);
+		msm_camera_io_w_mb(2,0x00A104ac);
+		// Stop ispif
+		msm_camera_io_w_mb(0xaaaaaaaa,0x00a31248);
+		// Reset ping pong to top of buffer.
+		msm_camera_io_w_mb(1,0x00A10080);
+		// Start ispif on next frame.
+		msm_camera_io_w_mb(0xfffffdff,0x00a31248);
+		// Start vfe write masters.
+		// update ping /pong
+		msm_camera_io_w_mb(2,0x00A104ac);
+		//start vfe
+		msm_camera_io_w_mb(1,0x00A100a0);
+
+		pr_err(CRITICAL, "Reset ispif and vfe h/w on csid error\n");
+		goto ERROR;
+	}
+#endif
 
 	// wait for ping pong irq;
 	ping = msm_vfe_poll_irq(PING_PONG_IRQ_MASK,VFE_TIME_OUT_POLL_NUM);
