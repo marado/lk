@@ -2373,7 +2373,7 @@ static int early_camera_start(void *arg) {
 	if (cam_type == ANALOG)
 		i2c_wr_iter = 1;
 	else if (cam_type == DIGITAL)
-		i2c_wr_iter = num_configs - 2;
+		i2c_wr_iter = num_configs - 3;
 
 	// Write setup configs for i2c devices.
 	// Last config is for starting the camera.
@@ -2603,14 +2603,25 @@ static int early_camera_start(void *arg) {
 						cam_data[9].i2c_num_bytes_data,
 						0,cci_master);
 	} else if (cam_type == DIGITAL) {
-		// Start cam
-		msm_cci_i2c_write(cam_data[num_configs-2].i2c_regs,
-						cam_data[num_configs-2].size,
-						cam_data[num_configs-2].i2c_slave_address,
+		// Set PORT_PASS_CTL register on TI960 bridge chip
+		msm_cci_i2c_write(cam_data[num_configs-1].i2c_regs,
+						cam_data[num_configs-1].size,
+						cam_data[num_configs-1].i2c_slave_address,
 						queue_id,
 						0,
-						cam_data[num_configs-2].i2c_num_bytes_address,
-						cam_data[num_configs-2].i2c_num_bytes_data,
+						cam_data[num_configs-1].i2c_num_bytes_address,
+						cam_data[num_configs-1].i2c_num_bytes_data,
+						0,
+						cci_master);
+
+		// Start cam
+		msm_cci_i2c_write(cam_data[num_configs-3].i2c_regs,
+						cam_data[num_configs-3].size,
+						cam_data[num_configs-3].i2c_slave_address,
+						queue_id,
+						0,
+						cam_data[num_configs-3].i2c_num_bytes_address,
+						cam_data[num_configs-3].i2c_num_bytes_data,
 						0,
 						cci_master);
 	}

@@ -83,6 +83,13 @@ static struct camera_i2c_reg_array ti960_init_regs[] =
 	{ 0x6f, 0x8, 0},
 	{ 0x6d, 0x7f, 0}, };
 
+// Enable PORT_PASS_CTL register on TI 960 RX 0 port
+static struct camera_i2c_reg_array ti960_port_pass_ctl_regs[] = {
+	{ 0x4c, 0x01, 0 },
+	{ 0x7d, 0xb9, 0 },
+	{ 0x23, 0x81, 0 },
+};
+
 // Start TI 960 RX 0 port
 static struct camera_i2c_reg_array ti960_start_regs[] = {
 	{ 0xb0, 0x1c, 0},
@@ -1012,6 +1019,20 @@ static int get_cam_data_digital(struct i2c_config_data **cam_data)
 	config_data[3].i2c_revision_id_val[1] = 0x30;
 	config_data[3].i2c_revision_id_num = 2;
 	config_data[3].i2c_revision_id_reg = 0x3;
+	number_config_elements++;
+
+	// Setup PORT_PASS_CTL register on RX port 0
+	config_data[4].size =
+		sizeof(ti960_port_pass_ctl_regs) / sizeof(ti960_port_pass_ctl_regs[0]);
+	config_data[4].i2c_slave_address = BRIDGE_SLAVEADDR;
+	config_data[4].i2c_regs = &ti960_port_pass_ctl_regs[0];
+	config_data[4].i2c_num_bytes_address = 1;
+	config_data[4].i2c_num_bytes_data = 1;
+	// Support for revision 2 and 3
+	config_data[4].i2c_revision_id_val[0] = 0x20;
+	config_data[4].i2c_revision_id_val[1] = 0x30;
+	config_data[4].i2c_revision_id_num = 2;
+	config_data[4].i2c_revision_id_reg = 0x3;
 	number_config_elements++;
 
 	return number_config_elements;
