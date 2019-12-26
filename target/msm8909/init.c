@@ -605,7 +605,11 @@ int get_target_boot_params(const char *cmdline, const char *part, char **buf)
 			else
 			{
 				/* Extra character is for Null termination */
+#if VERITY_LE
+				buflen = strlen(" root=/dev/dm-0") + 1;
+#else
 				buflen = strlen(" root=/dev/mmcblk0p") + sizeof(int) + 1;
+#endif
 
 				/* In success case, this memory is freed in calling function */
 				*buf = (char *)malloc(buflen);
@@ -615,7 +619,11 @@ int get_target_boot_params(const char *cmdline, const char *part, char **buf)
 				}
 
 				/*For Emmc case increase the ptn_index by 1*/
+#if VERITY_LE
+				snprintf(*buf, buflen, " root=/dev/dm-0");
+#else
 				snprintf(*buf, buflen, " root=/dev/mmcblk0p%d",system_ptn_index + 1);
+#endif
 			}
 		}
 
