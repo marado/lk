@@ -69,6 +69,10 @@
 #include <vibrator.h>
 #endif
 
+#if WEAK_BATT_CHRG_SUPPORT
+#include <qpnp-smb2.h>
+#endif
+
 #if PON_VIB_SUPPORT
 #define VIBRATE_TIME    250
 #endif
@@ -112,7 +116,7 @@ static uint32_t  mmc_sdc_pwrctl_irq[] =
 
 static int sdm429_pm660_target()
 {
-	if ((platform_is_sdm429() && (board_hardware_subtype() == HW_PLATFORM_SUBTYPE_429W_PM660)) || platform_is_sdm429w())
+	if ((platform_is_sdm429() && (board_hardware_subtype() == HW_PLATFORM_SUBTYPE_429W_PM660)) || platform_is_sdm429w() || platform_is_sda429w())
 		return 1;
 	else
 		return 0;
@@ -201,7 +205,7 @@ int target_volume_up()
 	if(platform_is_msm8956())
 		vol_up_gpio = TLMM_VOL_UP_BTN_GPIO_8956;
 	else if(platform_is_msm8937() || platform_is_msm8917() ||
-		    platform_is_sdm429() || platform_is_sdm429w() || platform_is_sdm439() ||
+		    platform_is_sdm429() || platform_is_sdm429w() || platform_is_sda429w() || platform_is_sdm439() ||
 		    platform_is_qm215())
 		vol_up_gpio = TLMM_VOL_UP_BTN_GPIO_8937;
 	else
@@ -307,7 +311,7 @@ void target_init(void)
 	if(target_is_pmi_enabled())
 	{
 		if(platform_is_msm8937() || platform_is_msm8917() ||
-		   platform_is_sdm429() || platform_is_sdm429w() || platform_is_sdm439())
+		   platform_is_sdm429() || platform_is_sdm429w() || platform_is_sda429w() || platform_is_sdm439())
 		{
 			uint8_t pmi_rev = 0;
 			uint32_t pmi_type = 0;
@@ -341,8 +345,14 @@ void target_init(void)
 #if PON_VIB_SUPPORT
 	/* turn on vibrator to indicate that phone is booting up to end user */
 	if(target_is_pmi_enabled() || platform_is_qm215()
-			|| platform_is_sdm429w() || sdm429_pm660_target())
+			|| platform_is_sdm429w() || platform_is_sda429w() || sdm429_pm660_target())
 		vib_timed_turn_on(VIBRATE_TIME);
+#endif
+
+#if WEAK_BATT_CHRG_SUPPORT
+	if(sdm429_pm660_target())
+		/* Start Weak Battery Charging */
+		weak_battery_charging();
 #endif
 
 	if (target_use_signed_kernel())
@@ -438,6 +448,7 @@ void target_baseband_detect(struct board_data *board)
 	case APQ8017:
 	case SDA429:
 	case SDA439:
+	case SDA429W:
 		board->baseband = BASEBAND_APQ;
 		break;
 	default:
@@ -520,7 +531,7 @@ unsigned target_pause_for_battery_charge(void)
 void target_uninit(void)
 {
 #if PON_VIB_SUPPORT
-	if(target_is_pmi_enabled() || platform_is_sdm429w() || sdm429_pm660_target())
+	if(target_is_pmi_enabled() || platform_is_sdm429w() || platform_is_sda429w() || sdm429_pm660_target())
 		turn_off_vib_early();
 #endif
 	mmc_put_card_to_sleep(dev);
@@ -715,7 +726,7 @@ void target_crypto_init_params()
 
 bool target_is_pmi_enabled(void)
 {
-	if (platform_is_qm215() || platform_is_sdm429w() || sdm429_pm660_target() ||
+	if (platform_is_qm215() || platform_is_sdm429w() || platform_is_sda429w() || sdm429_pm660_target() ||
 			(platform_is_msm8917() && (board_hardware_subtype() ==
 			HW_PLATFORM_SUBTYPE_SAP_NOPMI)))
 		return 0;
@@ -772,7 +783,7 @@ uint32_t target_get_pmic()
 		else
 			return PMIC_IS_PMI8950;
 	} else {
-		if (platform_is_qm215() || platform_is_sdm429w() || sdm429_pm660_target()) {
+		if (platform_is_qm215() || platform_is_sdm429w() || platform_is_sda429w() || sdm429_pm660_target()) {
 			pmi_type = board_pmic_target(0) & PMIC_TYPE_MASK;
 			return pmi_type;
 		}
