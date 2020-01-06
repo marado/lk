@@ -117,6 +117,10 @@ ifeq ($(ENABLE_VB_ATTEST),1)
  DEFINES += ENABLE_VB_ATTEST=1
 endif
 
+ifeq ($(VB1_KEY_USED),1)
+  DEFINES += VB1_KEY_USED=1
+endif
+
 ifeq ($(USER_BUILD_VARIANT),true)
   DEFINES += USER_BUILD_VARIANT=1
 endif
