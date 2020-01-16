@@ -1,4 +1,4 @@
-/* Copyright (c) 2015-2019, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2015-2020, The Linux Foundation. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -683,6 +683,12 @@ int target_ldo_ctrl(uint8_t enable, struct msm_panel_info *pinfo)
 			ldo_num &= ~(REG_LDO17 | REG_LDO5);
 			ldo_num |= REG_LDO13 | REG_LDO15;
 		}
+
+	if (platform_is_sdm429w()
+		&& (board_hardware_subtype() == HW_PLATFORM_SUBTYPE_429W_PM660_WTP)) {
+		ldo_num &= ~(REG_LDO13);
+		ldo_num |= (REG_LDO11);
+	}
 
 	if (enable) {
 		regulator_enable(ldo_num);
