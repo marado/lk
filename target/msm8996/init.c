@@ -1391,10 +1391,12 @@ int animated_splash() {
 				if (camera_on) {
 					if (!layer_list_mode_unchanged(&layer_list[j],
 							&cached_rvc_layer_list) || firstCameraFrame[j]) {
-						animated_splash_handle_layer_list(&layer_list[j],
-								&cached_rvc_layer_list,
-								&mode_change[j]);
-						dprintf(INFO, "mode_change becomes true to rvc case\n");
+						if (!camera_status) {
+							animated_splash_handle_layer_list(&layer_list[j],
+									&cached_rvc_layer_list,
+									&mode_change[j]);
+							dprintf(INFO, "mode_change becomes true to rvc case\n");
+						}
 					}
 
 					if(animation_layer_on_rvc) {
