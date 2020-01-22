@@ -1,7 +1,7 @@
 /*
  * Copyright (c) 2008 Travis Geiselbrecht
  *
- * Copyright (c) 2015-2019, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2015-2020, The Linux Foundation. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining
  * a copy of this software and associated documentation files
@@ -272,7 +272,7 @@ __WEAK uint32_t target_ddr_cfg_val()
 bool target_uses_system_as_root(void)
 {
 #if TARGET_USE_SYSTEM_AS_ROOT_IMAGE
-	if (target_get_vb_version() >= VB_M)
+	if (is_vb_le_enabled() || (target_get_vb_version() >= VB_M))
 		return true;
 #endif
 		return false;
