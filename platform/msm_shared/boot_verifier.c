@@ -454,6 +454,7 @@ static void boot_verify_send_boot_state(km_boot_state_t *boot_state)
 #if VERIFIED_BOOT_2
 bool send_rot_command(uint32_t is_unlocked)
 {
+        dprintf(CRITICAL, "send_rot_command start\n");
 	int ret = 0;
 	unsigned char *input = (unsigned char *)OEMPublicKey;
 	unsigned int key_len = sizeof(OEMPublicKey);
@@ -513,9 +514,10 @@ bool send_rot_command(uint32_t is_unlocked)
 	read_req->rot_ofset = (uint32_t) sizeof(km_set_rot_req_t);
 	read_req->rot_size  = sizeof(final_digest);
 	memscpy(cpy_ptr, sizeof(final_digest), (void *) &final_digest, sizeof(final_digest));
-	dprintf(SPEW, "Sending Root of Trust to trustzone: start\n");
+	dprintf(CRITICAL, "Sending Root of Trust to trustzone: start\n");
 
 	ret = qseecom_send_command(app_handle, (void*) read_req, sizeof(km_set_rot_req_t) + sizeof(final_digest), (void*) &read_rsp, sizeof(read_rsp));
+        dprintf(CRITICAL, "send_rot_command after calling qseecom_send_command \n");
 	if (ret < 0 || read_rsp.status < 0)
 	{
 		dprintf(CRITICAL, "QSEEcom command for Sending Root of Trust returned error: %d\n", read_rsp.status);
@@ -556,6 +558,7 @@ err:
 	if(keystatebuf)
 		free(keystatebuf);
         free(read_req);
+        dprintf(CRITICAL, "send_rot_command end \n");
         return ret;
 }
 #else

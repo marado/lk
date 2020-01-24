@@ -257,7 +257,7 @@ void target_uninit(void)
 	{
 		if (send_milestone_call_to_tz() < 0)
 		{
-			dprintf(CRITICAL, "Failed to unload App for rpmb\n");
+			dprintf(SPEW, "Failed to unload App for rpmb\n");
 			ASSERT(0);
 		}
 	}
@@ -285,7 +285,7 @@ void target_uninit(void)
 	{
 		if (rpmb_uninit() < 0)
 		{
-			dprintf(CRITICAL, "RPMB uninit failed\n");
+			dprintf(SPEW, "RPMB uninit failed\n");
 			ASSERT(0);
 		}
 	}
@@ -395,7 +395,7 @@ void target_sdc_init()
 
 		if (!(dev = mmc_init(&config)))
 		{
-			dprintf(CRITICAL, "mmc init failed!");
+			dprintf(SPEW, "mmc init failed!");
 			ASSERT(0);
 		}
 	}
@@ -441,7 +441,7 @@ void toggle_neutrino(void) {
 
 void target_init(void)
 {
-	dprintf(INFO, "target_init()\n");
+	dprintf(SPEW, "target_init()\n");
 
 	pmic_info_populate();
 
@@ -513,20 +513,20 @@ void target_init(void)
 		/* Initialize Qseecom */
 		if (qseecom_init() < 0)
 		{
-			dprintf(CRITICAL, "Failed to initialize qseecom\n");
+			dprintf(SPEW, "Failed to initialize qseecom\n");
 			ASSERT(0);
 		}
 
 		/* Start Qseecom */
 		if (qseecom_tz_init() < 0)
 		{
-			dprintf(CRITICAL, "Failed to start qseecom\n");
+			dprintf(SPEW, "Failed to start qseecom\n");
 			ASSERT(0);
 		}
 
 		if (rpmb_init() < 0)
 		{
-			dprintf(CRITICAL, "RPMB init failed\n");
+			dprintf(SPEW, "RPMB init failed\n");
 			ASSERT(0);
 		}
 
@@ -535,13 +535,13 @@ void target_init(void)
 		 */
 		if (load_sec_app() < 0)
 		{
-			dprintf(CRITICAL, "Failed to load App for verified\n");
+			dprintf(SPEW, "Failed to load App for verified\n");
 #if ENABLE_RECOVERY
 			if (!use_backup) {
 				if (!set_recovery_cookie())
 					reboot_device(0);
 			}
-			dprintf(CRITICAL, "Failed to set the cookie in misc partition\n");
+			dprintf(SPEW, "Failed to set the cookie in misc partition\n");
 #endif
 			ASSERT(0);
 		}
@@ -655,7 +655,7 @@ void target_baseband_detect(struct board_data *board)
 			board->baseband = BASEBAND_MSM;
 			break;
 		default:
-			dprintf(CRITICAL, "Platform type: %u is not supported\n",platform);
+			dprintf(SPEW, "Platform type: %u is not supported\n",platform);
 			ASSERT(0);
 		};
 	}
@@ -781,7 +781,7 @@ unsigned target_pause_for_battery_charge(void)
 		uint8_t pon_reason = pm8x41_get_pon_reason();
 		uint8_t is_cold_boot = pm8x41_get_is_cold_boot();
 		pm_smbchg_usb_chgpth_pwr_pth_type charger_path = PM_SMBCHG_USB_CHGPTH_PWR_PATH__INVALID;
-		dprintf(INFO, "%s : pon_reason is %d cold_boot:%d charger path: %d\n", __func__,
+		dprintf(SPEW, "%s : pon_reason is %d cold_boot:%d charger path: %d\n", __func__,
 			pon_reason, is_cold_boot, charger_path);
 		/* In case of fastboot reboot,adb reboot or if we see the power key
 		 * pressed we do not want go into charger mode.
@@ -947,7 +947,7 @@ bool get_early_service_shutdown_request(enum service_id sid)
 void *get_service_shared_mem_start(enum service_id sid)
 {
 	if (sid > NUM_SERVICES || sid < EARLY_DISPLAY) {
-		dprintf(CRITICAL,"Invaild service id\n");
+		dprintf(SPEW,"Invaild service id\n");
 		return NULL;
 	}
 	return service_shm_address[sid - 1];
@@ -968,9 +968,9 @@ void enable_secondary_core()
 
 	if (psci_cpu_on(platform_get_secondary_cpu_num(), (paddr_t)cpu_on_ep))
 	{
-		dprintf(CRITICAL, "Failed to turn on secondary CPU: %x\n", platform_get_secondary_cpu_num());
+		dprintf(SPEW, "Failed to turn on secondary CPU: %x\n", platform_get_secondary_cpu_num());
 	}
-	dprintf (INFO, "LK continue on cpu0\n");
+	dprintf (SPEW, "LK continue on cpu0\n");
 }
 
 /* handles the early domain */
@@ -1008,7 +1008,7 @@ void earlydomain_exit()
 	 */
 	clear_early_service_active_bit(EARLY_DOMAIN_CORE);
 	if (early_domain_header->status)
-		dprintf(CRITICAL,"Early domain status is not clear: 0x%llx\n",early_domain_header->status);
+		dprintf(SPEW,"Early domain status is not clear: 0x%llx\n",early_domain_header->status);
 	isb();
 
 	/* clean-up */
@@ -1064,12 +1064,12 @@ int animated_splash_screen_mmc()
 
 	index = partition_get_index(ANIMATED_SPLAH_PARTITION);
 	if (index == 0) {
-		dprintf(CRITICAL, "ERROR: splash Partition table not found\n");
+		dprintf(SPEW, "ERROR: splash Partition table not found\n");
 		return -1;
 	}
 	ptn = partition_get_offset(index);
 	if (ptn == 0) {
-		dprintf(CRITICAL, "ERROR: splash Partition invalid\n");
+		dprintf(SPEW, "ERROR: splash Partition invalid\n");
 		return -1;
 	}
 
@@ -1077,14 +1077,14 @@ int animated_splash_screen_mmc()
 
 	blocksize = mmc_get_device_blocksize();
 	if (blocksize == 0) {
-		dprintf(CRITICAL, "ERROR:splash Partition invalid blocksize\n");
+		dprintf(SPEW, "ERROR:splash Partition invalid blocksize\n");
 		return -1;
 	}
 	// Assume it is always for display ID 0
 	fb_display = target_display_get_fb(0, SPLIT_DISPLAY_0);
 
 	if (!fb_display) {
-		dprintf(CRITICAL, "ERROR: fb config is not allocated\n");
+		dprintf(SPEW, "ERROR: fb config is not allocated\n");
 		return -1;
 	}
 
@@ -1094,7 +1094,7 @@ int animated_splash_screen_mmc()
 	// dynamical allocaton for img header structure based on blocksize
 	img_header = (animated_img_header *)malloc(MAX_NUM_DISPLAY * (blocksize * sizeof(uint8_t)));
 	if (!img_header) {
-		dprintf(CRITICAL, "ERROR: dynamical allocaton splash img header failed\n");
+		dprintf(SPEW, "ERROR: dynamical allocaton splash img header failed\n");
 		return -1;
 	}
 
@@ -1103,64 +1103,64 @@ int animated_splash_screen_mmc()
 	{
 		head = (void *)&(img_header[j]);
 		if (mmc_read(ptn, (uint32_t *)(head), blocksize)) {
-			dprintf(CRITICAL, "ERROR: Cannot read splash image header\n");
+			dprintf(SPEW, "ERROR: Cannot read splash image header\n");
 			ret = -1;
 			goto end;
 		}
 
 		header = (animated_img_header *)malloc(blocksize * sizeof(uint8_t));
 		if (!header) {
-			dprintf(CRITICAL, "Error: Alloc header file falied\n");
+			dprintf(SPEW, "Error: Alloc header file falied\n");
 			ret = -1;
 			goto end;
 		}
 		memcpy(header, (animated_img_header *)head, blocksize);
 		if (memcmp(header->magic, LOGO_IMG_MAGIC, 8)) {
-			dprintf(CRITICAL, "Invalid magic number in header %s %d\n",
+			dprintf(SPEW, "Invalid magic number in header %s %d\n",
 					header->magic, header->height);
 			ret = -1;
 			goto end;
 		}
 
 		if (header->width == 0 || header->height == 0) {
-			dprintf(CRITICAL, "Invalid height and width\n");
+			dprintf(SPEW, "Invalid height and width\n");
 			ret = -1;
 			goto end;
 		}
 
 		//ensure no overflow
 		if (header->num_frames > (INT_MAX / sizeof(void *))) {
-			dprintf(CRITICAL, "Too many frames causes overflow\n");
+			dprintf(SPEW, "Too many frames causes overflow\n");
 			ret = -1;
 			goto end;
 		}
 
 		buffers[j] = (void **)malloc(header->num_frames*sizeof(void *));
 		if (buffers[j] == NULL) {
-			dprintf(CRITICAL, "Cant alloc mem for ptrs\n");
+			dprintf(SPEW, "Cant alloc mem for ptrs\n");
 			ret = -1;
 			goto end;
 		}
 		if ((header->type == COMPRESSION_TYPE_RLE24) && (header->blocks != 0)) {
-			dprintf(CRITICAL, "Compressed data not supported\n");
+			dprintf(SPEW, "Compressed data not supported\n");
 			ret = 0;
 			goto end;
 		} else {
 			if ((header->width > fb_display->width) ||
 					(header->height > fb_display->height)) {
-				dprintf(CRITICAL, "Logo config greater than fb config. header->width %u"
+				dprintf(SPEW, "Logo config greater than fb config. header->width %u"
 						" fb->width = %u header->height = %u fb->height = %u\n",
 						header->width, fb_display->width, header->height, fb_display->height);
 				ret = -1;
 				goto end;
 			}
-			dprintf(INFO, "width:%d height:%d blocks:%d imgsize:%d num_frames:%d\n", header->width,
+			dprintf(SPEW, "width:%d height:%d blocks:%d imgsize:%d num_frames:%d\n", header->width,
 					header->height, header->blocks, header->img_size,header->num_frames);
 
 			if ((INT_MAX < (header->blocks * blocksize + blocksize)) ||
 					((total_frame_num * fb_display->width * fb_display->height * (fb_display->bpp/8))
 					 <= header->blocks * blocksize)) {
-				dprintf(CRITICAL, "block number causes overflow\n");
+				dprintf(SPEW, "block number causes overflow\n");
 				ret = -1;
 				goto end;
 			}
@@ -1174,20 +1174,20 @@ int animated_splash_screen_mmc()
 			//Before buffer reading, need some checks to ensure no overflow occurs.
 			if (((uint8_t *)buffer < (uint8_t *)ANIMATED_SPLASH_BUFFER) ||
 					((uint8_t *)buffer > (uint8_t *)ANIMATED_SPLASH_BUFFER + SPLASH_BUFFER_SIZE)) {
-				dprintf(CRITICAL, "buffer address not valid\n");
+				dprintf(SPEW, "buffer address not valid\n");
 				ret = -1;
 				goto end;
 			}
 
 			if ((uint8_t *)buffer + readsize > (uint8_t *)ANIMATED_SPLASH_BUFFER + SPLASH_BUFFER_SIZE) {
-				dprintf(CRITICAL, "buffer out of boundary\n");
+				dprintf(SPEW, "buffer out of boundary\n");
 				ret = -1;
 				goto end;
 			}
 
 			//read splash buffer directly
 			if (mmc_read((ptn + blocksize), (uint32_t *)buffer, readsize)) {
-				dprintf(CRITICAL, "ERROR: Cannot read splash image from partition 1\n");
+				dprintf(SPEW, "ERROR: Cannot read splash image from partition 1\n");
 				ret = -1;
 				goto end;
 			}
@@ -1265,13 +1265,13 @@ int animated_splash() {
 	bool firstIteration = true;
 
 	if (!buffers[0]) {
-		dprintf(CRITICAL, "Unexpected error in read\n");
+		dprintf(SPEW, "Unexpected error in read\n");
 		return 0;
 	}
 
 	/* Ensure inited display number by user is not greater than MAX_NUM_DISPLAY. */
 	if (disp_cnt > MAX_NUM_DISPLAY) {
-		dprintf(CRITICAL, "Inited display number exceeds\n");
+		dprintf(SPEW, "Inited display number exceeds\n");
 		disp_cnt = MAX_NUM_DISPLAY;
 	}
 
@@ -1282,18 +1282,18 @@ int animated_splash() {
 		mode_change[j] = false;
 		disp_ptr = target_display_open(j);
 		if (disp_ptr == NULL) {
-			dprintf(CRITICAL, "Display open failed\n");
+			dprintf(SPEW, "Display open failed\n");
 			return -1;
 		}
 		disp = target_get_display_info(disp_ptr);
 		if (disp == NULL){
-			dprintf(CRITICAL, "Display info failed\n");
+			dprintf(SPEW, "Display info failed\n");
 			return -1;
 		}
 
 		layer_ptr = target_display_acquire_layer(disp_ptr, "as", kFormatRGB888);
 		if (layer_ptr == NULL){
-			dprintf(CRITICAL, "Layer acquire failed\n");
+			dprintf(SPEW, "Layer acquire failed\n");
 			return -1;
 		}
 
@@ -1317,7 +1317,7 @@ int animated_splash() {
 		do {
 			fb = target_display_get_fb(j, fb_index);
 			if (fb == NULL){
-				dprintf(CRITICAL, "frame buffer acquire failed\n");
+				dprintf(SPEW, "frame buffer acquire failed\n");
 				return -1;
 			}
 			fb->z_order = SPLASH_SPLIT_0_LAYER_ZORDER + fb_index;
@@ -1330,7 +1330,7 @@ int animated_splash() {
 
 		if (disp->has_rvc) {
 			rvc_display_id = j;
-			dprintf(INFO, "rvc_display_id=%d\n", rvc_display_id);
+			dprintf(SPEW, "rvc_display_id=%d\n", rvc_display_id);
 			memcpy(&cached_rvc_layer_list, &layer_list[j], sizeof(struct target_layer));
 		}
 		if (disp->splitter_display_enabled)
@@ -1342,7 +1342,7 @@ int animated_splash() {
 	gpio_set(early_rvc_gpio, 0x0);
 	gpio_tlmm_config(early_rvc_gpio, 0, GPIO_INPUT, GPIO_NO_PULL,
 		GPIO_2MA, GPIO_ENABLE);
-	dprintf(CRITICAL, "gpio_tlmm_config_read(early_rvc_gpio) = %d\n", gpio_tlmm_config_read(early_rvc_gpio));
+	dprintf(SPEW, "gpio_tlmm_config_read(early_rvc_gpio) = %d\n", gpio_tlmm_config_read(early_rvc_gpio));
 
 	/* main animation loop */
 	while (1) {
@@ -1395,7 +1395,7 @@ int animated_splash() {
 							animated_splash_handle_layer_list(&layer_list[j],
 									&cached_rvc_layer_list,
 									&mode_change[j]);
-							dprintf(INFO, "mode_change becomes true to rvc case\n");
+							dprintf(SPEW, "mode_change becomes true to rvc case\n");
 						}
 					}
 
@@ -1439,7 +1439,7 @@ int animated_splash() {
 										"as", kFormatRGB888);
 							layer_list[j].layer = layer_ptr;
 						}
-						dprintf(INFO, "mode_change becomes true to animation case\n");
+						dprintf(SPEW, "mode_change becomes true to animation case\n");
 					}
 				}
 			}
@@ -1572,7 +1572,7 @@ void earlydomain_services()
 	bool panel_is_selected;
 
 	dprintf(SPEW, "earlydomain services started on secondary cpu\n");
-	dprintf(CRITICAL, "earlydomain_services: Waiting for display init to complete\n");
+	dprintf(SPEW, "earlydomain_services: Waiting for display init to complete\n");
 
 	while((FALSE == target_display_is_init_done()) && (i < 100))
 	{
@@ -1584,23 +1584,23 @@ void earlydomain_services()
 
 	/* Ensure panel type is selected before touching display scratch register. */
 	if (panel_is_selected) {
-		dprintf(CRITICAL, "earlydomain_services: Display init done\n");
+		dprintf(SPEW, "earlydomain_services: Display init done\n");
 		// Notify Kernel that LK is running
 		set_early_service_active_bit(EARLY_DISPLAY);
 	} else {
-		dprintf(CRITICAL, "earlydomain_services: panel is not selected\n");
+		dprintf(SPEW, "earlydomain_services: panel is not selected\n");
 	}
 
-	dprintf(CRITICAL, "Early Camera starting\n");
+	dprintf(SPEW, "Early Camera starting\n");
 
 	/* starting early audio */
 	if (early_audio_init() == -1) {
 		early_audio_enabled = 0;
-		dprintf(CRITICAL, "earlydomain_services: Early Audio exit start failed\n");
+		dprintf(SPEW, "earlydomain_services: Early Audio exit start failed\n");
 	} else {
 		// Write the first playback period
 		early_audio_check_dma_playback();
-		dprintf(CRITICAL, "earlydomain_services: Early Audio started\n");
+		dprintf(SPEW, "earlydomain_services: Early Audio started\n");
 	}
 
 	/*Create Animated splash thread if target supports it*/
@@ -1610,13 +1610,13 @@ void earlydomain_services()
 		mmc_read_done = true;
 		if (early_camera_init() == -1) {
 			early_camera_enabled = 0;
-			dprintf(CRITICAL, "earlydomain_services: Early Camera exit init failed\n");
+			dprintf(SPEW, "earlydomain_services: Early Camera exit init failed\n");
 		} else {
-			dprintf(CRITICAL, "earlydomain_services: Early Camera starting\n");
+			dprintf(SPEW, "earlydomain_services: Early Camera starting\n");
 		}
-		dprintf(CRITICAL, "earlydomain_services: mmc read done\n");
+		dprintf(SPEW, "earlydomain_services: mmc read done\n");
 		if (ret) {
-			dprintf(CRITICAL, "Error in reading memory. Skip Animated splash\n");
+			dprintf(SPEW, "Error in reading memory. Skip Animated splash\n");
 		} else {
 			animated_splash();
 		}
@@ -1678,20 +1678,20 @@ int get_target_boot_params(const char *cmdline, const char *part, char **buf)
 	uint32_t buflen = strlen(ROOTFS_EMMC_PATH) + sizeof(int) + 1; /*1 character for null termination*/
 
 	if (!cmdline || !part ) {
-		dprintf(CRITICAL, "WARN: Invalid input param\n");
+		dprintf(SPEW, "WARN: Invalid input param\n");
 		return -1;
 	}
 
 	system_ptn_index = partition_get_index(part);
 	if (system_ptn_index == -1)
 	{
-		dprintf(CRITICAL,"Unable to find partition %s\n",part);
+		dprintf(SPEW,"Unable to find partition %s\n",part);
 		return -1;
 	}
 
 	*buf = (char *)malloc(buflen);
 	if(!(*buf)) {
-		dprintf(CRITICAL,"Unable to allocate memory for boot params\n");
+		dprintf(SPEW,"Unable to allocate memory for boot params\n");
 		return -1;
 	}
 
@@ -1710,7 +1710,7 @@ int get_target_boot_params(const char *cmdline, const char *part, char **buf)
 		} else {
 			lun = partition_get_lun(system_ptn_index);
 			if ((lun_char_base + lun) > lun_char_limit) {
-				dprintf(CRITICAL, "lun value exceeds limit\n");
+				dprintf(SPEW, "lun value exceeds limit\n");
 				return -1;
 			}
 			snprintf(*buf, buflen, " root=/dev/sd%c%d",

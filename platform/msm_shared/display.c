@@ -118,7 +118,7 @@ static void _msm_display_attach_external_layer(
 		index &= ~(1 << j);
 
 		pipe_name = target_utils_translate_layer_to_fb(&fb[i], j, &layer);
-		dprintf(INFO, "pipe_name(%d)=%s\n", i, pipe_name);
+		dprintf(SPEW, "pipe_name(%d)=%s\n", i, pipe_name);
 
 		if (!pipe_name)
 			continue;
@@ -141,7 +141,7 @@ static int msm_display_attach_external_layer(struct msm_panel_info *pinfo)
 	target_utils_get_early_app_layer_cnt(pinfo->dest,
 			&fb_cnt_on_single_display, &total_early_app_fb_cnt, &index_mask);
 
-	dprintf(INFO, "single_cnt=%d, total=%d, mask=0x%x\n",
+	dprintf(SPEW, "single_cnt=%d, total=%d, mask=0x%x\n",
 		fb_cnt_on_single_display, total_early_app_fb_cnt, index_mask);
 	if ((fb_cnt_on_single_display > 0) &&
 		(fb_cnt_on_single_display < MAX_STAGE_FB)) {
@@ -241,7 +241,7 @@ int msm_display_config()
 			goto msm_display_config_out;
 		break;
 	case SPI_PANEL:
-		dprintf(INFO, "Config SPI PANEL.\n");
+		dprintf(SPEW, "Config SPI PANEL.\n");
 		ret = mdss_spi_init();
 		if (ret)
 			goto msm_display_config_out;
@@ -369,7 +369,7 @@ int msm_display_on()
 			goto msm_display_on_out;
 		break;
 	case SPI_PANEL:
-		dprintf(INFO, "Turn on SPI_PANEL.\n");
+		dprintf(SPEW, "Turn on SPI_PANEL.\n");
 		ret = mdss_spi_on(pinfo, panel->fb);
 		if (ret)
 			goto msm_display_on_out;
@@ -455,7 +455,7 @@ int msm_display_update(struct fbcon_config *fb, uint32_t fb_cnt,
 	switch (pinfo->type) {
 		case MIPI_VIDEO_PANEL:
 			if (firstframe) {
-				dprintf(INFO, "set DSI config and update once\n");
+				dprintf(SPEW, "set DSI config and update once\n");
 				ret = mdp_dsi_video_config(pinfo, fb, fb_cnt);
 				if (ret) {
 					dprintf(CRITICAL, "ERROR in dsi display config\n");
@@ -484,7 +484,7 @@ int msm_display_update(struct fbcon_config *fb, uint32_t fb_cnt,
 			break;
 		case HDMI_PANEL:
 			if (firstframe) {
-				dprintf(INFO, "set HDMI config and update once\n");
+				dprintf(SPEW, "set HDMI config and update once\n");
 				ret = mdss_hdmi_config(pinfo, fb, fb_cnt);
 				if (ret) {
 					dprintf(CRITICAL, "ERROR in hdmi display config\n");
@@ -716,7 +716,7 @@ int msm_display_off()
 	switch (pinfo->type) {
 #ifdef DISPLAY_TYPE_MDSS
 	case LVDS_PANEL:
-		dprintf(INFO, "Turn off LVDS PANEL.\n");
+		dprintf(SPEW, "Turn off LVDS PANEL.\n");
 		mdp_lcdc_off();
 		break;
 	case MIPI_VIDEO_PANEL:

@@ -131,7 +131,7 @@ static bool _mdp_rm_search_pipe_by_name(
 				return true;
 			}
 			else
-				dprintf(INFO, "target %s pipe is occupied\n", pipe_name);
+				dprintf(SPEW, "target %s pipe is occupied\n", pipe_name);
 		}
 	}
 
@@ -173,7 +173,7 @@ void mdp_rm_update_pipe_pending_mask(struct resource_req *res_mgr,
 void mdp_rm_reset_resource_manager(bool reseted)
 {
 	if (!reseted) {
-		dprintf(INFO, "call _mdp_rm_init\n");
+		dprintf(SPEW, "call _mdp_rm_init\n");
 		_mdp_rm_init();
 	}
 
@@ -233,7 +233,7 @@ int mdp_rm_update_pipe_status(uint32_t index,
 				display_req[dest_display_id - DISPLAY_1].pp_state[i].type =
 									MDSS_MDP_PIPE_TYPE_VIG;
 
-			dprintf(INFO, "set pipe 0x%x to display%d, base[%d]=0x%x, zorder=%d\n",
+			dprintf(SPEW, "set pipe 0x%x to display%d, base[%d]=0x%x, zorder=%d\n",
 				pipe_req[index].base, dest_display_id,
 				i, display_req[dest_display_id - DISPLAY_1].pp_state[i].base,
 				display_req[dest_display_id - DISPLAY_1].pp_state[i].zorder);
@@ -266,7 +266,7 @@ void mdp_rm_select_mixer(struct msm_panel_info *pinfo)
 			if (display_req[pinfo->dest - DISPLAY_1].num_ctl == 2)
 				display_req[pinfo->dest - DISPLAY_1].ctl_base[1] = MDP_CTL_2_BASE;
 		} else {
-			dprintf(CRITICAL, "Display 1 CTL setup incorrect\n");
+			dprintf(SPEW, "Display 1 CTL setup incorrect\n");
 		}
 
 		if (display_req[0].num_lm == 2) {
@@ -278,7 +278,7 @@ void mdp_rm_select_mixer(struct msm_panel_info *pinfo)
 			if (display_req[pinfo->dest - DISPLAY_1].num_lm == 2)
 				display_req[pinfo->dest - DISPLAY_1].lm_base[1] = MDP_VP_0_MIXER_2_BASE;
 		} else {
-			dprintf(CRITICAL, "Display 2 LM setup incorrect\n");
+			dprintf(SPEW, "Display 2 LM setup incorrect\n");
 		}
 	} else {
 		//pinfo->dest is DISPLAY_3, the only possible CTL path is 2 only

@@ -434,10 +434,10 @@ static uint32_t _mdp_get_pipe(struct resource_req *res_mgr,
 		}
 	}
 
-	dprintf(CRITICAL, "not get pipe base\n");
-	dprintf(INFO, "input zorder=%d, pipe_type=%d\n", zorder, pipe_type);
+	dprintf(SPEW, "not get pipe base\n");
+	dprintf(SPEW, "input zorder=%d, pipe_type=%d\n", zorder, pipe_type);
 	for (i = search_start; i < MDP_STAGE_6; i++)
-		dprintf(INFO, "pp_state[%d]: zorder=%d, type=%d, base=0x%x\n", i,
+		dprintf(SPEW, "pp_state[%d]: zorder=%d, type=%d, base=0x%x\n", i,
 		res_mgr->pp_state[i].zorder, res_mgr->pp_state[i].type, res_mgr->pp_state[i].base);
 	return 0;
 }
@@ -765,7 +765,7 @@ static void mdss_mdp_set_flush(struct msm_panel_info *pinfo,
 	}
 
 	mdss_mdp_flush_pipe(rm, left_flush_mask, right_flush_mask, true);
-	dprintf(INFO, "display_id%d: left_flush_mask=0x%x, right_flush_mask =0x%x\n",
+	dprintf(SPEW, "display_id%d: left_flush_mask=0x%x, right_flush_mask =0x%x\n",
 		pinfo->dest, *left_flush_mask, *right_flush_mask);
 
 	mdp_rm_clear_pipe_mask(rm);
@@ -1496,11 +1496,11 @@ static int mdp_acquire_pipe(uint32_t dest_display_id, struct fbcon_config *fb,
 	ret = mdp_rm_search_pipe(pipe_type, dest_display_id,
 			&index, explicit_pipe_name);
 	if (ret) {
-		dprintf(CRITICAL, "%s: pipe search failed\n", __func__);
+		dprintf(SPEW, "%s: pipe search failed\n", __func__);
 		return ret;
 	}
 
-	dprintf(INFO, "%s:index=0x%x\n", __func__, index);
+	dprintf(SPEW, "%s:index=0x%x\n", __func__, index);
 	ret = mdp_rm_update_pipe_status(index, dest_display_id,
 		fb->z_order, right_stage, pipe_base);
 
@@ -1531,12 +1531,12 @@ int mdp_setup_pipe(struct msm_panel_info *pinfo,
 	struct resource_req *res_mgr = NULL;
 	uint32_t search_start = 0, pp_index = 0, pipe_type;
 
-	dprintf(INFO, "%s:input fb_cnt=%d\n", __func__, fb_cnt);
+	dprintf(SPEW, "%s:input fb_cnt=%d\n", __func__, fb_cnt);
 	real_fb_cnt = fb_cnt;
 
 	res_mgr = mdp_rm_retrieve_resource(pinfo->dest);
 	if (!res_mgr) {
-		dprintf(CRITICAL, "%s:get hardware resource failed\n", __func__);
+		dprintf(SPEW, "%s:get hardware resource failed\n", __func__);
 		return ERR_NOT_VALID;
 	}
 
@@ -1548,15 +1548,15 @@ int mdp_setup_pipe(struct msm_panel_info *pinfo,
 	*/
 	if (pinfo->lcdc.dual_pipe & !pinfo->splitter_is_enabled) {
 		if (fb_cnt * MAX_SPLIT_DISPLAY > MDP_STAGE_6) {
-			dprintf(CRITICAL, "invalid user fb number\n");
+			dprintf(SPEW, "invalid user fb number\n");
 			real_fb_cnt = MDP_STAGE_6 / MAX_SPLIT_DISPLAY;
 		}
 	}
 
-	dprintf(CRITICAL, "%s:real_fb=%d\n", __func__, real_fb_cnt);
+	dprintf(SPEW, "%s:real_fb=%d\n", __func__, real_fb_cnt);
 
 	for (fb_index = SPLIT_DISPLAY_0; fb_index < real_fb_cnt; fb_index++) {
-		dprintf(INFO, "%s: fb_index=%d", __func__, fb_index);
+		dprintf(SPEW, "%s: fb_index=%d", __func__, fb_index);
 		pipe_on_right = false;
 		search_start = 0;
 
@@ -1567,10 +1567,10 @@ int mdp_setup_pipe(struct msm_panel_info *pinfo,
 		ret = mdp_acquire_pipe(pinfo->dest, &fb[fb_index],
 				&pipe_base, pipe_on_right, NULL);
 		if (ret) {
-			dprintf(CRITICAL, "Acquire pipe for fb%d failed\n", fb_index);
+			dprintf(SPEW, "Acquire pipe for fb%d failed\n", fb_index);
 			continue;
 		}
-		dprintf(INFO, "Acquire pipe base=0x%x\n", pipe_base);
+		dprintf(SPEW, "Acquire pipe base=0x%x\n", pipe_base);
 		if (target_is_yuv_format(fb[fb_index].format))
 			pipe_type = MDSS_MDP_PIPE_TYPE_VIG;
 		else
@@ -1578,19 +1578,19 @@ int mdp_setup_pipe(struct msm_panel_info *pinfo,
 
 		if (pipe_base != _mdp_get_pipe(res_mgr, search_start,
 			fb[fb_index].z_order, pipe_type, &pp_index)) {
-			dprintf(CRITICAL, "pipe_base is not the same, aborted\n");
+			dprintf(SPEW, "pipe_base is not the same, aborted\n");
 			continue;
 		}
 
 		if ((fb[fb_index].base == NULL) &&
 			target_format_is_valid(fb[fb_index].format)) {
 			/* set layer to be transparent */
-			dprintf(INFO, "transparent base=0x%x\n", pipe_base);
+			dprintf(SPEW, "transparent base=0x%x\n", pipe_base);
 			mdss_mdp_set_layer_transparent(pinfo, pipe_base,
 				target_is_yuv_format(fb[fb_index].format));
 		} else {
 			/* normal layer */
-			dprintf(INFO, "normal base=0x%x\n", pipe_base);
+			dprintf(SPEW, "normal base=0x%x\n", pipe_base);
 			_mdp_fill_border_rect(pinfo->border_left[fb_index],
 						pinfo->border_right[fb_index],
 						pinfo->border_top[fb_index],
@@ -1618,7 +1618,7 @@ int mdp_setup_pipe(struct msm_panel_info *pinfo,
 			ret = mdp_acquire_pipe(pinfo->dest, &fb[fb_index],
 					&pipe_base, pipe_on_right, NULL);
 			if (ret) {
-				dprintf(CRITICAL,
+				dprintf(SPEW,
 					"Acquire pipe for fb%d failed in dual pipe case\n", fb_index);
 				continue;
 			}
@@ -1651,7 +1651,7 @@ int mdp_setup_pipe(struct msm_panel_info *pinfo,
 		*right_pipe = res_mgr->pp_state[external_fb_offset + 1].base;
 	}
 
-	dprintf(INFO, "%s:left_pipe=0x%x, right_pipe=0x%x\n", __func__, *left_pipe, *right_pipe);
+	dprintf(SPEW, "%s:left_pipe=0x%x, right_pipe=0x%x\n", __func__, *left_pipe, *right_pipe);
 
 	return NO_ERROR;
 }
@@ -1661,7 +1661,7 @@ static int mdp_get_pipe_stage_level(struct resource_req *rm,
 {
 	uint32_t i = 0;
 
-	dprintf(INFO, "%s: pending_pipe_mask=0x%x\n", __func__, rm->pending_pipe_mask);
+	dprintf(SPEW, "%s: pending_pipe_mask=0x%x\n", __func__, rm->pending_pipe_mask);
 	for (i = 0; i < MDP_STAGE_6; i++) {
 		if ((rm->pending_pipe_mask & (1 << i)) &&
 			(rm->pp_state[i].zorder >= MDP_STAGE_1)) {
@@ -1837,7 +1837,7 @@ void mdss_layer_mixer_setup(struct fbcon_config *fb, struct msm_panel_info *pinf
 	mdp_blend_setup(rm, left_mixer_base, right_mixer_base, pinfo->dest);
 
 	mdp_get_pipe_stage_level(rm, &left_staging_level, &right_staging_level);
-	dprintf(CRITICAL, "left_stage_level=0x%x, right_stage_level=0x%x\n",
+	dprintf(SPEW, "left_stage_level=0x%x, right_stage_level=0x%x\n",
 		left_staging_level, right_staging_level);
 
 	/* border fill */
@@ -2308,7 +2308,7 @@ int mdp_config_external_pipe(struct msm_panel_info *pinfo,
 	mdss_mdp_solid_fill(pipe_base, (pipe_type == MDSS_MDP_PIPE_TYPE_VIG) ? 1: 0);
 
 	mdp_rm_update_pipe_pending_mask(rm, pp_index);
-	dprintf(INFO, "[LK]Configured pipe_base: %08X for Scaling with src_w: %d src_h: %d"
+	dprintf(SPEW, "[LK]Configured pipe_base: %08X for Scaling with src_w: %d src_h: %d"
 			" dst_w: %d dst_h: %d\n",pipe_base, layer->left_pipe.src_rect.w, layer->left_pipe.src_rect.h,
 			layer->left_pipe.dst_rect.w, layer->left_pipe.src_rect.h);
 
@@ -2455,7 +2455,7 @@ int mdss_hdmi_config(struct msm_panel_info *pinfo,
 	uint32_t old_intf_sel, prg_fetch_start_en;
 	struct resource_req *rm = NULL;
 
-	dprintf(INFO, "%s:destdisplay=%d\n", __func__, pinfo->dest);
+	dprintf(SPEW, "%s:destdisplay=%d\n", __func__, pinfo->dest);
 
 	/* update resource manager per config and retrieve it next */
 	mdp_rm_update_resource(pinfo, false);
@@ -2696,7 +2696,7 @@ int mdp_update_pipe(struct msm_panel_info *pinfo,
 		search_start = 0;
 
 		if (cnt++ < 6)
-			dprintf(INFO, "fb%d: zorder=%d, format=%d, base=0x%x\n",
+			dprintf(SPEW, "fb%d: zorder=%d, format=%d, base=0x%x\n",
 			fb_index, fb[fb_index].z_order, fb[fb_index].format,
 			fb[fb_index].base == NULL ? 0 : (uint32_t)fb[fb_index].base);
 

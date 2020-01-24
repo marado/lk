@@ -267,7 +267,7 @@ unsigned int place_marker(char *marker_name)
         unsigned int marker_value;
 
         marker_value = readl(MPM2_MPM_SLEEP_TIMETICK_COUNT_VAL);
-        dprintf(INFO, "marker name=%s; marker value=%u.%03u seconds\n",
+        dprintf(SPEW, "marker name=%s; marker value=%u.%03u seconds\n",
                         marker_name, marker_value/TIMER_KHZ,
                         (((marker_value % TIMER_KHZ)
                         * 1000) / TIMER_KHZ));
@@ -306,7 +306,7 @@ static uint32_t thulium_dsi_pll_enable_seq(uint32_t phy_base, uint32_t pll_base)
 		pll_locked = thulium_dsi_pll_lock_status(pll_base, 0xcc, 0);
 
 	if (!pll_locked)
-		dprintf(ERROR, "%s: DSI PLL lock failed\n", __func__);
+		dprintf(SPEW, "%s: DSI PLL lock failed\n", __func__);
 	else
 		dprintf(SPEW, "%s: DSI PLL lock Success\n", __func__);
 
@@ -410,7 +410,7 @@ static int dsi2HDMI_i2c_write_regs(struct msm_panel_info *pinfo,
 	uint8_t addr;
 
 	if (!cfg || size < 0) {
-		dprintf(CRITICAL, "Invalid input: register array is null\n");
+		dprintf(SPEW, "Invalid input: register array is null\n");
 		return ERR_INVALID_ARGS;
 	}
 
@@ -429,7 +429,7 @@ static int dsi2HDMI_i2c_write_regs(struct msm_panel_info *pinfo,
 					addr = pinfo->adv7533.i2c_cec_addr;
 				break;
 			default:
-				dprintf(CRITICAL, "Invalid I2C addr in array\n");
+				dprintf(SPEW, "Invalid I2C addr in array\n");
 				ret = ERR_INVALID_ARGS;
 				goto w_regs_fail;
 		}
@@ -437,7 +437,7 @@ static int dsi2HDMI_i2c_write_regs(struct msm_panel_info *pinfo,
 		ret = mipi_dsi_i2c_write_byte(addr, cfg[i].reg,
 			cfg[i].val);
 		if (ret) {
-			dprintf(CRITICAL, "mipi_dsi reg writes failed\n");
+			dprintf(SPEW, "mipi_dsi reg writes failed\n");
 			goto w_regs_fail;
 		}
 		if (cfg[i].sleep_in_ms) {
@@ -463,7 +463,7 @@ int target_display_dsi2hdmi_program_addr(struct msm_panel_info *pinfo, bool seco
 				0xE1, i2c_8bits);
 	}
 	if (ret) {
-		dprintf(CRITICAL, "Error in programming CEC DSI addr\n");
+		dprintf(SPEW, "Error in programming CEC DSI addr\n");
 	} else {
 		dprintf(SPEW, "CEC address programming successful\n");
 	}
@@ -475,13 +475,13 @@ int target_display_dsi2hdmi_config(struct msm_panel_info *pinfo)
 	int ret = NO_ERROR;
 
 	if (!pinfo) {
-		dprintf(CRITICAL, "Invalid input: pinfo is null\n");
+		dprintf(SPEW, "Invalid input: pinfo is null\n");
 		return ERR_INVALID_ARGS;
 	}
 	if (!pinfo->adv7533.program_i2c_addr) {
 		ret = target_display_dsi2hdmi_program_addr(pinfo, false);
 		if (ret) {
-			dprintf(CRITICAL, "Error in programming cec dsi addr for %s\n",
+			dprintf(SPEW, "Error in programming cec dsi addr for %s\n",
 				(pinfo->dest == DISPLAY_2) ? "DSI1" : "DSI0");
 			return ret;
 		} else {
@@ -493,7 +493,7 @@ int target_display_dsi2hdmi_config(struct msm_panel_info *pinfo)
 	if ((pinfo->lcdc.split_display) && (!pinfo->sadv7533.program_i2c_addr)) {
 		ret = target_display_dsi2hdmi_program_addr(pinfo, true);
 		if (ret) {
-			dprintf(CRITICAL, "Error in programming cec dsi addr for secondary bridge\n");
+			dprintf(SPEW, "Error in programming cec dsi addr for secondary bridge\n");
 			return ret;
 		} else {
 			dprintf(SPEW, "successfully programmed cec dsi addr for secondary bridge\n");
@@ -514,7 +514,7 @@ int target_display_dsi2hdmi_config(struct msm_panel_info *pinfo)
 					pinfo->adv7533.num_of_cfg_i2c_cmds, true);
 
 		if (ret) {
-			dprintf(CRITICAL, "Error in writing adv7533 setup registers for %s\n",
+			dprintf(SPEW, "Error in writing adv7533 setup registers for %s\n",
 							(pinfo->dest == DISPLAY_2) ? "DSI1" : "DSI0");
 			return ret;
 		}
@@ -529,7 +529,7 @@ int target_display_dsi2hdmi_config(struct msm_panel_info *pinfo)
 						pinfo->adv7533.num_of_tg_i2c_cmds, true);
 
 		if (ret) {
-			dprintf(CRITICAL, "Error in writing adv7533 timing registers for %s\n",
+			dprintf(SPEW, "Error in writing adv7533 timing registers for %s\n",
 							(pinfo->dest == DISPLAY_2) ? "DSI1" : "DSI0");
 		}
 	}
@@ -543,7 +543,7 @@ int target_backlight_ctrl(struct backlight *bl, uint8_t enable)
 	int rc;
 
 	if (!bl) {
-		dprintf(CRITICAL, "backlight structure is not available\n");
+		dprintf(SPEW, "backlight structure is not available\n");
 		return ERR_INVALID_ARGS;
 	}
 
@@ -586,7 +586,7 @@ int target_backlight_ctrl(struct backlight *bl, uint8_t enable)
 		ret = thulium_pwm_backlight_ctrl(enable);
 		break;
 	default:
-		dprintf(CRITICAL, "backlight type:%d not supported\n",
+		dprintf(SPEW, "backlight type:%d not supported\n",
 						bl->bl_interface_type);
 		return ERR_NOT_SUPPORTED;
 	}
@@ -637,7 +637,7 @@ int target_panel_clock(uint8_t enable, struct msm_panel_info *pinfo)
 	if (!thulium_dsi_pll_enable_seq(pinfo->mipi.phy_base,
 		pinfo->mipi.pll_base)) {
 		ret = ERROR;
-		dprintf(CRITICAL, "PLL failed to lock!\n");
+		dprintf(SPEW, "PLL failed to lock!\n");
 		goto clks_disable;
 	}
 
@@ -819,7 +819,7 @@ bool target_display_panel_node(char *pbuf, uint16_t buf_size)
 		((!strlen(oem.panel)) && (platform_is_apq8096_mediabox()))) {
 		if (buf_size < (prefix_string_len + LK_OVERRIDE_PANEL_LEN +
 				strlen(HDMI_CONTROLLER_STRING))) {
-			dprintf(CRITICAL, "command line argument is greater than buffer size\n");
+			dprintf(SPEW, "command line argument is greater than buffer size\n");
 			return false;
 		}
 
@@ -984,7 +984,7 @@ void target_display_init(const char *panel_name)
 		|| !strcmp(oem.panel, SIM_CMD_PANEL)
 		|| !strcmp(oem.panel, SIM_DUALDSI_CMD_PANEL)
 		|| oem.skip) {
-		dprintf(INFO, "Selected panel: %s\nSkip panel configuration\n",
+		dprintf(SPEW, "Selected panel: %s\nSkip panel configuration\n",
 			oem.panel);
 		goto target_display_init_end;
 	} else if (!strcmp(oem.panel, HDMI_PANEL_NAME)) {
@@ -1272,7 +1272,7 @@ void target_display_init(const char *panel_name)
 	}
 
 	if (!oem.cont_splash) {
-		dprintf(INFO, "Forcing continuous splash disable\n");
+		dprintf(SPEW, "Forcing continuous splash disable\n");
 		target_force_cont_splash_disable(true);
 	}
 
@@ -1342,7 +1342,7 @@ void * target_acquire_vig_pipe(struct target_display *disp)
 void * target_display_open (uint32 display_id)
 {
 	if (display_id >= MAX_NUM_DISPLAY) {
-		dprintf(CRITICAL, "Invalid display id %u\n", display_id);
+		dprintf(SPEW, "Invalid display id %u\n", display_id);
 		return NULL;
 	} else {
 		return (void *) &displays[display_id];
@@ -1408,7 +1408,7 @@ int target_display_update(struct target_display_update *update,
 #endif
 
 	if (update == NULL) {
-		dprintf(CRITICAL, "Error: Invalid argument\n");
+		dprintf(SPEW, "Error: Invalid argument\n");
 		return ERR_INVALID_ARGS;
 	}
 
@@ -1416,7 +1416,7 @@ int target_display_update(struct target_display_update *update,
 		cur_disp = (struct target_display *)update[i].disp;
 		lyr = (struct target_layer_int *)update[i].layer_list[0].layer;
 		if (lyr == NULL) {
-			dprintf(CRITICAL, "Invalid layer entry %p\n",cur_disp);
+			dprintf(SPEW, "Invalid layer entry %p\n",cur_disp);
 			return ERR_INVALID_ARGS;
 		}
 		pipe_id = lyr->layer_id;
@@ -1533,7 +1533,7 @@ int target_display_update(struct target_display_update *update,
 			pipe_id, pipe_type, update[i].layer_list[0].dst_width, update[i].layer_list[0].dst_height,
 			disp_id, has_rvc_context, firstframe);
 		if (ret != 0)
-			dprintf(CRITICAL, "Error in display upadte ret=%u\n",ret);
+			dprintf(SPEW, "Error in display upadte ret=%u\n",ret);
 
 #if ENABLE_QSEED_SCALAR
 		// Clean up the FB structure because it will be reuse
@@ -1554,7 +1554,7 @@ int target_display_update_pipe(struct target_display_update * update, uint32_t s
 	uint32_t ret = 0;
 
 	if (update == NULL) {
-		dprintf(CRITICAL, "Error: Invalid argument\n");
+		dprintf(SPEW, "Error: Invalid argument\n");
 		return ERR_INVALID_ARGS;
 	}
 
@@ -1562,7 +1562,7 @@ int target_display_update_pipe(struct target_display_update * update, uint32_t s
 		cur_disp = (struct target_display *)update[i].disp;
 		lyr = (struct target_layer_int *)update[i].layer_list[0].layer;
 		if (lyr == NULL) {
-			dprintf(CRITICAL, "Invalid layer entry %p\n",cur_disp);
+			dprintf(SPEW, "Invalid layer entry %p\n",cur_disp);
 			return ERR_INVALID_ARGS;
 		}
 		pipe_id = lyr->layer_id;
@@ -1571,7 +1571,7 @@ int target_display_update_pipe(struct target_display_update * update, uint32_t s
 		ret = msm_display_update_pipe(update[i].layer_list[0].fb, pipe_id, pipe_type,
 			update[i].layer_list[0].dst_width, update[i].layer_list[0].dst_height, disp_id);
 		if (ret != 0)
-			dprintf(CRITICAL, "Error in display pipe upadte ret=%u\n",ret);
+			dprintf(SPEW, "Error in display pipe upadte ret=%u\n",ret);
 
 	}
 	return ret;
@@ -1608,7 +1608,7 @@ int target_release_layer(struct target_layer *layer,
 	ret = msm_display_hide_pipe(fb, layer->valid_fb_cnt,
 		pipe_id, pipe_type, disp_id);
 	if (ret)
-		dprintf(CRITICAL, "call %s failed\n", __func__);
+		dprintf(SPEW, "call %s failed\n", __func__);
 
 	return ret;
 }

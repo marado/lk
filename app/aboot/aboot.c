@@ -1330,7 +1330,7 @@ static void verify_signed_bootimg(uint32_t bootimg_addr, uint32_t bootimg_size)
 	/* Assume device is rooted at this time. */
 	device.is_tampered = 1;
 
-	dprintf(INFO, "Authenticating boot image (%d): start\n", bootimg_size);
+	dprintf(CRITICAL, "Authenticating boot image (%d): start\n", bootimg_size);
 
 #if VERIFIED_BOOT
 	uint32_t bootstate;
@@ -1552,6 +1552,8 @@ int boot_linux_from_mmc(void)
 	struct kernel64_hdr *kptr = NULL;
 	int current_active_slot = INVALID;
 
+        dprintf(CRITICAL, "boot_linux_from_mmc start\n");
+
 	if (check_format_bit())
 		boot_into_recovery = 1;
 
@@ -1561,14 +1563,14 @@ int boot_linux_from_mmc(void)
 		if (rcode <= 0) {
 			boot_into_ffbm = false;
 			if (rcode < 0)
-				dprintf(CRITICAL,"failed to get ffbm cookie");
+				dprintf(CRITICAL,"boot_linux_from_mmc failed to get ffbm cookie");
 		} else
 			boot_into_ffbm = true;
 	} else
 		boot_into_ffbm = false;
 	uhdr = (boot_img_hdr *)EMMC_BOOT_IMG_HEADER_ADDR;
 	if (!memcmp(uhdr->magic, BOOT_MAGIC, BOOT_MAGIC_SIZE)) {
-		dprintf(INFO, "Unified boot method!\n");
+		dprintf(CRITICAL, "boot_linux_from_mmc Unified boot method!\n");
 		hdr = uhdr;
 		goto unified_boot;
 	}
@@ -1585,7 +1587,7 @@ int boot_linux_from_mmc(void)
 	ptn = partition_get_offset(index);
 	image_size = partition_get_size(index);
 	if(ptn == 0 || image_size == 0) {
-		dprintf(CRITICAL, "ERROR: No %s partition found\n", ptn_name);
+		dprintf(CRITICAL, "boot_linux_from_mmc ERROR: No %s partition found\n", ptn_name);
 		return -1;
 	}
 
@@ -1593,24 +1595,24 @@ int boot_linux_from_mmc(void)
 	mmc_set_lun(partition_get_lun(index));
 
 	if (mmc_read(ptn + offset, (uint32_t *) buf, page_size)) {
-		dprintf(CRITICAL, "ERROR: Cannot read boot image header\n");
+		dprintf(CRITICAL, "boot_linux_from_mmc ERROR: Cannot read boot image header\n");
                 return -1;
 	}
 
         if (!memcmp(buf, &blank_img_header_mmc, BLANK_PARTITION_MAGIC_SIZE)) {
-                dprintf(CRITICAL, "ERROR: No boot image present in boot partition\n");
+                dprintf(CRITICAL, "boot_linux_from_mmc ERROR: No boot image present in boot partition\n");
                 return -1;
         }
 
 	if (memcmp(hdr->magic, BOOT_MAGIC, BOOT_MAGIC_SIZE)) {
-		dprintf(CRITICAL, "ERROR: Invalid boot image header\n");
+		dprintf(CRITICAL, "boot_linux_from_mmc ERROR: Invalid boot image header\n");
                 return -ECORRUPTED_IMAGE;
 	}
 
 	if (hdr->page_size && (hdr->page_size != page_size)) {
 
 		if (hdr->page_size > BOOT_IMG_MAX_PAGE_SIZE) {
-			dprintf(CRITICAL, "ERROR: Invalid page size\n");
+			dprintf(CRITICAL, "boot_linux_from_mmc ERROR: Invalid page size\n");
 			return -ECORRUPTED_IMAGE;
 		}
 		page_size = hdr->page_size;
@@ -1635,18 +1637,18 @@ int boot_linux_from_mmc(void)
 #ifndef OSVERSION_IN_BOOTIMAGE
 	dt_size = hdr->dt_size;
 #else
-	dprintf(INFO, "BootImage Header: %d\n", hdr->header_version);
+	dprintf(CRITICAL, "boot_linux_from_mmc BootImage Header: %d\n", hdr->header_version);
 #endif
 
 	dt_actual = ROUND_TO_PAGE(dt_size, page_mask);
 	if (UINT_MAX < ((uint64_t)kernel_actual + (uint64_t)ramdisk_actual+ (uint64_t)second_actual + (uint64_t)dt_actual + page_size)) {
-		dprintf(CRITICAL, "Integer overflow detected in bootimage header fields at %u in %s\n",__LINE__,__FILE__);
+		dprintf(CRITICAL, "boot_linux_from_mmc Integer overflow detected in bootimage header fields at %u in %s\n",__LINE__,__FILE__);
 		return -ECORRUPTED_IMAGE;
 	}
 	imagesize_actual = (page_size + kernel_actual + ramdisk_actual + second_actual + dt_actual);
 #else
 	if (UINT_MAX < ((uint64_t)kernel_actual + (uint64_t)ramdisk_actual + (uint64_t)second_actual + page_size)) {
-		dprintf(CRITICAL, "Integer overflow detected in bootimage header fields at %u in %s\n",__LINE__,__FILE__);
+		dprintf(CRITICAL, "boot_linux_from_mmc Integer overflow detected in bootimage header fields at %u in %s\n",__LINE__,__FILE__);
 		return -ECORRUPTED_IMAGE;
 	}
 	imagesize_actual = (page_size + kernel_actual + ramdisk_actual + second_actual);
@@ -1670,32 +1672,32 @@ int boot_linux_from_mmc(void)
 		if ((hdr1->header_size !=
 				sizeof(struct boot_img_hdr_v1) + sizeof(boot_img_hdr)))
 		{
-			dprintf(CRITICAL, "Invalid boot image header: %d\n", hdr1->header_size);
+			dprintf(CRITICAL, "boot_linux_from_mmc Invalid boot image header: %d\n", hdr1->header_size);
 			return -1;
 		}
 
 		if (recovery_dtbo_actual > MAX_SUPPORTED_DTBO_IMG_BUF)
 		{
-			dprintf(CRITICAL, "Recovery Dtbo Size too big %x, Allowed size %x\n", recovery_dtbo_actual,
+			dprintf(CRITICAL, "boot_linux_from_mmc Recovery Dtbo Size too big %x, Allowed size %x\n", recovery_dtbo_actual,
 				MAX_SUPPORTED_DTBO_IMG_BUF);
 			return -1;
 		}
 
 		if (UINT_MAX < ((uint64_t)imagesize_actual + recovery_dtbo_actual))
 		{
-			dprintf(CRITICAL, "Integer overflow detected in recoveryimage header fields at %u in %s\n",__LINE__,__FILE__);
+			dprintf(CRITICAL, "boot_linux_from_mmc Integer overflow detected in recoveryimage header fields at %u in %s\n",__LINE__,__FILE__);
 			return -1;
 		}
 
 		if (UINT_MAX < (hdr1->recovery_dtbo_offset + recovery_dtbo_actual)) {
 			dprintf(CRITICAL,
-				"Integer overflow detected in recovery image header fields at %u in %s\n",__LINE__,__FILE__);
+				"boot_linux_from_mmc Integer overflow detected in recovery image header fields at %u in %s\n",__LINE__,__FILE__);
 			return -1;
 		}
 
 		if (hdr1->recovery_dtbo_offset + recovery_dtbo_actual > image_size)
 		{
-			dprintf(CRITICAL, "Invalid recovery dtbo: Recovery Dtbo Offset=0x%llx,"
+			dprintf(CRITICAL, "boot_linux_from_mmc Invalid recovery dtbo: Recovery Dtbo Offset=0x%llx,"
 				" Recovery Dtbo Size=0x%x, Image Size=0x%llx\n",
 				hdr1->recovery_dtbo_offset, recovery_dtbo_size, image_size);
 			return -1;
@@ -1705,16 +1707,16 @@ int boot_linux_from_mmc(void)
 		recovery_dtbo_size = recovery_dtbo_actual;
 		imagesize_actual += recovery_dtbo_size;
 
-		dprintf(SPEW, "Header version: %d\n", hdr->header_version);
-		dprintf(SPEW, "Recovery Dtbo Size 0x%x\n", recovery_dtbo_size);
-		dprintf(SPEW, "Recovery Dtbo Offset 0x%llx\n", hdr1->recovery_dtbo_offset);
+		dprintf(CRITICAL, "boot_linux_from_mmc Header version: %d\n", hdr->header_version);
+		dprintf(CRITICAL, "boot_linux_from_mmc Recovery Dtbo Size 0x%x\n", recovery_dtbo_size);
+		dprintf(CRITICAL, "boot_linux_from_mmc Recovery Dtbo Offset 0x%llx\n", hdr1->recovery_dtbo_offset);
 
 	}
 #endif
 
 	/* Validate the boot/recovery image size is within the bounds of partition size */
 	if (imagesize_actual > image_size) {
-		dprintf(CRITICAL, "Image size is greater than partition size.\n");
+		dprintf(CRITICAL, "boot_linux_from_mmc Image size is greater than partition size.\n");
 		return -1;
 	}
 
@@ -1724,7 +1726,7 @@ int boot_linux_from_mmc(void)
 
 	if (check_aboot_addr_range_overlap((uintptr_t) image_addr, imagesize_actual))
 	{
-		dprintf(CRITICAL, "Boot image buffer address overlaps with aboot addresses.\n");
+		dprintf(CRITICAL, "boot_linux_from_mmc Boot image buffer address overlaps with aboot addresses.\n");
 		return -ECORRUPTED_IMAGE;
 	}
 
@@ -1741,60 +1743,61 @@ int boot_linux_from_mmc(void)
 	{
 		current_active_slot = partition_find_active_slot();
 		if (current_active_slot != INVALID)
-			dprintf(INFO, "Loading boot image (%d) active_slot(%s): start\n",
+			dprintf(CRITICAL, "boot_linux_from_mmc Loading boot image (%d) active_slot(%s): start\n",
 				imagesize_actual, SUFFIX_SLOT(current_active_slot));
 	}
 	else
 	{
-		dprintf(INFO, "Loading (%s) image (%d): start\n",
+		dprintf(CRITICAL, "boot_linux_from_mmc Loading (%s) image (%d): start\n",
 				(!boot_into_recovery ? "boot" : "recovery"),imagesize_actual);
 	}
 	bs_set_timestamp(BS_KERNEL_LOAD_START);
 
 	if ((target_get_max_flash_size() - page_size) < imagesize_actual)
 	{
-		dprintf(CRITICAL, "booimage  size is greater than DDR can hold\n");
+		dprintf(CRITICAL, "boot_linux_from_mmc booimage  size is greater than DDR can hold\n");
 		return -ECORRUPTED_IMAGE;
 	}
 	offset = page_size;
 	/* Read image without signature and header*/
 	if (mmc_read(ptn + offset, (void *)(image_addr + offset), imagesize_actual - page_size))
 	{
-		dprintf(CRITICAL, "ERROR: Cannot read boot image\n");
+		dprintf(CRITICAL, "boot_linux_from_mmc ERROR: Cannot read boot image\n");
 		return -1;
 	}
 
 	if (partition_multislot_is_supported())
 	{
 		if (current_active_slot != INVALID)
-			dprintf(INFO, "Loading boot image (%d) active_slot(%s): done\n",
+			dprintf(CRITICAL, "boot_linux_from_mmc Loading boot image (%d) active_slot(%s): done\n",
 				imagesize_actual, SUFFIX_SLOT(current_active_slot));
 	}
 	else
 	{
-		dprintf(INFO, "Loading (%s) image (%d): done\n",
+		dprintf(CRITICAL, "boot_linux_from_mmc Loading (%s) image (%d): done\n",
 			(!boot_into_recovery ? "boot" : "recovery"),imagesize_actual);
 
 	}
 	bs_set_timestamp(BS_KERNEL_LOAD_DONE);
 
 	/* Authenticate Kernel */
-	dprintf(INFO, "use_signed_kernel=%d, is_unlocked=%d, is_tampered=%d.\n",
+	dprintf(CRITICAL, "boot_linux_from_mmc use_signed_kernel=%d, is_unlocked=%d, is_tampered=%d.\n",
 		(int) target_use_signed_kernel(),
 		device.is_unlocked,
 		device.is_tampered);
 #if VERIFIED_BOOT_2
+        dprintf(CRITICAL, "boot_linux_from_mmc inside if VERIFIED_BOOT_2 start\n");
 	offset = imagesize_actual;
 	if (check_aboot_addr_range_overlap((uintptr_t)image_addr + offset, page_size))
 	{
-		dprintf(CRITICAL, "Signature read buffer address overlaps with aboot addresses.\n");
+		dprintf(CRITICAL, "boot_linux_from_mmc Signature read buffer address overlaps with aboot addresses.\n");
 		return -1;
 	}
 
 	/* Read signature */
 	if(mmc_read(ptn + offset, (void *)(image_addr + offset), page_size))
 	{
-		dprintf(CRITICAL, "ERROR: Cannot read boot image signature\n");
+		dprintf(CRITICAL, "boot_linux_from_mmc ERROR: Cannot read boot image signature\n");
 		return -1;
 	}
 
@@ -1834,8 +1837,10 @@ int boot_linux_from_mmc(void)
 	info.bootreason_alarm = boot_reason_alarm;
 	info.bootinto_recovery = boot_into_recovery;
 	status = load_image_and_auth(&info);
-	if(status)
+	if(status) {
+            dprintf(CRITICAL, "boot_linux_from_mmc load image status -1\n");
 		return -1;
+        }
 
 	vbcmdline = info.vbcmdline;
 
@@ -1844,6 +1849,7 @@ int boot_linux_from_mmc(void)
 		free(vbmeta_image_buf);
 		--info.num_loaded_images;
 	}
+        dprintf(CRITICAL, "boot_linux_from_mmc inside if VERIFIED_BOOT_2 end \n");
 #else
 	/* Change the condition a little bit to include the test framework support.
 	 * We would never reach this point if device is in fastboot mode, even if we did
@@ -1854,21 +1860,23 @@ int boot_linux_from_mmc(void)
 		offset = imagesize_actual;
 		if (check_aboot_addr_range_overlap((uintptr_t)image_addr + offset, page_size))
 		{
-			dprintf(CRITICAL, "Signature read buffer address overlaps with aboot addresses.\n");
+			dprintf(CRITICAL, "boot_linux_from_mmc Signature read buffer address overlaps with aboot addresses.\n");
 			return -ECORRUPTED_IMAGE;
 		}
 
 		/* Read signature */
 		if(mmc_read(ptn + offset, (void *)(image_addr + offset), page_size))
 		{
-			dprintf(CRITICAL, "ERROR: Cannot read boot image signature\n");
+			dprintf(CRITICAL, "boot_linux_from_mmc ERROR: Cannot read boot image signature\n");
 			return -1;
 		}
 
 		verify_signed_bootimg((uint32_t)image_addr, imagesize_actual);
 		/* The purpose of our test is done here */
-		if(is_test_mode_enabled() && auth_kernel_img)
+		if(is_test_mode_enabled() && auth_kernel_img) {
+                    dprintf(CRITICAL, "boot_linux_from_mmc is_test_mode_enabled\n");
 			return 0;
+                }
 	} else {
 		second_actual  = ROUND_TO_PAGE(hdr->second_size,  page_mask);
 		#ifdef TZ_SAVE_KERNEL_HASH
@@ -1893,7 +1901,6 @@ int boot_linux_from_mmc(void)
 #endif /* MDTP_SUPPORT */
 	}
 #endif
-
 #if VERIFIED_BOOT
 	if((boot_verify_get_state() == ORANGE) && (!boot_into_ffbm))
 	{
@@ -1902,7 +1909,7 @@ int boot_linux_from_mmc(void)
 		wait_for_users_action();
 #else
 		dprintf(CRITICAL,
-			"Your device has been unlocked and can't be trusted.\n");
+			"boot_linux_from_mmc Your device has been unlocked and can't be trusted.\n");
 #endif
 	}
 #endif
@@ -1913,8 +1920,10 @@ int boot_linux_from_mmc(void)
 		/* set boot and system versions. */
 		set_os_version((unsigned char *)image_addr);
 		// send root of trust
-		if(!send_rot_command((uint32_t)device.is_unlocked))
+		if(!send_rot_command((uint32_t)device.is_unlocked)) {
+                     dprintf(CRITICAL, "boot_linux_from_mmc send rot command\n");
 			ASSERT(0);
+                }
 	}
 #else
 #ifdef SET_ROT_ONLY
@@ -1934,26 +1943,26 @@ int boot_linux_from_mmc(void)
 		if (dtbo_image_sz)
 			out_avai_len -= DTBO_IMG_BUF;
 #endif
-		dprintf(INFO, "decompressing kernel image: start\n");
+		dprintf(CRITICAL, "boot_linux_from_mmc decompressing kernel image: start\n");
 		rc = decompress((unsigned char *)(image_addr + page_size),
 				hdr->kernel_size, out_addr, out_avai_len,
 				&dtb_offset, &out_len);
 		if (rc)
 		{
-			dprintf(CRITICAL, "decompressing kernel image failed!!!\n");
+			dprintf(CRITICAL, "boot_linux_from_mmc decompressing kernel image failed!!!\n");
 			ASSERT(0);
 		}
 
-		dprintf(INFO, "decompressing kernel image: done\n");
+		dprintf(CRITICAL, "boot_linux_from_mmc decompressing kernel image: done\n");
 		kptr = (struct kernel64_hdr *)out_addr;
 		kernel_start_addr = out_addr;
 		kernel_size = out_len;
 	} else {
-		dprintf(INFO, "Uncpmpressed kernel in use\n");
+		dprintf(CRITICAL, "boot_linux_from_mmc Uncpmpressed kernel in use\n");
 		if (!strncmp((char*)(image_addr + page_size),
 					PATCHED_KERNEL_MAGIC,
 					sizeof(PATCHED_KERNEL_MAGIC) - 1)) {
-			dprintf(INFO, "Patched kernel detected\n");
+			dprintf(CRITICAL, "boot_linux_from_mmc Patched kernel detected\n");
 			kptr = (struct kernel64_hdr *)(image_addr + page_size +
 					PATCHED_KERNEL_HEADER_SIZE);
 			//The size of the kernel is stored at start of kernel image + 16
@@ -1994,7 +2003,7 @@ int boot_linux_from_mmc(void)
 		check_aboot_addr_range_overlap(hdr->ramdisk_addr, ramdisk_actual) ||
 		check_ddr_addr_range_bound(hdr->ramdisk_addr, ramdisk_actual))
 	{
-		dprintf(CRITICAL, "kernel/ramdisk addresses are not valid.\n");
+		dprintf(CRITICAL, "boot_linux_from_mmc kernel/ramdisk addresses are not valid.\n");
 		return -1;
 	}
 
@@ -2002,7 +2011,7 @@ int boot_linux_from_mmc(void)
 	if (check_aboot_addr_range_overlap(hdr->tags_addr, MAX_TAGS_SIZE) ||
 		check_ddr_addr_range_bound(hdr->tags_addr, MAX_TAGS_SIZE))
 	{
-		dprintf(CRITICAL, "Tags addresses are not valid.\n");
+		dprintf(CRITICAL, "boot_linux_from_mmc Tags addresses are not valid.\n");
 		return -1;
 	}
 #endif
@@ -2017,31 +2026,31 @@ int boot_linux_from_mmc(void)
 		table = (struct dt_table*) dt_table_offset;
 
 		if (dev_tree_validate(table, hdr->page_size, &dt_hdr_size) != 0) {
-			dprintf(CRITICAL, "ERROR: Cannot validate Device Tree Table \n");
+			dprintf(CRITICAL, "boot_linux_from_mmc ERROR: Cannot validate Device Tree Table \n");
 			return -1;
 		}
 
 		/* Its Error if, dt_hdr_size (table->num_entries * dt_entry size + Dev_Tree Header)
 		goes beyound hdr->dt_size*/
 		if (dt_hdr_size > ROUND_TO_PAGE(dt_size,hdr->page_size)) {
-			dprintf(CRITICAL, "ERROR: Invalid Device Tree size \n");
+			dprintf(CRITICAL, "boot_linux_from_mmc ERROR: Invalid Device Tree size \n");
 			return -1;
 		}
 
 		/* Find index of device tree within device tree table */
 		if(dev_tree_get_entry_info(table, &dt_entry) != 0){
-			dprintf(CRITICAL, "ERROR: Getting device tree address failed\n");
+			dprintf(CRITICAL, "boot_linux_from_mmc ERROR: Getting device tree address failed\n");
 			return -1;
 		}
 
 		if(dt_entry.offset > (UINT_MAX - dt_entry.size)) {
-			dprintf(CRITICAL, "ERROR: Device tree contents are Invalid\n");
+			dprintf(CRITICAL, "boot_linux_from_mmc ERROR: Device tree contents are Invalid\n");
 			return -1;
 		}
 
 		/* Ensure we are not overshooting dt_size with the dt_entry selected */
 		if ((dt_entry.offset + dt_entry.size) > dt_size) {
-			dprintf(CRITICAL, "ERROR: Device tree contents are Invalid\n");
+			dprintf(CRITICAL, "boot_linux_from_mmc ERROR: Device tree contents are Invalid\n");
 			return -1;
 		}
 
@@ -2050,17 +2059,17 @@ int boot_linux_from_mmc(void)
 			unsigned int compressed_size = 0;
 			out_addr += out_len;
 			out_avai_len -= out_len;
-			dprintf(INFO, "decompressing dtb: start\n");
+			dprintf(CRITICAL, "boot_linux_from_mmc decompressing dtb: start\n");
 			rc = decompress((unsigned char *)dt_table_offset + dt_entry.offset,
 					dt_entry.size, out_addr, out_avai_len,
 					&compressed_size, &dtb_size);
 			if (rc)
 			{
-				dprintf(CRITICAL, "decompressing dtb failed!!!\n");
+				dprintf(CRITICAL, "boot_linux_from_mmc decompressing dtb failed!!!\n");
 				ASSERT(0);
 			}
 
-			dprintf(INFO, "decompressing dtb: done\n");
+			dprintf(CRITICAL, "boot_linux_from_mmc decompressing dtb: done\n");
 			best_match_dt_addr = out_addr;
 		} else {
 			best_match_dt_addr = (unsigned char *)dt_table_offset + dt_entry.offset;
@@ -2071,7 +2080,7 @@ int boot_linux_from_mmc(void)
 		if (check_aboot_addr_range_overlap(hdr->tags_addr, dtb_size) ||
 			check_ddr_addr_range_bound(hdr->tags_addr, dtb_size))
 		{
-			dprintf(CRITICAL, "Device tree addresses are not valid\n");
+			dprintf(CRITICAL, "boot_linux_from_mmc Device tree addresses are not valid\n");
 			return -1;
 		}
 
@@ -2081,7 +2090,7 @@ int boot_linux_from_mmc(void)
 		if (check_aboot_addr_range_overlap(hdr->tags_addr, kernel_actual) ||
 			check_ddr_addr_range_bound(hdr->tags_addr, kernel_actual))
 		{
-			dprintf(CRITICAL, "Device tree addresses are not valid.\n");
+			dprintf(CRITICAL, "boot_linux_from_mmc Device tree addresses are not valid.\n");
 			return -1;
 		}
 		/*
@@ -2099,7 +2108,7 @@ int boot_linux_from_mmc(void)
 				hdr->kernel_size, dtb_offset,
 				(void *)hdr->tags_addr);
 		if (!dtb) {
-			dprintf(CRITICAL, "ERROR: Appended Device Tree Blob not found\n");
+			dprintf(CRITICAL, "boot_linux_from_mmc ERROR: Appended Device Tree Blob not found\n");
 			return -1;
 		}
 	}
@@ -2110,10 +2119,13 @@ int boot_linux_from_mmc(void)
 
 unified_boot:
 
+        dprintf(CRITICAL, "boot_linux_from_mmc calling boot_linux\n");
+
 	boot_linux((void *)hdr->kernel_addr, (void *)hdr->tags_addr,
 		   (const char *)hdr->cmdline, board_machtype(),
 		   (void *)hdr->ramdisk_addr, hdr->ramdisk_size);
 
+        dprintf(CRITICAL, "boot_linux_from_mmc end\n");
 	return 0;
 }
 

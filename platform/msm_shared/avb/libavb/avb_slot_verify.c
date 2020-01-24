@@ -154,7 +154,7 @@ static AvbSlotVerifyResult load_and_verify_hash_partition(
         ret = AVB_SLOT_VERIFY_RESULT_ERROR_IO;
         goto out;
       }
-      avb_debugv(part_name, ": Loading entire partition.\n", NULL);
+      //avb_debugv(part_name, ": Loading entire partition.\n", NULL);
     }
   }
 
@@ -232,9 +232,9 @@ static AvbSlotVerifyResult load_and_verify_hash_partition(
                NULL);
     ret = AVB_SLOT_VERIFY_RESULT_ERROR_VERIFICATION;
     goto out;
-  } else {
-    avb_debugv(part_name, ": success: Image verification completed.\n", NULL);
-  }
+  } //else {
+    //avb_debugv(part_name, ": success: Image verification completed.\n", NULL);
+ // }
 
   ret = AVB_SLOT_VERIFY_RESULT_OK;
 
@@ -305,7 +305,7 @@ static AvbSlotVerifyResult load_requested_partitions(
       ret = AVB_SLOT_VERIFY_RESULT_ERROR_IO;
       goto out;
     }
-    avb_debugv(part_name, ": Loading entire partition.\n", NULL);
+    //avb_debugv(part_name, ": Loading entire partition.\n", NULL);
 
     io_ret = ops->read_from_partition(
         ops, part_name, 0 /* offset */, image_size, &image_buf, &part_num_read);
@@ -411,10 +411,10 @@ static AvbSlotVerifyResult load_and_verify_vbmeta(
     goto out;
   }
 
-  avb_debugv("Loading vbmeta struct from partition '",
-             full_partition_name,
-             "'.\n",
-             NULL);
+  //avb_debugv("Loading vbmeta struct from partition '",
+   //          full_partition_name,
+     //        "'.\n",
+       //      NULL);
 
   /* If we're loading from the main vbmeta partition, the vbmeta
    * struct is in the beginning. Otherwise we have to locate it via a
