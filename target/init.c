@@ -272,8 +272,12 @@ __WEAK uint32_t target_ddr_cfg_val()
 bool target_uses_system_as_root(void)
 {
 #if TARGET_USE_SYSTEM_AS_ROOT_IMAGE
-	if (is_vb_le_enabled() || (target_get_vb_version() >= VB_M))
+#if ENABLE_LE_VARIANT
+	return true;
+#else
+	if (target_get_vb_version() >= VB_M)
 		return true;
+#endif
 #endif
 		return false;
 }
