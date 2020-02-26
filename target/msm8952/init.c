@@ -83,6 +83,7 @@
 #define TLMM_VOL_UP_BTN_GPIO_8956 113
 #define TLMM_VOL_UP_BTN_GPIO_8937 91
 #define TLMM_VOL_DOWN_BTN_GPIO    128
+#define TLMM_VOL_UP_BTN_GPIO_SDM429W 35
 
 #define FASTBOOT_MODE           0x77665500
 #define RECOVERY_MODE           0x77665502
@@ -204,9 +205,10 @@ int target_volume_up()
 
 	if(platform_is_msm8956())
 		vol_up_gpio = TLMM_VOL_UP_BTN_GPIO_8956;
+	else if(platform_is_sdm429w() || platform_is_sda429w())
+		vol_up_gpio = TLMM_VOL_UP_BTN_GPIO_SDM429W;
 	else if(platform_is_msm8937() || platform_is_msm8917() ||
-		    platform_is_sdm429() || platform_is_sdm429w() || platform_is_sda429w() || platform_is_sdm439() ||
-		    platform_is_qm215())
+		    platform_is_sdm429() || platform_is_sdm439() || platform_is_qm215())
 		vol_up_gpio = TLMM_VOL_UP_BTN_GPIO_8937;
 	else
 		vol_up_gpio = TLMM_VOL_UP_BTN_GPIO;
