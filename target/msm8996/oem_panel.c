@@ -1,4 +1,4 @@
-/* Copyright (c) 2013-2016, 2018, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2013-2016, 2018, 2020, The Linux Foundation. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -1002,6 +1002,7 @@ int oem_panel_select(const char *panel_name, struct panel_struct *panelstruct,
 
 	phy_db->pll_type = DSI_PLL_TYPE_THULIUM;
 	pinfo->has_bridge_chip = false;
+	pinfo->bridge_chip_init_in_lp11 = false;
 
 	if (panel_name) {
 		panel_override_id = panel_name_to_id(supp_panels,
@@ -1030,6 +1031,7 @@ int oem_panel_select(const char *panel_name, struct panel_struct *panelstruct,
 			case SPLIT_ADV7533_3840_1080P_VIDEO_PANEL:
 			case SPLIT_SWAP_ADV7533_3840_1080P_VIDEO_PANEL:
 				pinfo->has_bridge_chip = true;
+				pinfo->bridge_chip_init_in_lp11 = false;
 			}
 			goto panel_init;
 		}
@@ -1077,7 +1079,7 @@ panel_init:
 	else if (!strcmp(panelstruct->paneldata->panel_destination, "DISPLAY_2"))
 		pinfo->dest = DISPLAY_2;
 
-	if (pinfo->has_bridge_chip) {
+	if (pinfo->has_bridge_chip && !(pinfo->bridge_chip_init_in_lp11)) {
 		if (oem_panel_bridge_chip_init(pinfo)) {
 			dprintf(CRITICAL, "Error in initializing bridge chip\n");
 			return PANEL_TYPE_UNKNOWN;

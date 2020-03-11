@@ -1,4 +1,4 @@
-/* Copyright (c) 2013-2015, 2017 The Linux Foundation. All rights reserved.
+/* Copyright (c) 2013-2015, 2017, 2020, The Linux Foundation. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -54,7 +54,7 @@ int target_panel_clock(uint8_t enable, struct msm_panel_info *pinfo);
 int target_panel_reset(uint8_t enable, struct panel_reset_sequence *resetseq,
 						struct msm_panel_info *pinfo);
 int target_ldo_ctrl(uint8_t enable, struct msm_panel_info *pinfo);
-int target_display_dsi2hdmi_config(struct msm_panel_info *pinfo);
+int target_display_dsi2hdmi_config(struct msm_panel_info *pinfo, uint8_t flag);
 int target_dsi_phy_config(struct mdss_dsi_phy_ctrl *phy_db);
 
 int gcdb_display_init(const char *panel_name, uint32_t rev, void *base);

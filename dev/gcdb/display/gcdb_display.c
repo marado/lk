@@ -1,4 +1,4 @@
-/* Copyright (c) 2013-2017, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2013-2017, 2020, The Linux Foundation. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -408,9 +408,9 @@ static int mdss_edp_bl_enable(uint8_t enable)
 	return ret;
 }
 
-static int mdss_dsi2HDMI_config (struct msm_panel_info *pinfo)
+static int mdss_dsi2HDMI_config (struct msm_panel_info *pinfo, uint8_t flag)
 {
-	return target_display_dsi2hdmi_config(pinfo);
+	return target_display_dsi2hdmi_config(pinfo, flag);
 }
 
 struct panel_struct mdss_dsi_get_panel_data(void)
