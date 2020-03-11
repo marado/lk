@@ -1,4 +1,4 @@
-/* Copyright (c) 2010-2015, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2010-2015, 2020, The Linux Foundation. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -128,6 +128,9 @@
 #define MAX_LANE_CONFIG                 45
 #define MAX_STRENGTH_CONFIG             10
 #define MAX_CTRL_CONFIG                 4
+
+#define DSI_CMD_I2C_CFG                 1
+#define DSI_CMD_I2C_TG                  2
 
 /**********************************************************
   DSI configuration structures

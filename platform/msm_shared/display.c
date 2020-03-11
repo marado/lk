@@ -1,4 +1,4 @@
-/* Copyright (c) 2012-2016, 2018, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2012-2016, 2018, 2020, The Linux Foundation. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -501,16 +501,46 @@ int msm_display_init(struct msm_fb_panel_data *pdata)
 
 	display_image_on_screen();
 
-	if ((panel->dsi2HDMI_config) && (panel->panel_info.has_bridge_chip))
-		ret = panel->dsi2HDMI_config(&(panel->panel_info));
+	if ((panel->dsi2HDMI_config) && (panel->panel_info.has_bridge_chip) &&
+				(!(panel->panel_info.bridge_chip_init_in_lp11)))
+	{
+		ret = panel->dsi2HDMI_config(&(panel->panel_info),
+					DSI_CMD_I2C_CFG | DSI_CMD_I2C_TG);
+	}
 	if (ret)
 		goto msm_display_init_out;
 
 	ret = msm_display_config();
+
+	if (panel->panel_info.has_bridge_chip &&
+			panel->panel_info.bridge_chip_init_in_lp11)
+		oem_panel_bridge_chip_init(&(panel->panel_info));
+
+	if (ret)
+		goto msm_display_init_out;
+
+	/* Pre Video on */
+	if ((panel->dsi2HDMI_config) && (panel->panel_info.has_bridge_chip) &&
+				(panel->panel_info.bridge_chip_init_in_lp11))
+	{
+		ret = panel->dsi2HDMI_config(&(panel->panel_info), DSI_CMD_I2C_CFG);
+	}
+
 	if (ret)
 		goto msm_display_init_out;
 
 	ret = msm_display_on();
+
+	if (ret)
+		goto msm_display_init_out;
+
+	/* Post Video on */
+	if ((panel->dsi2HDMI_config) && (panel->panel_info.has_bridge_chip) &&
+				(panel->panel_info.bridge_chip_init_in_lp11))
+	{
+		ret = panel->dsi2HDMI_config(&(panel->panel_info), DSI_CMD_I2C_TG);
+	}
+
 	if (ret)
 		goto msm_display_init_out;
 

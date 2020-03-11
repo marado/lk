@@ -1,4 +1,4 @@
-/* Copyright (c) 2012-2018, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2012-2018, 2020, The Linux Foundation. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -419,6 +419,7 @@ struct msm_panel_info {
 	struct dsi2HDMI_panel_info adv7533;
 	struct dsi2HDMI_panel_info sadv7533;
 	bool has_bridge_chip;
+        bool bridge_chip_init_in_lp11;
 
 	struct dfps_info dfps;
 
@@ -452,7 +453,9 @@ struct msm_fb_panel_data {
 	int (*post_power_func)(int enable);
 	int (*pre_init_func)(void);
 	int (*update_panel_info) (void);
-	int (*dsi2HDMI_config) (struct msm_panel_info *);
+	int (*dsi2HDMI_config) (struct msm_panel_info *, uint8_t flag);
 };
+
+int oem_panel_bridge_chip_init(struct msm_panel_info *pinfo);
 
 #endif

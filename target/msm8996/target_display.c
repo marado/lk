@@ -1,4 +1,4 @@
-/* Copyright (c) 2014-2016, 2018, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2014-2016, 2018, 2020, The Linux Foundation. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -467,7 +467,7 @@ int target_display_dsi2hdmi_program_addr(struct msm_panel_info *pinfo, bool seco
 	return ret;
 }
 
-int target_display_dsi2hdmi_config(struct msm_panel_info *pinfo)
+int target_display_dsi2hdmi_config(struct msm_panel_info *pinfo, uint8_t flag)
 {
 	int ret = NO_ERROR;
 
@@ -502,7 +502,7 @@ int target_display_dsi2hdmi_config(struct msm_panel_info *pinfo)
 	 * If dsi to HDMI bridge chip connected then
 	 * send I2c commands to the chip
 	 */
-	if (pinfo->adv7533.dsi_setup_cfg_i2c_cmd) {
+	if ((pinfo->adv7533.dsi_setup_cfg_i2c_cmd) && (flag & DSI_CMD_I2C_CFG)) {
 		ret = dsi2HDMI_i2c_write_regs(pinfo, pinfo->adv7533.dsi_setup_cfg_i2c_cmd,
 				pinfo->adv7533.num_of_cfg_i2c_cmds, false);
 
@@ -517,7 +517,7 @@ int target_display_dsi2hdmi_config(struct msm_panel_info *pinfo)
 		}
 	}
 
-	if (pinfo->adv7533.dsi_tg_i2c_cmd) {
+	if ((pinfo->adv7533.dsi_tg_i2c_cmd) && (flag & DSI_CMD_I2C_TG)) {
 		ret = dsi2HDMI_i2c_write_regs(pinfo, pinfo->adv7533.dsi_tg_i2c_cmd,
 					pinfo->adv7533.num_of_tg_i2c_cmds, false);
 
