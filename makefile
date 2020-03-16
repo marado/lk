@@ -180,6 +180,12 @@ else
   DEFINES += TARGET_USE_SYSTEM_AS_ROOT_IMAGE=0
 endif
 
+ifeq ($(ENABLE_LE_VARIANT),1)
+  DEFINES += ENABLE_LE_VARIANT=1
+else
+  DEFINES += ENABLE_LE_VARIANT=0
+endif
+
 # these need to be filled out by the project/target/platform rules.mk files
 TARGET :=
 PLATFORM :=
