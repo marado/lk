@@ -1,4 +1,4 @@
-/* Copyright (c) 2010-2016, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2010-2016, 2019 The Linux Foundation. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -1101,6 +1101,9 @@ static void mdss_hdmi_panel_init(struct msm_panel_info *pinfo)
 	pinfo->lcdc.v_back_porch  = tinfo.back_porch_v;
 	pinfo->lcdc.v_front_porch = tinfo.front_porch_v;
 	pinfo->lcdc.v_pulse_width = tinfo.pulse_width_v;
+
+	pinfo->lcdc.hsync_polarity = tinfo.active_low_h;
+	pinfo->lcdc.vsync_polarity = tinfo.active_low_v;
 
 	pinfo->lcdc.hsync_skew = 0;
 	pinfo->lcdc.xres_pad   = 0;

@@ -201,6 +201,7 @@
 #define MDP_ACTIVE_V_END_F0                     0x34
 #define MDP_ACTIVE_V_END_F1                     0x38
 #define MDP_UNDERFFLOW_COLOR                    0x48
+#define MDP_POLARITY_CTL                        0x50
 #define MDP_PANEL_FORMAT                        0x90
 #define MDP_PROG_FETCH_START                    0x170
 
