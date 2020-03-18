@@ -224,6 +224,7 @@ void regulator_enable(uint32_t enable)
 		if ((platform_is_sdm429() || platform_is_sdm429w() || platform_is_sda429w())
 			&& ((hw_subtype == HW_PLATFORM_SUBTYPE_429W_PM660)
 			|| (hw_subtype == HW_PLATFORM_SUBTYPE_429W_PM660_WTP)
+			|| (hw_subtype == HW_PLATFORM_SUBTYPE_429W_PM660_WTP_BG)
 			|| (hw_subtype == HW_PLATFORM_SUBTYPE_429W_PM660_WDP_BG)))
 			rpm_send_data(&ldo6_pm660[GENERIC_ENABLE][0], 36, RPM_REQUEST_TYPE);
 		else

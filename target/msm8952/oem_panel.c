@@ -1113,7 +1113,8 @@ int oem_panel_select(const char *panel_name, struct panel_struct *panelstruct,
 		if (platform_is_sdm429() || platform_is_sdm429w() || platform_is_sda429w()) {
 			if ((hw_subtype == HW_PLATFORM_SUBTYPE_429W_PM660)) /* WTP 2700 */
 			  panel_id = RM67162_QVGA_CMD_PANEL;
-			else if(hw_subtype == HW_PLATFORM_SUBTYPE_429W_PM660_WTP)
+			else if((hw_subtype == HW_PLATFORM_SUBTYPE_429W_PM660_WTP) ||
+				(hw_subtype == HW_PLATFORM_SUBTYPE_429W_PM660_WTP_BG))
 			  panel_id = AUO_416P_CMD_PANEL;
 			else if ((hw_subtype == HW_PLATFORM_SUBTYPE_429W_PM660_WDP) ||
 				(hw_subtype == HW_PLATFORM_SUBTYPE_429W_PM660_WDP_BG)) /* WDP 2700 / 3300 */

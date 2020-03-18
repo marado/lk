@@ -685,7 +685,8 @@ int target_ldo_ctrl(uint8_t enable, struct msm_panel_info *pinfo)
 		}
 
 	if (platform_is_sdm429w()
-		&& (board_hardware_subtype() == HW_PLATFORM_SUBTYPE_429W_PM660_WTP)) {
+		&& ((hw_subtype == HW_PLATFORM_SUBTYPE_429W_PM660_WTP) ||
+			(hw_subtype == HW_PLATFORM_SUBTYPE_429W_PM660_WTP_BG))) {
 		ldo_num &= ~(REG_LDO13);
 		ldo_num |= (REG_LDO11);
 	}
@@ -719,6 +720,7 @@ int target_ldo_ctrl(uint8_t enable, struct msm_panel_info *pinfo)
 		if ((platform_is_sdm429() || platform_is_sdm429w() || platform_is_sda429w())
 			&& ((hw_subtype == HW_PLATFORM_SUBTYPE_429W_PM660)
 			|| (hw_subtype == HW_PLATFORM_SUBTYPE_429W_PM660_WTP)
+			|| (hw_subtype == HW_PLATFORM_SUBTYPE_429W_PM660_WTP_BG)
 			|| (hw_subtype == HW_PLATFORM_SUBTYPE_429W_PM660_WDP_BG)))
 			regulator_disable(REG_LDO13 | REG_LDO15);
 	}
