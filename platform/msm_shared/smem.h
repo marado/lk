@@ -2,7 +2,7 @@
  * Copyright (c) 2009, Google Inc.
  * All rights reserved.
  *
- * Copyright (c) 2009-2019, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2009-2020, The Linux Foundation. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -525,6 +525,7 @@ enum platform_subtype {
 	HW_PLATFORM_SUBTYPE_DSDA2 = 8,
 	HW_PLATFORM_SUBTYPE_429W_PM660_WTP = 8, /* 3300 WTP */
 	HW_PLATFORM_SUBTYPE_429W_PM660_WDP_BG = 9, /*3300 WDP */
+	HW_PLATFORM_SUBTYPE_429W_PM660_WTP_BG = 10, /* 4100 BG PMIC GPIO WTP */
 	HW_PLATFORM_SUBTYPE_SGLTE2 = 9,
 	HW_PLATFORM_SUBTYPE_SWOC_TP_CIRC = 12,
 	HW_PLATFORM_SUBTYPE_POLARIS = 64,
