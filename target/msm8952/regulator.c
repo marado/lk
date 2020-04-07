@@ -136,6 +136,23 @@ static uint32_t ldo11_pm660[][11]=
 	},
 };
 
+static uint32_t ldo12_pm660[][11]=
+{
+	{
+		LDOA_RES_TYPE, 12,
+		KEY_SOFTWARE_ENABLE, 4, GENERIC_DISABLE,
+		KEY_MICRO_VOLT, 4, 0,
+		KEY_CURRENT, 4, 0,
+	},
+
+	{
+		LDOA_RES_TYPE, 12,
+		KEY_SOFTWARE_ENABLE, 4, GENERIC_ENABLE,
+		KEY_MICRO_VOLT, 4, 1800000,
+		KEY_CURRENT, 4, 40,
+	},
+};
+
 static uint32_t ldo13_pm660[][11]=
 {
 	{
@@ -229,6 +246,14 @@ void regulator_enable(uint32_t enable)
 		else
 			rpm_send_data(&ldo6[GENERIC_ENABLE][0], 36, RPM_REQUEST_TYPE);
 	}
+
+	if (enable & REG_LDO12) {
+		if((platform_is_sdm429w()) &&
+		   ((hw_subtype == HW_PLATFORM_SUBTYPE_429W_PM660_WTP)
+		   || (hw_subtype == HW_PLATFORM_SUBTYPE_429W_PM660_WTP_BG)
+		   || (hw_subtype == HW_PLATFORM_SUBTYPE_429W_PM660_WDP_BG)))
+			rpm_send_data(&ldo12_pm660[GENERIC_ENABLE][0], 36, RPM_REQUEST_TYPE);
+	}
 }
 
 void regulator_disable(uint32_t enable)
@@ -255,4 +280,14 @@ void regulator_disable(uint32_t enable)
 
 	if (enable & REG_LDO6)
 		rpm_send_data(&ldo6[GENERIC_DISABLE][0], 36, RPM_REQUEST_TYPE);
+
+	if (enable & REG_LDO12) {
+		uint32_t hw_subtype = board_hardware_subtype();
+
+		if((platform_is_sdm429w()) &&
+		   ((hw_subtype == HW_PLATFORM_SUBTYPE_429W_PM660_WTP)
+		   || (hw_subtype == HW_PLATFORM_SUBTYPE_429W_PM660_WTP_BG)
+		   || (hw_subtype == HW_PLATFORM_SUBTYPE_429W_PM660_WDP_BG)))
+			rpm_send_data(&ldo12_pm660[GENERIC_DISABLE][0], 36, RPM_REQUEST_TYPE);
+	}
 }
