@@ -63,8 +63,23 @@
 
 #define REV_CHECK_MAX_POLL_TRY 5
 
+#define EARLY_CAM_DIGITAL_WIDTH 1280
+#define EARLY_CAM_DIGITAL_HEIGHT 720
+#define EARLY_CAM_ANALOG_WIDTH 720
+#define EARLY_CAM_ANALOG_HEIGHT 240
+#define DISPLAY_WIDTH 1920
+#define DISPLAY_HEIGHT 1080
+
 #define VFE_PING_ADDR 0xB3FFF000
-#define VFE_PONG_ADDR 0xB43FF000
+#define VFE_PONG_ADDR 0xB41FF000
+#define VFE_ROTATED_PING_ADDR 0xB43FF000
+#define VFE_ROTATED_PONG_ADDR 0xB45FF000
+
+#define LK_FRAME_0_ADDR 0xB3FFF000
+#define LK_FRAME_1_ADDR 0xB41FF000
+#define LK_FRAME_2_ADDR 0xB43FF000
+#define LK_FRAME_3_ADDR 0xB45FF000
+
 #define PING_PONG_IRQ_MASK 0x100
 
 #define EARLY_CAM_NUM_FRAMES 60*20
@@ -81,7 +96,20 @@ int queue_id = 1;
 
 #define MAX_POLL_COUNT 100
 #define CVBS_HEADER_SIZE 13*720*2
+
 int raw_size;
+int rotated_img_size;
+
+uint32_t frame_queue[] = {LK_FRAME_0_ADDR,
+					LK_FRAME_1_ADDR,
+					LK_FRAME_2_ADDR,
+					LK_FRAME_3_ADDR};
+int ping_index = 0;
+int pong_index = 1;
+int post_frame = -1;
+int frame_delay_num = 1;
+int frame_queue_num = 4;
+
 int csi;
 int cci_master;
 int msg_count;
@@ -96,6 +124,7 @@ enum camera_type {
 };
 
 enum camera_type cam_type;
+enum camera_rotation_direction rot_direction = ROTATION_0;
 
 uint32 frame_counter = 0;
 uint32_t read_val = 0;
@@ -2018,7 +2047,8 @@ static void msm_cci_flush_queue(int master)
 	msm_cci_init(master);
 }
 
-void target_early_camera_init(const char *camera_type)
+void target_early_camera_init(const char *camera_type,
+				uint32_t rotation_direction, int frame_delay)
 {
 
 	if (!strcmp(camera_type,"analog")) {
@@ -2032,11 +2062,17 @@ void target_early_camera_init(const char *camera_type)
 	} else if (!strcmp(camera_type,"digital")) {
 		dprintf(CRITICAL, "camera is %s\n", camera_type);
 		cam_type = DIGITAL;
-		raw_size = 1280*720*2;
+		raw_size = EARLY_CAM_DIGITAL_WIDTH
+				   *EARLY_CAM_DIGITAL_HEIGHT*2;
+		rotated_img_size = EARLY_CAM_DIGITAL_WIDTH
+						   *EARLY_CAM_DIGITAL_HEIGHT*2;
 		csi = 2;
 		cci_master = 1;
 	}
 
+	rot_direction = rotation_direction;
+	frame_delay_num = frame_delay;
+	post_frame = -frame_delay;
 
 #ifdef EARLYDOMAIN_SUPPORT
 	num_configs = get_cam_data(csi, &cam_data);
@@ -2106,15 +2142,25 @@ static void early_camera_setup_layer(int display_id,
 	cam_layer->dst_rect_y[fb_index] = 0;
 
 	if (cam_type == ANALOG) {
-		cam_layer->src_width[fb_index] =  720;
-		cam_layer->src_height[fb_index] =  240;
-		cam_layer->dst_width[fb_index] =   1920;
-		cam_layer->dst_height[fb_index] =  1080;
+		cam_layer->src_width[fb_index] = EARLY_CAM_ANALOG_WIDTH;
+		cam_layer->src_height[fb_index] = EARLY_CAM_ANALOG_HEIGHT;
+		cam_layer->dst_width[fb_index] = DISPLAY_WIDTH;
+		cam_layer->dst_height[fb_index] = DISPLAY_HEIGHT;
 	} else if (cam_type == DIGITAL) {
-		cam_layer->src_width[fb_index]  = 1280;
-		cam_layer->src_height[fb_index] = 720;
-		cam_layer->dst_width[fb_index]  = 1920;
-		cam_layer->dst_height[fb_index] = 1080;
+		if (rot_direction == ROTATION_90
+			|| rot_direction == ROTATION_270) {
+			cam_layer->src_width[fb_index]
+						= EARLY_CAM_DIGITAL_HEIGHT;
+			cam_layer->src_height[fb_index]
+						= EARLY_CAM_DIGITAL_WIDTH;
+		} else {
+			cam_layer->src_width[fb_index]
+						= EARLY_CAM_DIGITAL_WIDTH;
+			cam_layer->src_height[fb_index]
+						= EARLY_CAM_DIGITAL_HEIGHT;
+		}
+		cam_layer->dst_width[fb_index] = DISPLAY_WIDTH;
+		cam_layer->dst_height[fb_index] = DISPLAY_HEIGHT;
 	}
 
 	if (disp->splitter_display_enabled)
@@ -2179,14 +2225,22 @@ static int early_camera_start(void *arg) {
 
 	if (cam_type == ANALOG) {
 		hw_vfe0_init_regs_adv7481[46].reg_data = (unsigned int)VFE_PING_ADDR;
-		hw_vfe0_init_regs_adv7481[47].reg_data = hw_vfe0_init_regs_adv7481[46].reg_data +raw_size;
+		hw_vfe0_init_regs_adv7481[47].reg_data = hw_vfe0_init_regs_adv7481[46].reg_data+raw_size;
 		hw_vfe0_init_regs_adv7481[48].reg_data = (unsigned int)VFE_PONG_ADDR;
-		hw_vfe0_init_regs_adv7481[49].reg_data = hw_vfe0_init_regs_adv7481[48].reg_data+ raw_size;
+		hw_vfe0_init_regs_adv7481[49].reg_data = hw_vfe0_init_regs_adv7481[48].reg_data+raw_size;
 	} else if (cam_type == DIGITAL) {
-		hw_vfe0_init_regs[46].reg_data = (unsigned int)VFE_PING_ADDR;
-		hw_vfe0_init_regs[47].reg_data = hw_vfe0_init_regs[46].reg_data +raw_size;
-		hw_vfe0_init_regs[48].reg_data = (unsigned int)VFE_PONG_ADDR;
-		hw_vfe0_init_regs[49].reg_data = hw_vfe0_init_regs[48].reg_data+ raw_size;
+		if (frame_delay_num == 0) {
+			hw_vfe0_init_regs[46].reg_data = (unsigned int)VFE_PING_ADDR;
+			hw_vfe0_init_regs[47].reg_data = hw_vfe0_init_regs[46].reg_data+raw_size;
+			hw_vfe0_init_regs[48].reg_data = (unsigned int)VFE_PONG_ADDR;
+			hw_vfe0_init_regs[49].reg_data = hw_vfe0_init_regs[48].reg_data+raw_size;
+		} else {
+			hw_vfe0_init_regs[46].reg_data = (unsigned int)LK_FRAME_0_ADDR;
+			hw_vfe0_init_regs[47].reg_data = hw_vfe0_init_regs[46].reg_data+raw_size;
+			hw_vfe0_init_regs[48].reg_data = (unsigned int)LK_FRAME_1_ADDR;
+			hw_vfe0_init_regs[49].reg_data = hw_vfe0_init_regs[48].reg_data+raw_size;
+		}
+
 	}
 
 	read_val = 0;
@@ -2570,11 +2624,22 @@ int early_camera_on(void)
 	return gpio_triggered;
 }
 
-//Clear frame buffer in case of error
+// Clear frame buffer in case of error
 void early_camera_clear_buffers(void)
 {
-	memset((void *)VFE_PING_ADDR, EARLY_CAMERA_FILL_PATTERN, raw_size);
-	memset((void *)VFE_PONG_ADDR, EARLY_CAMERA_FILL_PATTERN, raw_size);
+	if (frame_delay_num == 0) {
+		memset((void *)VFE_PING_ADDR, EARLY_CAMERA_FILL_PATTERN, raw_size);
+		memset((void *)VFE_PONG_ADDR, EARLY_CAMERA_FILL_PATTERN, raw_size);
+		memset((void *)VFE_ROTATED_PING_ADDR,
+				EARLY_CAMERA_FILL_PATTERN, rotated_img_size);
+		memset((void *)VFE_ROTATED_PONG_ADDR,
+				EARLY_CAMERA_FILL_PATTERN, rotated_img_size);
+	} else {
+		memset((void *)LK_FRAME_0_ADDR, EARLY_CAMERA_FILL_PATTERN, raw_size);
+		memset((void *)LK_FRAME_1_ADDR, EARLY_CAMERA_FILL_PATTERN, raw_size);
+		memset((void *)LK_FRAME_2_ADDR, EARLY_CAMERA_FILL_PATTERN, raw_size);
+		memset((void *)LK_FRAME_3_ADDR, EARLY_CAMERA_FILL_PATTERN, raw_size);
+	}
 }
 
 int early_camera_flip(void *cam_layer, bool firstframe, bool mode_change)
@@ -2589,6 +2654,9 @@ int early_camera_flip(void *cam_layer, bool firstframe, bool mode_change)
 		pr_err(CRITICAL, "Waiting to attach to t.32\n");
 	}
 #endif
+
+	/* Invalidate the ARM cache for rotated image*/
+	arch_invalidate_cache_range(0xB3FFF000, 0x800000);
 
 	if (!cam_layer) {
 		dprintf(CRITICAL, "Input invalid\n");
@@ -2702,19 +2770,51 @@ int early_camera_flip(void *cam_layer, bool firstframe, bool mode_change)
 						(void *)(VFE_PONG_ADDR+CVBS_HEADER_SIZE);
 
 			} else if (cam_type == DIGITAL) {
-				if (ping)
-					camera_layer->fb[SPLIT_DISPLAY_0].base = (void *)VFE_PING_ADDR;
-				else
-					camera_layer->fb[SPLIT_DISPLAY_0].base = (void *)VFE_PONG_ADDR;
+				if (rot_direction == ROTATION_0
+					|| rot_direction == ROTATION_180) {
+						if (frame_delay_num == 0) {
+						if (ping)
+							camera_layer->fb[SPLIT_DISPLAY_0].base =
+							(void *)VFE_PING_ADDR;
+						else
+							camera_layer->fb[SPLIT_DISPLAY_0].base =
+							(void *)VFE_PONG_ADDR;
+						} else {
+							camera_layer->fb[SPLIT_DISPLAY_0].base =
+								(void *)early_camera_frame_delay(ping);
+						}
+				} else {
+					if (ping) {
+						early_camera_rotate(
+							(void *)VFE_ROTATED_PING_ADDR,
+							(void *)VFE_PING_ADDR,
+							EARLY_CAM_DIGITAL_WIDTH,
+							EARLY_CAM_DIGITAL_HEIGHT,
+							rot_direction);
+						camera_layer->fb[SPLIT_DISPLAY_0].base =
+							(void *)VFE_ROTATED_PING_ADDR;
+					} else {
+						early_camera_rotate(
+							(void *)VFE_ROTATED_PONG_ADDR,
+							(void *)VFE_PONG_ADDR,
+							EARLY_CAM_DIGITAL_WIDTH,
+							EARLY_CAM_DIGITAL_HEIGHT,
+							rot_direction);
+						camera_layer->fb[SPLIT_DISPLAY_0].base =
+							(void *)VFE_ROTATED_PONG_ADDR;
+					}
+				}
 			}
 			camera_layer->valid_fb_cnt++;
 		}
 
 		if (firstframe || mode_change) {
-				/* setup one inactive fb for status switching between RVC and animation */
-					target_display_setup_fb(&camera_layer->fb[camera_layer->valid_fb_cnt],
-						NULL, kFormatRGB888, SPLASH_SPLIT_0_LAYER_ZORDER, false, 24);
-					camera_layer->valid_fb_cnt++;
+
+		/* setup one inactive fb for status switching between RVC and animation */
+			target_display_setup_fb(&camera_layer->fb[camera_layer->valid_fb_cnt],
+				NULL, kFormatRGB888, SPLASH_SPLIT_0_LAYER_ZORDER, false, 24);
+			camera_layer->valid_fb_cnt++;
+
 			if (firstframe)
 				dprintf(INFO, "camera flip setup once(display id=%d)\n", rvc_display_id);
 			target_display_update(&update_cam, 1, rvc_display_id, true, firstframe);
@@ -2761,3 +2861,124 @@ void set_early_camera_enabled(bool enabled, uint32_t rvc_timeout, uint32_t rvc_g
 	early_rvc_gpio = rvc_gpio;
 }
 
+
+/*
+ * Rotate the view of early camera by 90 degree clockwise or counter-clockwise
+ * The following process takes approximately 3.15 millesecond
+ */
+void early_camera_rotate(char *rotated, const char *img_buff,
+			const int width,
+			const int height,
+			const enum camera_rotation_direction direction)
+{
+	if (direction == ROTATION_90) {
+		for (int i = 0, byte_idx = 0;
+			i < width; i += 2, byte_idx += height * 2) {
+			for (int j = height - 2;
+				j >= 0; j -= 2, byte_idx += 4) {
+
+				/* using UYVY format
+				* treat each 4 pixels in a square as a unit
+				* change the values of Y for each unit
+				*/
+
+				/* Y0 -> Yn */
+				rotated[byte_idx+1] =
+					img_buff[1+2*(i+width*(j+1))];
+				/* Y1 -> Y0 */
+				rotated[byte_idx+3] =
+					img_buff[1+2*(i+width*j)];
+				/* Yn -> Yn+1 */
+				rotated[byte_idx+height*2+1] =
+					img_buff[3+2*(i+width*(j+1))];
+				/* Yn+1 -> Y1 */
+				rotated[byte_idx+height*2+3] =
+					img_buff[3+2*(i+width*j)];
+
+				/* change the values of U for each unit */
+				/* U0 -> U0 */
+				rotated[byte_idx] = (img_buff[2*(i+width*j)]
+					+ img_buff[2*(i+width*(j+1))])/2;
+				/* Un -> Un */
+				rotated[byte_idx+height*2] = rotated[byte_idx];
+
+				/* change the values of V for each unit */
+				/* V0 -> V0 */
+				rotated[byte_idx+2] = (img_buff[2+2*(i+width*j)]
+					+ img_buff[2+2*(i+width*(j+1))])/2;
+				/* Vn -> Vn */
+				rotated[byte_idx+height*2+2] =
+					rotated[byte_idx+2];
+			}
+		}
+	} else if (direction == ROTATION_270) {
+		for (int i = width - 2, byte_idx = 0;
+			i >= 0; i -= 2, byte_idx += height * 2) {
+			for (int j = 0; j < height;
+				j += 2, byte_idx += 4) {
+				/* Y0 -> Y1 */
+				rotated[byte_idx+1] =
+					img_buff[3+2*(i+width*j)];
+				/* Y1 -> Yn+1 */
+				rotated[byte_idx+3] =
+					img_buff[3+2*(i+width*(j+1))];
+				/* Yn -> Y0 */
+				rotated[byte_idx+height*2+1] =
+					img_buff[1+2*(i+width*j)];
+				/* Yn+1 -> Yn */
+				rotated[byte_idx + height*2+3] =
+					img_buff[1+2*(i+width*(j+1))];
+
+				/* change the values of U for each unit */
+				/* U0 -> U0 */
+				rotated[byte_idx] = (img_buff[2*(i+width*j)]
+					+ img_buff[2*(i+width*(j+1))])/2;
+				/* Un -> Un */
+				rotated[byte_idx+height*2] = rotated[byte_idx];
+
+				/* change the values of V for each unit */
+				/* V0 -> V0 */
+				rotated[byte_idx+2] = (img_buff[2+2*(i+width*j)]
+					+ img_buff[2+2*(i+width*(j+1))])/2;
+				/* Vn -> Vn */
+				rotated[byte_idx+height*2+2] =
+					rotated[byte_idx+2];
+			}
+		}
+	} else {
+		cam_place_kpi_marker("Early camera rotation direction Error");
+	}
+}
+
+uint32_t early_camera_frame_delay(int ping)
+{
+	if (ping) { /* ping active */
+
+		if (ping_index != pong_index - 1) {
+			ping_index = pong_index - 1;
+			post_frame = ping_index - frame_delay_num;
+		}
+		ping_index += 2;
+		ping_index %= frame_queue_num;
+		hw_vfe0_init_regs[46].reg_data = frame_queue[ping_index];
+		hw_vfe0_init_regs[47].reg_data = hw_vfe0_init_regs[46].reg_data + raw_size;
+		msm_hw_init(&hw_vfe0_init_regs[46], 1, 0);
+		msm_hw_init(&hw_vfe0_init_regs[47], 1, 0);
+	} else { /* pong active */
+		pong_index += 2;
+		pong_index %= frame_queue_num;
+		hw_vfe0_init_regs[48].reg_data = frame_queue[pong_index];
+		hw_vfe0_init_regs[49].reg_data = hw_vfe0_init_regs[48].reg_data + raw_size;
+		msm_hw_init(&hw_vfe0_init_regs[48], 1, 0);
+		msm_hw_init(&hw_vfe0_init_regs[49], 1, 0);
+	}
+	if (post_frame >= 0) {
+		int temp = post_frame;
+		post_frame++;
+		post_frame %= frame_queue_num;
+		return frame_queue[temp];
+	} else {
+		post_frame++;
+		return frame_queue[0];
+	}
+}
