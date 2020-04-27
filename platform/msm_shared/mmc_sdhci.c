@@ -1063,8 +1063,10 @@ uint32_t mmc_set_hs400_mode(struct sdhci_host *host,
 			return mmc_ret;
 		}
 	}
-	else
+	else {
 		clock_config_mmc(host->msm_host->slot, SDHCI_CLK_400MHZ);
+                host->caps.base_clk_rate = 384000000;
+        }
 
 
 	/* 2. Enable High speed mode */
