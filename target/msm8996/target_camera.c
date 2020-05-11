@@ -101,7 +101,7 @@ enum camera_type {
 
 enum camera_type cam_type;
 
-uint32 frame_counter = 0;
+uint32_t frame_counter = 0;
 uint32_t read_val = 0;
 int ping = 0;
 int gpio_triggered = 0;
@@ -2867,7 +2867,7 @@ int early_camera_flip(void *cam_layer, bool firstframe, bool mode_change)
 	}
 	buffer_cleared = 0;
 
-	if (firstframe == true) {
+	if (frame_counter == 0) {
 		cam_place_kpi_marker("Camera Image in memory");
 		bs_set_timestamp(BS_EARLY_CAMERA_START);
 	}
@@ -2914,8 +2914,9 @@ int early_camera_flip(void *cam_layer, bool firstframe, bool mode_change)
 		camera_layer->layer = NULL;
 	}
 
-	if (firstframe == true)
+	if (frame_counter == 1) {
 		cam_place_kpi_marker("Camera display post done");
+	}
 
 	return 0;
 
