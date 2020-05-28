@@ -32,7 +32,6 @@
 #include <platform/iomap.h>
 #include <platform.h>
 
-static uint32_t kernel_load_start;
 void bs_set_timestamp(enum bs_entry bs_id)
 {
 	addr_t bs_imem = get_bs_info_addr();
@@ -44,19 +43,6 @@ void bs_set_timestamp(enum bs_entry bs_id)
 			ASSERT(0);
 		}
 
-		if (bs_id == BS_KERNEL_LOAD_START) {
-			kernel_load_start = platform_get_sclk_count();
-			return;
-		}
-
-		if(bs_id == BS_KERNEL_LOAD_DONE){
-			clk_count = platform_get_sclk_count();
-			if(clk_count){
-				writel(clk_count - kernel_load_start,
-					bs_imem + (sizeof(uint32_t) * BS_KERNEL_LOAD_TIME));
-			}
-			return;
-		}
 		if(bs_id == BS_DTB_OVERLAY_START){
 			clk_count = platform_get_sclk_count();
 			dprintf(INFO, "DTBO Overlay count start: %u\n", clk_count);
