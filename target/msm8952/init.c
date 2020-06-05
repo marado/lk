@@ -236,7 +236,8 @@ uint32_t target_volume_down()
 	static  bool vol_down_key_init = false;
 
 	if ((board_hardware_id() == HW_PLATFORM_QRD) &&
-			(board_hardware_subtype() == SUB_TYPE_SKUT)) {
+		(board_hardware_subtype() == SUB_TYPE_SKUT) &&
+					(!platform_is_sdm429w())) {
 		uint32_t status = 0;
 
 		if (!vol_down_key_init) {
