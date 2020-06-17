@@ -67,6 +67,7 @@
 #include "include/panel_hx8399c_hd_plus_video.h"
 #include "include/panel_edo_rm67162_qvga_cmd.h"
 #include "include/panel_truly_rm69090_qvga_cmd.h"
+#include "include/panel_truly_rm69090_qvga_cmd_v2.h"
 #include "include/panel_nt35695b_truly_fhd_video.h"
 #include "include/panel_nt35695b_truly_fhd_cmd.h"
 #include "include/panel_st7789v2_320p_spi_cmd.h"
@@ -100,6 +101,7 @@ enum {
 	RM67162_QVGA_CMD_PANEL,
 	RM69090_QVGA_CMD_PANEL,
 	ST7789v2_320P_SPI_CMD_PANEL,
+	RM69090_QVGA_CMD_V2_PANEL,
 	UNKNOWN_PANEL
 };
 
@@ -137,11 +139,14 @@ static struct panel_list supp_panels[] = {
 	{"rm67162_qvga_cmd", RM67162_QVGA_CMD_PANEL},
 	{"rm69090_qvga_cmd", RM69090_QVGA_CMD_PANEL},
 	{"st7789v2_320p_cmd", ST7789v2_320P_SPI_CMD_PANEL},
+	{"rm69090_qvga_cmd_v2", RM69090_QVGA_CMD_V2_PANEL},
 };
 
 static uint32_t panel_id;
 
 #define TRULY_1080P_PANEL_ON_DELAY 40
+#define VARIANT_MINOR_MASK        (0x0000ff00)
+#define VARIANT_MAJOR_MASK        (0x00ff0000)
 
 int oem_panel_rotation()
 {
@@ -886,6 +891,37 @@ static int init_panel_data(struct panel_struct *panelstruct,
 				TIMING_SIZE_12NM);
 		pinfo->mipi.tx_eot_append = true;
 		break;
+	case RM69090_QVGA_CMD_V2_PANEL:
+		panelstruct->paneldata    = &truly_rm69090_qvga_cmd_v2_panel_data;
+		panelstruct->panelres     = &truly_rm69090_qvga_cmd_v2_panel_res;
+		panelstruct->color        = &truly_rm69090_qvga_cmd_v2_color;
+		panelstruct->videopanel   =
+				&truly_rm69090_qvga_cmd_v2_video_panel;
+		panelstruct->commandpanel =
+				&truly_rm69090_qvga_cmd_v2_command_panel;
+		panelstruct->state        = &truly_rm69090_qvga_cmd_v2_state;
+		panelstruct->laneconfig   =
+				&truly_rm69090_qvga_cmd_v2_lane_config;
+		panelstruct->paneltiminginfo
+				= &truly_rm69090_qvga_cmd_v2_timing_info;
+		panelstruct->panelresetseq
+				= &truly_rm69090_qvga_cmd_v2_reset_seq;
+		panelstruct->backlightinfo = &truly_rm69090_qvga_cmd_v2_backlight;
+		pinfo->labibb = NULL;
+		pinfo->mipi.panel_on_cmds
+				= truly_rm69090_qvga_cmd_v2_on_command;
+		pinfo->mipi.num_of_panel_on_cmds
+				= TRULY_RM69090_QVGA_CMD_V2_ON_COMMAND;
+		pinfo->mipi.panel_off_cmds
+				= truly_rm69090_qvga_cmd_v2_off_command;
+		pinfo->mipi.num_of_panel_off_cmds
+				= TRULY_RM69090_QVGA_CMD_V2_OFF_COMMAND;
+		if (phy_db->pll_type == DSI_PLL_TYPE_12NM)
+			memcpy(phy_db->timing,
+				truly_rm69090_qvga_cmd_v2_12nm_timings,
+				TIMING_SIZE_12NM);
+		pinfo->mipi.tx_eot_append = true;
+		break;
 	case NT35695B_TRULY_FHD_VIDEO_PANEL:
 		panelstruct->paneldata    = &nt35695b_truly_fhd_video_panel_data;
 		panelstruct->panelres     = &nt35695b_truly_fhd_video_panel_res;
@@ -1091,10 +1127,14 @@ int oem_panel_select(const char *panel_name, struct panel_struct *panelstruct,
 		}
 
 		if (platform_is_sdm429() || platform_is_sdm429w() || platform_is_sda429w()) {
-			if (hw_subtype == HW_PLATFORM_SUBTYPE_429W_PM660) /* WTP 2700 DVT */
+			if (hw_subtype == HW_PLATFORM_SUBTYPE_429W_PM660) {
 			  panel_id = RM67162_QVGA_CMD_PANEL;
-			else if (hw_subtype == HW_PLATFORM_SUBTYPE_429W_PM660_WDP) /* WDP 2700 */
+			  if ((board_target_id() & VARIANT_MAJOR_MASK) && (!(board_target_id() & VARIANT_MINOR_MASK))) /*Newport*/
+				  panel_id = RM69090_QVGA_CMD_V2_PANEL;
+			}
+			else if (hw_subtype == HW_PLATFORM_SUBTYPE_429W_PM660_WDP) {/* WDP 2700 */
 			  panel_id = RM69090_QVGA_CMD_PANEL;
+			}
       else
 				panel_id = HX8399C_HD_PLUS_VIDEO_PANEL;
 		}

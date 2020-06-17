@@ -1,4 +1,4 @@
-/* Copyright (c) 2015, 2018-2019, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2015, 2018-2020, The Linux Foundation. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -119,6 +119,23 @@ static uint32_t ldo6_pm660[][11]=
 	},
 };
 
+static uint32_t ldo11_pm660[][11]=
+{
+	{
+		LDOA_RES_TYPE, 11,
+		KEY_SOFTWARE_ENABLE, 4, GENERIC_DISABLE,
+		KEY_MICRO_VOLT, 4, 0,
+		KEY_CURRENT, 4, 0,
+	},
+
+	{
+		LDOA_RES_TYPE, 11,
+		KEY_SOFTWARE_ENABLE, 4, GENERIC_ENABLE,
+		KEY_MICRO_VOLT, 4, 1800000,
+		KEY_CURRENT, 4, 40,
+	},
+};
+
 static uint32_t ldo13_pm660[][11]=
 {
 	{
@@ -188,6 +205,11 @@ void regulator_enable(uint32_t enable)
 	}
 
 	if ((platform_is_sdm429() && (board_hardware_subtype() == HW_PLATFORM_SUBTYPE_429W_PM660)) || platform_is_sdm429w() || platform_is_sda429w()) {
+		if (enable & REG_LDO11) {
+			rpm_send_data(&ldo11_pm660[GENERIC_ENABLE][0],
+				36, RPM_REQUEST_TYPE);
+				dprintf(CRITICAL, "%s: enable LDO11\n", __func__);
+		}
 		if (enable & REG_LDO13)
 			rpm_send_data(&ldo13_pm660[GENERIC_ENABLE][0],
 				36, RPM_REQUEST_TYPE);
@@ -200,8 +222,8 @@ void regulator_enable(uint32_t enable)
 		rpm_send_data(&ldo17[GENERIC_ENABLE][0], 36, RPM_REQUEST_TYPE);
 
 	if (enable & REG_LDO6) {
-		if ((platform_is_sdm429() || platform_is_sdm429w() || platform_is_sda429w()) && hw_subtype
-				== HW_PLATFORM_SUBTYPE_429W_PM660)
+		if ((platform_is_sdm429() || platform_is_sdm429w() || platform_is_sda429w())
+			&& ((hw_subtype == HW_PLATFORM_SUBTYPE_429W_PM660)))
 			rpm_send_data(&ldo6_pm660[GENERIC_ENABLE][0], 36, RPM_REQUEST_TYPE);
 		else
 			rpm_send_data(&ldo6[GENERIC_ENABLE][0], 36, RPM_REQUEST_TYPE);
@@ -215,6 +237,10 @@ void regulator_disable(uint32_t enable)
 			rpm_send_data(&ldo1[GENERIC_DISABLE][0], 36, RPM_REQUEST_TYPE);
 
 	} else if (platform_is_sdm439() || platform_is_sdm429() || platform_is_sdm429w() || platform_is_sda429w()) {
+		if (enable & REG_LDO11)
+			rpm_send_data(&ldo11_pm660[GENERIC_DISABLE][0],
+				36, RPM_REQUEST_TYPE);
+
 		if (enable & REG_LDO5)
 			rpm_send_data(&ldo5[GENERIC_DISABLE][0],
 				36, RPM_REQUEST_TYPE);
