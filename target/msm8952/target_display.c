@@ -1,4 +1,4 @@
-/* Copyright (c) 2015-2019, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2015-2020, The Linux Foundation. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -63,6 +63,7 @@
 #define TRULY_VID_PANEL_STRING "1:dsi:0:qcom,mdss_dsi_truly_720p_video:1:none:cfg:single_dsi"
 #define TRULY_CMD_PANEL_STRING "1:dsi:0:qcom,mdss_dsi_truly_720p_cmd:1:none:cfg:single_dsi"
 
+#define VARIANT_MINOR_MASK        (0x0000ff00)
 #define VARIANT_MAJOR_MASK        (0x00ff0000)
 
 /*---------------------------------------------------------------------------*/
@@ -461,8 +462,8 @@ int target_panel_reset(uint8_t enable, struct panel_reset_sequence *resetseq,
       }
       else {
         reset_gpio.pin_id = 60;
-			  pinfo->mipi.use_enable_gpio = 1;
-			  enable_gpio.pin_id = 69;
+        pinfo->mipi.use_enable_gpio = 1;
+        enable_gpio.pin_id = 69;
       }
 		}
 	} else if ((hw_id == HW_PLATFORM_QRD) &&
@@ -515,6 +516,9 @@ int target_panel_reset(uint8_t enable, struct panel_reset_sequence *resetseq,
 				reset_gpio.pin_strength, reset_gpio.pin_state);
 
 		gpio_set_dir(reset_gpio.pin_id, 2);
+
+		dprintf(SPEW, "%s: RESET gpio=%d enable=%d\n", __func__,
+			reset_gpio.pin_id, enable);
 
 		/* reset */
 		for (int i = 0; i < RESET_GPIO_SEQ_LEN; i++) {
@@ -684,6 +688,13 @@ int target_ldo_ctrl(uint8_t enable, struct msm_panel_info *pinfo)
 			ldo_num |= REG_LDO13 | REG_LDO15;
 		}
 
+	/* Newport */
+	if (platform_is_sdm429w() && (hw_subtype == HW_PLATFORM_SUBTYPE_429W_PM660) &&
+	    (board_target_id() & VARIANT_MAJOR_MASK) && (!(board_target_id() & VARIANT_MINOR_MASK))) {
+		ldo_num &= ~(REG_LDO13);
+		ldo_num |= (REG_LDO11);
+	}
+
 	if (enable) {
 		regulator_enable(ldo_num);
 		mdelay(10);
@@ -710,8 +721,8 @@ int target_ldo_ctrl(uint8_t enable, struct msm_panel_info *pinfo)
 		 */
 		regulator_disable(REG_LDO17);
 
-		if ((platform_is_sdm429() || platform_is_sdm429w() || platform_is_sda429w()) && hw_subtype
-			== HW_PLATFORM_SUBTYPE_429W_PM660)
+		if ((platform_is_sdm429() || platform_is_sdm429w() || platform_is_sda429w())
+			&& ((hw_subtype == HW_PLATFORM_SUBTYPE_429W_PM660)))
 			regulator_disable(REG_LDO13 | REG_LDO15);
 	}
 
