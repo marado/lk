@@ -37,6 +37,7 @@
 #include <platform/iomap.h>
 #include <platform/timer.h>
 #include <platform.h>
+#include <board.h>
 
 extern void clock_init_mmc(uint32_t);
 extern void clock_config_mmc(uint32_t, uint32_t);
@@ -1063,8 +1064,12 @@ uint32_t mmc_set_hs400_mode(struct sdhci_host *host,
 			return mmc_ret;
 		}
 	}
-	else
+	else {
 		clock_config_mmc(host->msm_host->slot, SDHCI_CLK_400MHZ);
+                if (board_hardware_id() == HW_PLATFORM_ADP) {
+                   host->caps.base_clk_rate = 384000000;
+                }
+        }
 
 
 	/* 2. Enable High speed mode */
