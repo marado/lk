@@ -147,6 +147,11 @@ __WEAK uint32_t use_hsonly_mode()
 	return 0;
 }
 
+__WEAK uint32_t platform_partial_goods_val ()
+{
+	return 0;
+}
+
 __WEAK uint32_t check_alarm_boot()
 {
 	return 0;

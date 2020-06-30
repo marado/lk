@@ -31,9 +31,10 @@
 #include <msm_panel.h>
 #include <target/display.h>
 #include <platform/gpio.h>
+#include "mdss_spi.h"
 
-#define SUCCESS		0
-#define FAIL		1
+#define SUCCESS              0
+#define FAIL              1
 
 static struct qup_spi_dev *dev = NULL;
 
@@ -50,7 +51,7 @@ static int mdss_spi_write_cmd(const char *buf)
 	dev->bit_shift_en = 1;
 
 	gpio_set(spi_dc_gpio.pin_id, 0);
-	ret = spi_qup_transfer(dev, buf, 1);
+	ret = spi_qup_write(dev, buf, 1);
 	gpio_set(spi_dc_gpio.pin_id, 2);
 	if (ret)
 		dprintf(CRITICAL, "Send SPI command to panel failed\n");
@@ -71,7 +72,7 @@ static int mdss_spi_write_data(const char *buf, size_t len)
 	dev->bit_shift_en = 1;
 
 	gpio_set(spi_dc_gpio.pin_id, 2);
-	ret = spi_qup_transfer(dev, buf, len);
+	ret = spi_qup_write(dev, buf, len);
 	if (ret)
 		dprintf(CRITICAL, "Send SPI parameters to panel failed\n");
 
@@ -92,12 +93,12 @@ static int mdss_spi_write_frame(const char *buf, size_t len)
 	dev->unpack_en = 0;
 
 	gpio_set(spi_dc_gpio.pin_id, 2);
-	ret = spi_qup_transfer(dev, buf, len);
+	ret = spi_qup_write(dev, buf, len);
 
 	return ret;
 }
 
-static void spi_read_panel_data(unsigned char *buf,  int len)
+void spi_read_panel_data(unsigned char *buf,  int len)
 {
 	int ret = 0;
 
@@ -109,13 +110,42 @@ static void spi_read_panel_data(unsigned char *buf,  int len)
 	dev->bit_shift_en = 1;
 
 	gpio_set(spi_dc_gpio.pin_id, 0);
-	ret = spi_qup_transfer(dev, buf, len);
+	ret = spi_qup_read(dev, buf, len);
 	gpio_set(spi_dc_gpio.pin_id, 2);
 
 	if (ret)
 		dprintf(CRITICAL, "Send SPI command to panel failed\n");
 
 	return;
+}
+
+int spi_check_panel_id(struct msm_panel_info *pinfo)
+{
+	int i = 0;
+	int len;
+	int ret = SUCCESS;
+	unsigned char *buf;
+
+	if (!pinfo->spi.signature || !pinfo->spi.signature_len)
+		return ret;
+
+	len = pinfo->spi.signature_len;
+	buf = (unsigned char*) malloc(len + 1);
+
+	mdss_spi_write_cmd(pinfo->spi.signature_addr);
+	spi_read_panel_data(buf, len + 1);
+
+	for (i = 0; i < len; i++) {
+		/* left shift a bit to match SPI panel timming */
+		if(pinfo->spi.signature[i] !=
+			 (((buf[i] << 1) | (buf[i + 1] >> 7)) & 0xFF)) {
+			ret = FAIL;
+			break;
+		}
+	}
+
+	free(buf);
+	return ret;
 }
 
 int mdss_spi_init(void)
@@ -129,17 +159,18 @@ int mdss_spi_init(void)
 	}
 
 	gpio_tlmm_config(spi_dc_gpio.pin_id, 0, spi_dc_gpio.pin_direction,
-			spi_dc_gpio.pin_pull, spi_dc_gpio.pin_strength,
-			spi_dc_gpio.pin_state);
+				spi_dc_gpio.pin_pull, spi_dc_gpio.pin_strength,
+				spi_dc_gpio.pin_state);
 	return SUCCESS;
+
 }
 
 int mdss_spi_panel_init(struct msm_panel_info *pinfo)
 {
 	int cmd_count = 0;
-	int ret = 0;
 
 	while (cmd_count < pinfo->spi.num_of_panel_cmds) {
+
 		if (pinfo->spi.panel_cmds[cmd_count].cmds_post_tg){
 			cmd_count ++;
 			continue;
@@ -156,6 +187,7 @@ int mdss_spi_panel_init(struct msm_panel_info *pinfo)
 
 		cmd_count ++;
 	}
+
 	return SUCCESS;
 }
 
@@ -183,7 +215,7 @@ int mdss_spi_cmd_post_on(struct msm_panel_info *pinfo)
 	}
 
 	while (cmd_count < pinfo->spi.num_of_panel_cmds) {
-		if (pinfo->spi.panel_cmds[cmd_count].cmds_post_tg){
+		if (pinfo->spi.panel_cmds[cmd_count].cmds_post_tg) {
 			payload = pinfo->spi.panel_cmds[cmd_count].payload;
 			mdss_spi_write_cmd(payload);
 			if (pinfo->spi.panel_cmds[cmd_count].size > 1)

@@ -469,6 +469,7 @@ void target_baseband_detect(struct board_data *board)
 	case MSM8208:
 	case MSM8609:
 	case MSM8909W:
+	case MSM8905:
 		board->baseband = BASEBAND_MSM;
 		break;
 
@@ -496,13 +497,50 @@ void target_baseband_detect(struct board_data *board)
 uint8_t target_panel_auto_detect_enabled()
 {
 	uint8_t ret = 0;
+	uint32_t platform = board_platform_id();
+	uint32_t hw_id = board_hardware_id();
+	uint32_t target_id = board_target_id();
+	uint32_t plat_hw_ver_major = ((target_id >> 16) & 0xFF);
 
-	switch(board_hardware_id()) {
+	switch(platform) {
+	case MSM8905:
+		switch(hw_id) {
+		case HW_PLATFORM_QRD:
+			if(plat_hw_ver_major > 0x10 && plat_hw_ver_major < 0x13)
+				ret = 1;
+			break;
+		default:
+			break;
+		}
 	default:
-		ret = 0;
+                ret = 0;
 		break;
 	}
 	return ret;
+}
+
+uint8_t target_is_spi()
+{
+	uint32_t platform = board_platform_id();
+	uint32_t hw_id = board_hardware_id();
+	uint8_t is_spi_panel = 0;
+
+	switch(platform) {
+	case MSM8905:
+		switch (hw_id) {
+		case HW_PLATFORM_QRD:
+			is_spi_panel = 1;
+			break;
+		default:
+			is_spi_panel = 0;
+			break;
+		}
+		break;
+	default:
+		is_spi_panel = 0;
+		break;
+	}
+	return is_spi_panel;
 }
 
 static uint8_t splash_override;
@@ -514,9 +552,12 @@ int target_cont_splash_screen()
 		switch (board_hardware_id()) {
 		case HW_PLATFORM_SURF:
 		case HW_PLATFORM_MTP:
-		case HW_PLATFORM_QRD:
 		case HW_PLATFORM_RCM:
 			splash_screen = 1;
+			break;
+		case HW_PLATFORM_QRD:
+			if(MSM8905 != board_platform_id())
+				splash_screen = 1;
 			break;
 		default:
 			splash_screen = 0;

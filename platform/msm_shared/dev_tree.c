@@ -2006,6 +2006,9 @@ int update_device_tree(void *fdt, const char *cmdline,
 	uint64_t kaslrseed;
 #endif
 	uint32_t cmdline_len = 0;
+#if ENABLE_PARTIAL_GOODS_SUPPORT
+	uint32_t platform = board_platform_id();
+#endif
 
 	if (cmdline)
 		cmdline_len = strlen(cmdline);
@@ -2114,7 +2117,8 @@ int update_device_tree(void *fdt, const char *cmdline,
 	fdt_pack(fdt);
 
 #if ENABLE_PARTIAL_GOODS_SUPPORT
-	update_partial_goods_dtb_nodes(fdt);
+	if ((platform == MSM8905) || (platform == MSM8996))
+		update_partial_goods_dtb_nodes(fdt);
 #endif
 
 	return ret;
