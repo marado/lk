@@ -102,7 +102,7 @@ void write_device_info_flash(device_info *dev);
 static int aboot_save_boot_hash_mmc(uint32_t image_addr, uint32_t image_size);
 static int aboot_frp_unlock(char *pname, void *data, unsigned sz);
 static inline uint64_t validate_partition_size();
-unsigned dt_size=0;
+
 /* fastboot command function pointer */
 typedef void (*fastboot_cmd_fn) (const char *, void *, unsigned);
 
@@ -1032,10 +1032,7 @@ int boot_linux_from_mmc(void)
         hdr->cmdline[BOOT_ARGS_SIZE-1] = 0;
 
 #if DEVICE_TREE
-#ifndef OSVERSION_IN_BOOTIMAGE
-	dt_size = hdr->dt_size;
-#endif
-	dt_actual = ROUND_TO_PAGE(dt_size, page_mask);
+	dt_actual = ROUND_TO_PAGE(hdr->dt_size, page_mask);
 	if (UINT_MAX < ((uint64_t)kernel_actual + (uint64_t)ramdisk_actual+ (uint64_t)second_actual + (uint64_t)dt_actual + page_size)) {
 		dprintf(CRITICAL, "Integer overflow detected in bootimage header fields at %u in %s\n",__LINE__,__FILE__);
 		return -1;
@@ -1428,7 +1425,7 @@ int boot_linux_from_flash(void)
 	{
 
 #if DEVICE_TREE
-		dt_actual = ROUND_TO_PAGE(dt_size, page_mask);
+		dt_actual = ROUND_TO_PAGE(hdr->dt_size, page_mask);
 		if (UINT_MAX < ((uint64_t)kernel_actual + (uint64_t)ramdisk_actual+ (uint64_t)second_actual + (uint64_t)dt_actual + page_size)) {
 			dprintf(CRITICAL, "Integer overflow detected in bootimage header fields\n");
 			return -1;
