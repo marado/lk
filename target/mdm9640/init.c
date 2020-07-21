@@ -1,4 +1,4 @@
-/* Copyright (c) 2014-2016,2019 The Linux Foundation. All rights reserved.
+/* Copyright (c) 2014-2016,2019-2020, The Linux Foundation. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -201,9 +201,9 @@ void reboot_device(unsigned reboot_reason)
 	 * when PM8019 v2 is available.
 	 */
 	if (reboot_reason)
-		pm8x41_v2_reset_configure(PON_PSHOLD_WARM_RESET);
+		pm8x41_reset_configure(PON_PSHOLD_WARM_RESET);
 	else
-		pm8x41_v2_reset_configure(PON_PSHOLD_HARD_RESET);
+		pm8x41_reset_configure(PON_PSHOLD_HARD_RESET);
 
 	ret = scm_halt_pmic_arbiter();
 	if (ret)
