@@ -42,6 +42,11 @@ __WEAK void platform_init_mmu_mappings(void)
 {
 }
 
+__WEAK unsigned int qseecom_get_version()
+{
+	return 0;
+}
+
 __WEAK addr_t platform_get_virt_to_phys_mapping(addr_t virt_addr)
 {
 	ASSERT(platform_use_identity_mmu_mappings());
