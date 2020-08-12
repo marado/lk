@@ -2635,6 +2635,7 @@ void cmd_oem_unlock_go(const char *arg, void *data, unsigned sz)
 		write_device_info(&device);
 
 		struct recovery_message msg;
+		memset(&msg, 0, sizeof(msg));
 		snprintf(msg.recovery, sizeof(msg.recovery), "recovery\n--wipe_data");
 		write_misc(0, &msg, sizeof(msg));
 
