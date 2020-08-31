@@ -101,6 +101,11 @@ static struct ptable flash_ptable;
 
 struct qpic_nand_init_config config;
 
+uint32_t platform_boot_dev_is_nand()
+{
+	return 1;
+}
+
 void update_ptable_names(void)
 {
 	uint32_t ptn_index;
