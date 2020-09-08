@@ -195,12 +195,15 @@ qpic_nand_check_status(uint32_t status)
 		if (!(status & NAND_FLASH_ERR))
 			return NANDC_RESULT_SUCCESS;
 
-		dprintf(CRITICAL, "Nand Flash error. Status = %d\n", status);
+		dprintf(CRITICAL, "Nand Flash error. Status = 0x%x\n", status);
 
-		if (status & NAND_FLASH_TIMEOUT_ERR)
+		if (status & NAND_FLASH_TIMEOUT_ERR) {
+			dprintf(CRITICAL, "NAND_FLASH_TIMEOUT_ERR\n");
 			return NANDC_RESULT_TIMEOUT;
-		else
+		} else {
+			dprintf(CRITICAL, "NANDC_RESULT_FAILURE\n");
 			return NANDC_RESULT_FAILURE;
+		}
 	}
 
 	return NANDC_RESULT_SUCCESS;
