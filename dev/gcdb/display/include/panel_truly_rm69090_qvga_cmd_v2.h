@@ -63,7 +63,7 @@ static char truly_rm69090_qvga_cmd_v2_on_cmd0[] = {
 };
 
 static char truly_rm69090_qvga_cmd_v2_on_cmd1[] = {
-	0x6A, 0x03, 0x15, 0x80
+	0x6A, 0x15, 0x15, 0x80
 };
 
 static char truly_rm69090_qvga_cmd_v2_on_cmd2[] = {
@@ -79,7 +79,7 @@ static char truly_rm69090_qvga_cmd_v2_on_cmd4[] = {
 };
 
 static char truly_rm69090_qvga_cmd_v2_on_cmd5[] = {
-	0x51, 0x80, 0x15, 0x80
+	0x51, 0xff, 0x15, 0x80
 };
 
 static char truly_rm69090_qvga_cmd_v2_on_cmd6[] = {
