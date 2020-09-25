@@ -1,4 +1,4 @@
-/* Copyright (c) 2013, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2013-2020, The Linux Foundation. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -37,7 +37,9 @@
 enum bs_entry {
 	BS_BL_START = 0,
 	BS_KERNEL_ENTRY,
+#ifdef ENABLE_KPI_PARAM
 	BS_SPLASH_SCREEN_DISPLAY,
+#endif
 	BS_KERNEL_LOAD_TIME,
 	BS_KERNEL_LOAD_START,
 	BS_KERNEL_LOAD_DONE,
