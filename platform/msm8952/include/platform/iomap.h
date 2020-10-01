@@ -1,4 +1,4 @@
-/* Copyright (c) 2015, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2015, 2020, The Linux Foundation. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -71,7 +71,7 @@
 #define MSM_USB_BASE                       (PERIPH_SS_BASE + 0x000DB000)
 
 #define CLK_CTL_BASE                       0x1800000
-
+#define BLSP_QUP_BASE(blsp_id, qup_id) (PERIPH_SS_BASE + 0xB5000 + 0x1000 * qup_id)
 #define PMI_SLAVE_BASE           2
 #define PMI_FIRST_SLAVE_OFFSET   0
 #define PMI_SECOND_SLAVE_OFFSET  1
@@ -151,6 +151,28 @@
 #define BLSP1_UART2_APPS_N                 (CLK_CTL_BASE + 0x3040)
 #define BLSP1_UART2_APPS_D                 (CLK_CTL_BASE + 0x3044)
 
+#define GCC_BLSP1_QUP3_SPI_APPS_CBCR        (CLK_CTL_BASE + 0x401C)
+#define GCC_BLSP1_QUP3_SPI_APPS_CMD_RCGR    (CLK_CTL_BASE + 0x4024)
+#define GCC_BLSP1_QUP3_SPI_CFG_RCGR         (CLK_CTL_BASE + 0x4028)
+#define GCC_BLSP1_QUP3_SPI_APPS_M           (CLK_CTL_BASE + 0x402C)
+#define GCC_BLSP1_QUP3_SPI_APPS_N           (CLK_CTL_BASE + 0x4030)
+#define GCC_BLSP1_QUP3_SPI_APPS_D           (CLK_CTL_BASE + 0x4034)
+
+#define GCC_BLSP1_QUP4_SPI_APPS_CBCR        (CLK_CTL_BASE + 0x501C)
+#define GCC_BLSP1_QUP4_SPI_APPS_CMD_RCGR    (CLK_CTL_BASE + 0x5024)
+#define GCC_BLSP1_QUP4_SPI_CFG_RCGR         (CLK_CTL_BASE + 0x5028)
+#define GCC_BLSP1_QUP4_SPI_APPS_M           (CLK_CTL_BASE + 0x502C)
+#define GCC_BLSP1_QUP4_SPI_APPS_N           (CLK_CTL_BASE + 0x5030)
+#define GCC_BLSP1_QUP4_SPI_APPS_D           (CLK_CTL_BASE + 0x5034)
+
+#define GCC_BLSP1_QUP5_SPI_APPS_CBCR        (CLK_CTL_BASE + 0x601C)
+#define GCC_BLSP1_QUP5_SPI_APPS_CMD_RCGR    (CLK_CTL_BASE + 0x6024)
+#define GCC_BLSP1_QUP5_SPI_CFG_RCGR         (CLK_CTL_BASE + 0x6028)
+#define GCC_BLSP1_QUP5_SPI_APPS_M           (CLK_CTL_BASE + 0x602C)
+#define GCC_BLSP1_QUP5_SPI_APPS_N           (CLK_CTL_BASE + 0x6030)
+#define GCC_BLSP1_QUP5_SPI_APPS_D           (CLK_CTL_BASE + 0x6034)
+
+
 /* USB */
 #define USB_HS_BCR                         (CLK_CTL_BASE + 0x41000)
 #define USB_HS_SYSTEM_CBCR                 (CLK_CTL_BASE + 0x41004)
@@ -175,6 +197,8 @@
 #define APP_REGION_SIZE_8952 0x500000
 #define APP_REGION_ADDR_8937 0x85B00000
 #define APP_REGION_SIZE_8937 0x800000
+#define APP_REGION_ADDR_215 0x86000000
+#define APP_REGION_SIZE_215 0x300000
 
 /* MDSS */
 #define MIPI_DSI_BASE               (0x1A98000)
