@@ -2036,6 +2036,11 @@ flash_read_ext(struct ptentry *ptn,
 			errors++;
 			continue;
 		}
+		else if (result)
+		{
+			/* error from flash status */
+			return result;
+		}
 
 #ifndef CONTIGUOUS_MEMORY
 		/* Copy the read page into correct location. */
