@@ -1210,12 +1210,11 @@ qpic_nand_write_page(uint32_t pg_addr,
 	/* Check for errors */
 	for(unsigned i = 0; i < flash.cws_per_page; i++)
 	{
-		nand_ret = qpic_nand_check_status(status[i]);
-		if (nand_ret)
-		{
+		if (status[i]) {
 			dprintf(CRITICAL,
 					"Failed to write CW %d for page: %d\n",
 					i, pg_addr);
+			nand_ret = status[i];
 			break;
 		}
 	}
