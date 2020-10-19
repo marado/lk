@@ -1,4 +1,4 @@
-/* Copyright (c) 2012-2015,2019 The Linux Foundation. All rights reserved.
+/* Copyright (c) 2012-2015,2019,2020 The Linux Foundation. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -577,7 +577,7 @@ static int qseecom_read_from_nand(const char *app_name, void **buf, unsigned int
 	}
 	if (ptn->length && flash_num_pages_per_blk() && page_size) {
 		if ((ptn->length < ( UINT_MAX / flash_num_pages_per_blk())) &&
-			((ptn->length * flash_num_pages_per_blk()) < ( UINT_MAX / page_size))) {
+			((ptn->length * flash_num_pages_per_blk()) < ((UINT_MAX - page_size + 1)/ page_size))) {
 			size = ptn->length * flash_num_pages_per_blk() * page_size;
 			dprintf(SPEW, "%s() length = %u pages_per_blk = %u pagesize = %u size = %zd\n",
 					__func__, ptn->length, flash_num_pages_per_blk(), page_size, size);
