@@ -64,6 +64,7 @@
 #define TRULY_CMD_PANEL_STRING "1:dsi:0:qcom,mdss_dsi_truly_720p_cmd:1:none:cfg:single_dsi"
 
 #define VARIANT_MAJOR_MASK        (0x00ff0000)
+#define VARIANT_MINOR_MASK        (0x0000ff00)
 
 /*---------------------------------------------------------------------------*/
 /* GPIO configuration                                                        */
@@ -683,6 +684,13 @@ int target_ldo_ctrl(uint8_t enable, struct msm_panel_info *pinfo)
 			ldo_num &= ~(REG_LDO17 | REG_LDO5);
 			ldo_num |= REG_LDO13 | REG_LDO15;
 		}
+
+	/* Newport */
+	if (platform_is_sdm429w() && (hw_subtype == HW_PLATFORM_SUBTYPE_429W_PM660) &&
+	    (board_target_id() & VARIANT_MAJOR_MASK) && (!(board_target_id() & VARIANT_MINOR_MASK))) {
+		ldo_num &= ~(REG_LDO13);
+		ldo_num |= (REG_LDO11);
+	}
 
 	if (platform_is_sdm429w()
 		&& ((hw_subtype == HW_PLATFORM_SUBTYPE_429W_PM660_WTP) ||
