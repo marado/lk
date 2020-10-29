@@ -81,6 +81,7 @@ static struct flash_id supported_flash[] = {
 	{0x1580a1c2, 0x02,     0xFFFFFFFF, 0xFF,     0x08000000,    0,  2048,   0x00020000,        0x40,   0},
         {0x1590acad, 0,        0xFFFFFFFF, 0x0,      0x20000000,    0,  2048,   0x00020000,        0x40,   0},
         {0x1680ACAD, 0,        0xFFFFFFFF, 0x0,      0x20000000,    0,  4096,   0x00040000,        0xE0,   0},
+	{0x2680ac2c, 0x62,     0xFFFFFFFF, 0xFF,     0x20000000,    0,  4096,   0x00040000,        0xE0,   1},
 	/* Note: Width flag is 0 for 8 bit Flash and 1 for 16 bit flash   */
 };
 
