@@ -619,7 +619,7 @@ static int qseecom_read_from_emmc(const char *app_name, void **buf, unsigned int
 {
 	int index = INVALID_PTN;
 	unsigned long long ptn = 0;
-	unsigned int size = 0;
+	unsigned long long size = 0;
 	uint8_t lun = 0;
 	unsigned long long rounded_size = 0;
 
@@ -627,7 +627,7 @@ static int qseecom_read_from_emmc(const char *app_name, void **buf, unsigned int
 	lun = partition_get_lun(index);
 	mmc_set_lun(lun);
 	size = partition_get_size(index);
-	if ((ULLONG_MAX - PAGE_SIZE + 1) < size) {
+	if ((UINT_MAX - PAGE_SIZE + 1) < size) {
 		dprintf(CRITICAL, "Integer overflow detected in rounding up the partition size!");
 		return GENERIC_ERROR;
 	}
