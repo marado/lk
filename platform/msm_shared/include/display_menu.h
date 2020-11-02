@@ -1,4 +1,4 @@
-/* Copyright (c) 2015-2016, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2015-2016, 2020, The Linux Foundation. All rights reserved.
 *
 * Redistribution and use in source and binary forms, with or without
 * modification, are permitted provided that the following conditions are
@@ -43,6 +43,7 @@ enum display_menu_type {
 	DISPLAY_MENU_FASTBOOT,
 	DISPLAY_MENU_UNLOCK_CRITICAL,
 	DISPLAY_MENU_LOGGING,
+	DISPLAY_MENU_EIO,
 };
 
 struct menu_info {

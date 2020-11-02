@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2015, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2015, 2020, The Linux Foundation. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -32,14 +32,22 @@
 #define RECOVERY_MODE     0x01
 #define FASTBOOT_MODE     0x02
 #define ALARM_BOOT        0x03
-#define DM_VERITY_LOGGING   0x04
+#if ENABLE_VB_ATTEST
+#define DM_VERITY_EIO   0x04
+#else
+#define DM_VERITY_LOGGING 0x04
+#endif
 #define DM_VERITY_ENFORCING 0x05
 #define DM_VERITY_KEYSCLEAR 0x06
 #else
 #define FASTBOOT_MODE     0x77665500
 #define RECOVERY_MODE     0x77665502
 #define ALARM_BOOT        0x77665503
+#if ENABLE_VB_ATTEST
+#define DM_VERITY_EIO	  0x77665508
+#else
 #define DM_VERITY_LOGGING    0x77665508
+#endif
 #define DM_VERITY_ENFORCING  0x77665509
 #define DM_VERITY_KEYSCLEAR  0x7766550A
 #endif
