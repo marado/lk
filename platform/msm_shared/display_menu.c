@@ -1,4 +1,4 @@
-/* Copyright (c) 2015-2018, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2015-2018, 2020 The Linux Foundation. All rights reserved.
 *
 * Redistribution and use in source and binary forms, with or without
 * modification, are permitted provided that the following conditions are
@@ -44,6 +44,7 @@
 #include <../../../app/aboot/recovery.h>
 
 #define TITLE_MSG "<!>\n\n"
+extern int display_flush();
 
 static const char *unlock_menu_common_msg = "By unlocking the bootloader, you will be able to install "\
 				"custom operating system on this phone. "\
@@ -160,6 +161,7 @@ static void wait_for_exit()
 	is_thread_start = false;
 	fbcon_clear();
 	display_image_on_screen();
+	display_flush();
 }
 
 void wait_for_users_action()
@@ -570,6 +572,7 @@ void display_unlock_menu(int type, bool status)
 	display_unlock_menu_renew(unlock_menu_msg_info, type, status);
 	mutex_release(&unlock_menu_msg_info->msg_lock);
 
+	display_flush();
 	dprintf(INFO, "creating %s keys detect thread\n",
 		status ? "unlock":"lock");
 	display_menu_thread_start(unlock_menu_msg_info);
@@ -600,6 +603,7 @@ void display_fastboot_menu()
 	display_fastboot_menu_renew(fastboot_menu_msg_info);
 	mutex_release(&fastboot_menu_msg_info->msg_lock);
 
+	display_flush();
 	dprintf(INFO, "creating fastboot menu keys detect thread\n");
 	display_menu_thread_start(fastboot_menu_msg_info);
 }
@@ -625,6 +629,7 @@ void display_bootverify_menu(int type)
 	display_bootverify_menu_renew(bootverify_menu_msg_info, type);
 	mutex_release(&bootverify_menu_msg_info->msg_lock);
 
+	display_flush();
 	dprintf(INFO, "creating boot verify keys detect thread\n");
 	display_menu_thread_start(bootverify_menu_msg_info);
 }
