@@ -1,4 +1,4 @@
-/* Copyright (c) 2012-2016, 2018 The Linux Foundation. All rights reserved.
+/* Copyright (c) 2012-2016, 2018, 2020 The Linux Foundation. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -290,6 +290,33 @@ msm_display_on_out:
 	return ret;
 }
 
+int display_flush()
+{
+	int ret = NO_ERROR;
+	struct msm_panel_info *pinfo;
+
+	dprintf(SPEW, "%s: panel-fb-format=%d bpp=%d\n",
+			__func__, panel->fb.format, panel->fb.bpp);
+	if (!panel)
+		return ERR_INVALID_ARGS;
+
+	pinfo = &(panel->panel_info);
+	if (!pinfo)
+		return ERR_INVALID_ARGS;
+
+	switch (pinfo->type) {
+		case SPI_PANEL:
+			ret = mdss_spi_on(pinfo, &(panel->fb));
+			if (ret)
+				goto display_flush_out;
+			dprintf(SPEW, "%s: bpp=%d stride=%d xres=%d\n",
+					__func__, panel->fb.bpp, panel->fb.stride, pinfo->xres);
+		break;
+	}
+display_flush_out:
+	return ret;
+}
+
 int msm_display_init(struct msm_fb_panel_data *pdata)
 {
 	int ret = NO_ERROR;
@@ -339,6 +366,8 @@ int msm_display_init(struct msm_fb_panel_data *pdata)
 	/* pinfo prepare  */
 	if (pdata->panel_info.prepare) {
 		/* this is for edp which pinfo derived from edid */
+		dprintf(SPEW, "stride=%d xres=%d\n",
+				panel->fb.stride, panel->panel_info.xres);
 		ret = pdata->panel_info.prepare();
 		panel->fb.width =  panel->panel_info.xres;
 		panel->fb.height =  panel->panel_info.yres;
