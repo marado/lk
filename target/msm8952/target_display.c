@@ -686,7 +686,7 @@ int target_ldo_ctrl(uint8_t enable, struct msm_panel_info *pinfo)
 		}
 
 	/* Newport */
-	if (platform_is_sdm429w() && (hw_subtype == HW_PLATFORM_SUBTYPE_429W_PM660) &&
+	if (platform_is_sdm429w() && ((hw_subtype == HW_PLATFORM_SUBTYPE_429W_PM660) || (hw_subtype == HW_PLATFORM_SUBTYPE_429W_PM660_NEWPORT_V2)) &&
 	    (board_target_id() & VARIANT_MAJOR_MASK) && (!(board_target_id() & VARIANT_MINOR_MASK))) {
 		ldo_num &= ~(REG_LDO13);
 		ldo_num |= (REG_LDO11);

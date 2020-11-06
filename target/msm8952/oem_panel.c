@@ -1148,7 +1148,7 @@ int oem_panel_select(const char *panel_name, struct panel_struct *panelstruct,
 		}
 
 		if (platform_is_sdm429() || platform_is_sdm429w() || platform_is_sda429w()) {
-			if ((hw_subtype == HW_PLATFORM_SUBTYPE_429W_PM660)) {/* WTP 2700 */
+			if ((hw_subtype == HW_PLATFORM_SUBTYPE_429W_PM660) || (hw_subtype == HW_PLATFORM_SUBTYPE_429W_PM660_NEWPORT_V2)) {/* WTP 2700 */
 			  panel_id = RM67162_QVGA_CMD_PANEL;
 			  if ((board_target_id() & VARIANT_MAJOR_MASK) && (!(board_target_id() & VARIANT_MINOR_MASK))) /*Newport*/
 				  panel_id = RM69090_QVGA_CMD_V2_PANEL;
