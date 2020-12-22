@@ -2872,7 +2872,7 @@ void cmd_flash_meta_img(const char *arg, void *data, unsigned sz)
 		return;
 	}
 
-	if( data_end < ((uintptr_t)data + sizeof(meta_header_t)))
+	if(sizeof(meta_header_t) > sz)
 	{
 		fastboot_fail("Cannot  flash: image header corrupt");
 		return;
@@ -2889,7 +2889,7 @@ void cmd_flash_meta_img(const char *arg, void *data, unsigned sz)
 
 
 	meta_header = (meta_header_t*) data;
-	if( data_end < ((uintptr_t)data + meta_header->img_hdr_sz))
+	if(meta_header->img_hdr_sz > sz)
 	{
 		fastboot_fail("Cannot  flash: image header corrupt");
 		return;
