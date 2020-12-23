@@ -636,5 +636,6 @@ uint8_t card_supports_ddr_mode();
 uint8_t card_supports_hs200_mode();
 uint64_t mmc_get_device_capacity();
 void mmc_put_card_to_sleep(void);
+uint32_t kernel_hdr_page_size();
 #endif
 #endif
