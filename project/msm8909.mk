@@ -22,6 +22,7 @@ endif
 #Enable OTA Support
 ifeq ($(VERIFIED_BOOT),1)
 ENABLE_VBOOT_MOTA_SUPPORT := 0
+ENABLE_VB_ATTEST := 1
 else
 ENABLE_VBOOT_MOTA_SUPPORT := 1
 endif

@@ -2,7 +2,8 @@
  * Copyright (c) 2009, Google Inc.
  * All rights reserved.
  *
- * Copyright (c) 2009-2017, 2019, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2009-2017, 2019-2020, The Linux Foundation.
+ * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are met:
@@ -170,7 +171,11 @@ static const char *keymaster_v1= " androidboot.keymaster=1";
 
 struct verified_boot_verity_mode vbvm[] =
 {
+#if ENABLE_VB_ATTEST
+	{false, "eio"},
+#else
 	{false, "logging"},
+#endif
 	{true, "enforcing"},
 };
 struct verified_boot_state_name vbsn[] =
@@ -182,7 +187,8 @@ struct verified_boot_state_name vbsn[] =
 };
 #endif
 #endif
-
+/*As per spec delay wait time before shutdown in Red state*/
+#define DELAY_WAIT 30000
 static unsigned page_size = 0;
 static unsigned page_mask = 0;
 static unsigned mmc_blocksize = 0;
@@ -754,8 +760,12 @@ void boot_linux(void *kernel, unsigned *tags,
 	{
 		if (device.verity_mode == 0) {
 #if FBCON_DISPLAY_MSG
-			display_bootverify_menu(DISPLAY_MENU_LOGGING);
-			wait_for_users_action();
+#if ENABLE_VB_ATTEST
+		display_bootverify_menu(DISPLAY_MENU_EIO);
+#else
+		display_bootverify_menu(DISPLAY_MENU_LOGGING);
+#endif
+		wait_for_users_action();
 #else
 			dprintf(CRITICAL,
 				"The dm-verity is not started in enforcing mode.\nWait for 5 seconds before proceeding\n");
@@ -919,8 +929,13 @@ static void verify_signed_bootimg(uint32_t bootimg_addr, uint32_t bootimg_size)
 		{
 			case RED:
 #if FBCON_DISPLAY_MSG
-				display_bootverify_menu(DISPLAY_MENU_RED);
-				wait_for_users_action();
+			display_bootverify_menu(DISPLAY_MENU_RED);
+#if ENABLE_VB_ATTEST
+			mdelay(DELAY_WAIT);
+			shutdown_device();
+#else
+			wait_for_users_action();
+#endif
 #else
 				dprintf(CRITICAL,
 						"Your device has failed verification and may not work properly.\nWait for %d seconds before proceeding\n",WAIT_TIME_FOR_RED_STATE_SEC);
@@ -3892,7 +3907,13 @@ void aboot_init(const struct app_descriptor *app)
 	else if(reboot_mode == DM_VERITY_ENFORCING) {
 		device.verity_mode = 1;
 		write_device_info(&device);
-	} else if(reboot_mode == DM_VERITY_LOGGING) {
+	}
+#if ENABLE_VB_ATTEST
+	else if (reboot_mode == DM_VERITY_EIO)
+#else
+	else if (reboot_mode == DM_VERITY_LOGGING)
+#endif
+	{
 		device.verity_mode = 0;
 		write_device_info(&device);
 	} else if(reboot_mode == DM_VERITY_KEYSCLEAR) {
