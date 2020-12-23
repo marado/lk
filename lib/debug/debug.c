@@ -98,6 +98,11 @@ int _dprintf(const char *fmt, ...)
 	char ts_buf[13];
 	int err;
 
+#ifdef USER_BUILD_VARIANT
+	if (force_disable_logs)
+		return 0;
+#endif
+
 	snprintf(ts_buf, sizeof(ts_buf), "[%u] ",(unsigned int)current_time());
 	dputs(ALWAYS, ts_buf);
 

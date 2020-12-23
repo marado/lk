@@ -53,6 +53,8 @@ int _dputs(const char *str);
 int _dprintf(const char *fmt, ...) __PRINTFLIKE(1, 2);
 int _dvprintf(const char *fmt, va_list ap);
 
+extern bool force_disable_logs;
+
 #define dputc(level, str) do { if ((level) <= DEBUGLEVEL) { _dputc(str); } } while (0)
 #define dputs(level, str) do { if ((level) <= DEBUGLEVEL) { _dputs(str); } } while (0)
 #define dprintf(level, x...) do { if ((level) <= DEBUGLEVEL) { _dprintf(x); } } while (0)

@@ -381,6 +381,8 @@ char battery_soc_ok [MAX_RSP_SIZE];
 
 char get_variant[MAX_RSP_SIZE];
 
+bool force_disable_logs = false;
+
 extern int emmc_recovery_init(void);
 
 #if NO_KEYPAD_DRIVER
@@ -1223,6 +1225,8 @@ void boot_linux(void *kernel, unsigned *tags,
 	arch_disable_mmu();
 #endif
 	bs_set_timestamp(BS_KERNEL_ENTRY);
+
+	force_disable_logs = true;
 
 	if (IS_ARM64(kptr))
 		/* Jump to a 64bit kernel */
