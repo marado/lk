@@ -1,4 +1,5 @@
-/* Copyright (c) 2012-2015, 2017, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2012-2015, 2017, 2020, The Linux Foundation.
+ * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -258,6 +259,29 @@ int msm_display_on()
 		ret = pinfo->on();
 
 msm_display_on_out:
+	return ret;
+}
+
+int display_flush()
+{
+	int ret = NO_ERROR;
+	struct msm_panel_info *pinfo;
+
+	if (!panel)
+		return ERR_INVALID_ARGS;
+
+	pinfo = &(panel->panel_info);
+	if (!pinfo)
+		return ERR_INVALID_ARGS;
+
+	switch (pinfo->type) {
+		case SPI_PANEL:
+			ret = mdss_spi_on(pinfo, &(panel->fb));
+			if (ret)
+				goto display_flush_out;
+		break;
+	}
+display_flush_out:
 	return ret;
 }
 

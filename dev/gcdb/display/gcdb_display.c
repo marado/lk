@@ -1,4 +1,5 @@
-/* Copyright (c) 2013-2014, 2017, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2013-2014, 2017, 2020, The Linux Foundation.
+ * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -466,6 +467,7 @@ int gcdb_display_init(const char *panel_name, uint32_t rev, void *base)
 		panel.fb.height =  panel.panel_info.yres;
 		panel.fb.bpp =  panel.panel_info.bpp;
 		panel.fb.format = FB_FORMAT_RGB565;
+		panel.fb.stride = panel.panel_info.xres;
 		panel.panel_info.type = SPI_PANEL;
 	} else {
 		dprintf(CRITICAL, "Target panel init not found!\n");

@@ -1,4 +1,4 @@
-/* Copyright (c) 2015-2017, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2015-2017, 2020, The Linux Foundation. All rights reserved.
 *
 * Redistribution and use in source and binary forms, with or without
 * modification, are permitted provided that the following conditions are
@@ -48,7 +48,7 @@
 #include <string.h>
 
 #define KEY_DETECT_FREQUENCY		50
-
+extern int display_flush();
 static time_t before_time;
 
 extern int target_volume_up();
@@ -362,14 +362,17 @@ int select_msg_keys_detect(void *param) {
 		if (is_key_pressed(VOLUME_UP)) {
 			mutex_acquire(&msg_info->msg_lock);
 			menu_pages_action[msg_info->info.msg_type].up_action_func(msg_info);
+			display_flush();
 			mutex_release(&msg_info->msg_lock);
 		} else if (is_key_pressed(VOLUME_DOWN)) {
 			mutex_acquire(&msg_info->msg_lock);
 			menu_pages_action[msg_info->info.msg_type].down_action_func(msg_info);
+			display_flush();
 			mutex_release(&msg_info->msg_lock);
 		} else if (is_key_pressed(POWER_KEY)) {
 			mutex_acquire(&msg_info->msg_lock);
 			menu_pages_action[msg_info->info.msg_type].enter_action_func(msg_info);
+			display_flush();
 			mutex_release(&msg_info->msg_lock);
 		}
 
