@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2008-2009 Travis Geiselbrecht
+ * Copyright (c) 2021, The Linux Foundation. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining
  * a copy of this software and associated documentation files
@@ -42,9 +43,14 @@ typedef unsigned short u_short;
 typedef unsigned int u_int;
 typedef unsigned long u_long;
 
+#if !defined(__clang__)
 #ifndef _SIZE_T_DEFINED_
 typedef unsigned long size_t;
 #endif
+typedef bool boolean;
+typedef uint32_t uint32;
+#endif
+
 typedef long          ssize_t;
 typedef long long     off_t;
 
@@ -62,7 +68,6 @@ typedef uint8_t uint8;
 typedef uint16_t uint16;
 typedef uint32_t uint32;
 typedef uint64_t uint64;
-typedef int     boolean;
 typedef int8_t int8;
 typedef int16_t int16;
 typedef int32_t int32;

@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2008 Travis Geiselbrecht
+ * Copyright (c) 2021, The Linux Foundation. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining
  * a copy of this software and associated documentation files
@@ -91,7 +92,7 @@
 #define __WARN_UNUSED_RESULT
 #endif
 
-#if (__GNUC__ > 4) || (__GNUC__ == 4 && __GNUC_MINOR__ >= 1)
+#if (__GNUC__ > 4) || (__GNUC__ == 4 && __GNUC_MINOR__ >= 1) && !defined(__clang__)
 #define __EXTERNALLY_VISIBLE __attribute__((externally_visible))
 #else
 #define __EXTERNALLY_VISIBLE
