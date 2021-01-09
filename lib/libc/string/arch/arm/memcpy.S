@@ -1,6 +1,7 @@
 /*
  * Copyright (c) 2008 Travis Geiselbrecht
- *
+ * Copyright (c) 2013-2021, The Linux Foundation. All rights reserved.
+
  * Permission is hereby granted, free of charge, to any person obtaining
  * a copy of this software and associated documentation files
  * (the "Software"), to deal in the Software without restriction,
@@ -140,17 +141,31 @@ FUNCTION(memcpy)
 	msr		CPSR_f, r12				// move into NZCV fields in CPSR
 
 	// move as many bytes as necessary to get the dst aligned
+# if defined(__clang__)
+	ldrbvs	r3, [r1], #1			// V set
+	ldrhcs	r4, [r1], #2			// C set
+#else
 	ldrvsb	r3, [r1], #1			// V set
 	ldrcsh	r4, [r1], #2			// C set
+#endif
 	ldreq	r5, [r1], #4			// Z set
 
+# if defined(__clang__)
+	strbvs	r3, [r0], #1
+	strhcs	r4, [r0], #2
+#else
 	strvsb	r3, [r0], #1
 	strcsh	r4, [r0], #2
+#endif
 	streq	r5, [r0], #4
 
+# if defined(__clang__)
+	ldmiami	r1!, {r3-r4}			// N set
+	stmiami	r0!, {r3-r4}
+#else
 	ldmmiia	r1!, {r3-r4}			// N set
 	stmmiia	r0!, {r3-r4}
-
+#endif
 	// fix the remaining len
 	sub		r2, r2, r12, lsr #28
 

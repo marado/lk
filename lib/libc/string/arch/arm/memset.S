@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2008 Travis Geiselbrecht
+ * Copyright (c) 2013-2021, The Linux Foundation. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining
  * a copy of this software and associated documentation files
@@ -99,8 +100,13 @@ FUNCTION(memset)
 	msr     CPSR_f, r3             // move into NZCV fields in CPSR
 
 	// move as many bytes as necessary to get the dst aligned
+#if defined(__clang__)
+	strbvs  r1, [r0], #1			// V set
+	strhcs  r1, [r0], #2			// C set
+#else
 	strvsb  r1, [r0], #1			// V set
 	strcsh  r1, [r0], #2			// C set
+#endif
 	streq   r1, [r0], #4			// Z set
 	strmi   r1, [r0], #4			// N set
 	strmi   r1, [r0], #4			// N set

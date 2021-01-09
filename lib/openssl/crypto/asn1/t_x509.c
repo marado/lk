@@ -1,5 +1,7 @@
 /* crypto/asn1/t_x509.c */
 /* Copyright (C) 1995-1998 Eric Young (eay@cryptsoft.com)
+ * Copyright (c) 2013-2021, The Linux Foundation. All rights reserved.
+ *
  * All rights reserved.
  *
  * This package is an SSL implementation written
@@ -293,13 +295,24 @@ int X509_signature_print(BIO *bp, X509_ALGOR *sigalg, ASN1_STRING *sig)
 	n=sig->length;
 	s=sig->data;
 	for (i=0; i<n; i++)
-		{
+	{
 		if ((i%18) == 0)
-			if (BIO_write(bp,"\n        ",9) <= 0) return 0;
+		{
+			if (BIO_write(bp,"\n        ",9) <= 0)
+			{
+				return 0;
+			}
 			if (BIO_printf(bp,"%02x%s",s[i],
-				((i+1) == n)?"":":") <= 0) return 0;
+				((i+1) == n)?"":":") <= 0)
+			{
+				return 0;
+			};
 		}
-	if (BIO_write(bp,"\n",1) != 1) return 0;
+	}
+	if (BIO_write(bp,"\n",1) != 1)
+	{
+		return 0;
+	};
 	return 1;
 }
 

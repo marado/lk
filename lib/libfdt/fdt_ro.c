@@ -1,6 +1,7 @@
 /*
  * libfdt - Flat Device Tree manipulation
  * Copyright (C) 2006 David Gibson, IBM Corporation.
+ * Copyright (c) 2013-2021, The Linux Foundation. All rights reserved.
  *
  * libfdt is dual licensed: you can use it either under the terms of
  * the GPL, or the BSD license, at your option.
@@ -99,9 +100,13 @@ int fdt_get_mem_rsv(const void *fdt, int n, uint64_t *address, uint64_t *size)
 int fdt_num_mem_rsv(const void *fdt)
 {
 	int i = 0;
-
+#if defined(__clang__)
+	while (fdt32_to_cpu(_fdt_mem_rsv(fdt, i)->size) != 0)
+		i++;
+#else
 	while (fdt64_to_cpu(_fdt_mem_rsv(fdt, i)->size) != 0)
 		i++;
+#endif
 	return i;
 }
 
@@ -494,7 +499,7 @@ int fdt_node_offset_by_phandle(const void *fdt, uint32_t phandle)
 {
 	int offset;
 
-	if ((phandle == 0))
+	if (phandle == 0)
 		return -FDT_ERR_BADPHANDLE;
 
 	FDT_CHECK_HEADER(fdt);
