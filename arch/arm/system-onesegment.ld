@@ -78,6 +78,7 @@ SECTIONS
 	. = ALIGN(4); 
 	_end = .;
 
+	.ARM.exidx : { *(.ARM.exidx) }
 	. = %MEMBASE% + %MEMSIZE%;
 	_end_of_ram = .;
 
