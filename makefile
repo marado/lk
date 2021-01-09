@@ -252,16 +252,29 @@ DEPS := $(ALLOBJS:%o=%d)
 
 # default to no ccache
 CCACHE ?= 
+ifeq ($(LLVM_SUPPORT),1)
+CC := $(CROSS_COMPILE_CLANG)/clang
+ifeq ($(LD),ld)
+LD := $(CROSS_COMPILE_CLANG)/ld.lld
+endif
+STRIP :=  $(CROSS_COMPILE_CLANG)/llvm-strip
+OBJDUMP :=  $(CROSS_COMPILE_CLANG)/llvm-objdump
+OBJCOPY :=   $(CROSS_COMPILE_CLANG)/llvm-objcopy
+CPPFILT := $(TOOLCHAIN_PREFIX)c++filt
+SIZE :=  $(CROSS_COMPILE_CLANG)/llvm-size
+NM :=  $(CROSS_COMPILE_CLANG)/llvm-nm
+else
 CC := $(CCACHE) $(TOOLCHAIN_PREFIX)gcc
 ifeq ($(LD),ld)
 LD := $(TOOLCHAIN_PREFIX)ld
 endif
-STRIP := $(TOOLCHAIN_PREFIX)strip
-OBJDUMP := $(TOOLCHAIN_PREFIX)objdump
-OBJCOPY := $(TOOLCHAIN_PREFIX)objcopy
+STRIP :=  $(TOOLCHAIN_PREFIX)strip
+OBJDUMP :=  $(TOOLCHAIN_PREFIX)objdump
+OBJCOPY :=   $(TOOLCHAIN_PREFIX)objcopy
 CPPFILT := $(TOOLCHAIN_PREFIX)c++filt
-SIZE := $(TOOLCHAIN_PREFIX)size
-NM := $(TOOLCHAIN_PREFIX)nm
+SIZE :=  $(TOOLCHAIN_PREFIX)size
+NM :=  $(TOOLCHAIN_PREFIX)nm
+endif
 
 # comment out or override if you want to see the full output of each command
 NOECHO ?= @

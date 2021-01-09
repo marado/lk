@@ -22,7 +22,9 @@ DEFINES += \
 CFLAGS += -mcpu=$(ARM_CPU)
 #CFLAGS += -mcpu=arm1136jf-s # compiler doesn't understand cortex yet
 HANDLED_CORE := true
-#CFLAGS += -mfpu=vfp -mfloat-abi=softfp
+ifeq ($(LLVM_SUPPORT),1)
+CFLAGS += -mfpu=vfp -mfloat-abi=softfp
+endif
 endif
 ifeq ($(ARM_CPU),arm1136j-s)
 DEFINES += \
@@ -124,8 +126,11 @@ endif
 ifeq ($(MEMVARS_SET),0)
 $(error missing MEMBASE or MEMSIZE variable, please set in target rules.mk)
 endif
-
+ifeq ($(LLVM_SUPPORT),1)
+LIBGCC := $(shell $(CROSS_COMPILE_CLANG)/clang -target arm-linux-androideabi --rtlib=compiler-rt $(CFLAGS) $(THUMBCFLAGS) -print-libgcc-file-name)
+else
 LIBGCC := $(shell $(TOOLCHAIN_PREFIX)gcc $(CFLAGS) $(THUMBCFLAGS) -print-libgcc-file-name)
+endif
 #$(info LIBGCC = $(LIBGCC))
 
 # potentially generated files that should be cleaned out with clean make rule

@@ -1,7 +1,7 @@
 /*
  * Copyright (c) 2008 Travis Geiselbrecht
  *
- * Copyright (c) 2009-2014, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2009-2021, The Linux Foundation. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining
  * a copy of this software and associated documentation files
@@ -82,10 +82,11 @@ void kmain(void)
 	dprintf(INFO, "welcome to lk\n\n");
 	bs_set_timestamp(BS_BL_START);
 
+#if !defined(__clang__)
 	// deal with any static constructors
 	dprintf(SPEW, "calling constructors\n");
 	call_constructors();
-
+#endif
 	// bring up the kernel heap
 	dprintf(SPEW, "initializing heap\n");
 	heap_init();
