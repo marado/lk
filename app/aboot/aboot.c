@@ -2,7 +2,7 @@
  * Copyright (c) 2009, Google Inc.
  * All rights reserved.
  *
- * Copyright (c) 2009-2020, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2009-2021, The Linux Foundation. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are met:
@@ -3818,8 +3818,7 @@ void cmd_flash_meta_img(const char *arg, void *data, unsigned sz)
 
 	for (i=0; i<images; i++) {
 
-		if((img_header_entry[i].ptn_name == NULL) ||
-			(img_header_entry[i].start_offset == 0) ||
+		if((img_header_entry[i].start_offset == 0) ||
 			(img_header_entry[i].size == 0))
 			break;
 		if ((UINT_MAX - img_header_entry[i].start_offset) < (uintptr_t)data) {
