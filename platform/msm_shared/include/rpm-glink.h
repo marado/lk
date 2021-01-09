@@ -1,4 +1,4 @@
-/* Copyright (c) 2015, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2015-2021, The Linux Foundation. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -45,7 +45,6 @@ typedef struct
 	char name[32];
 } rpm_ssr_req;
 
-typedef rpm_cmd rpm_ack_msg;
 glink_err_type rpm_glink_send_data(uint32_t *data, uint32_t len, msg_type type);
 uint32_t rpm_glink_recv_data(char *rx_buffer, uint32_t *len);
 void rpm_glink_clk_enable(uint32_t *data, uint32_t len);

@@ -1,4 +1,4 @@
-/* Copyright (c) 2010-2011, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2010-2021, The Linux Foundation. All rights reserved.
 
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -27,7 +27,7 @@
  */
 
 #ifndef __CRYPTO_ENG_H__
-#define __CRYPYO_ENG_H__
+#define __CRYPTO_ENG_H__
 
 #define CRYPTO_ENG_REG(offset)		(MSM_CRYPTO_BASE + offset)
 

@@ -1,4 +1,4 @@
-/* Copyright (c) 2011-2018, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2011-2021, The Linux Foundation. All rights reserved.
 
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -1220,8 +1220,9 @@ partition_parse_gpt_header(unsigned char *buffer,
 		dprintf(CRITICAL,"Header crc mismatch crc_val = %u with crc_val_org = %u\n", crc_val,crc_val_org);
 		return 1;
 	}
-	else
+	else {
 		PUT_LONG(&buffer[HEADER_CRC_OFFSET], crc_val);
+	}
 
 	current_lba =
 	    GET_LLWORD_FROM_BYTE(&buffer[PRIMARY_HEADER_OFFSET]);

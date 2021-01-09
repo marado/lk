@@ -2,7 +2,7 @@
  * Copyright (c) 2008, Google Inc.
  * All rights reserved.
  *
- * Copyright (c) 2009-2016, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2009-2021, The Linux Foundation. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -565,7 +565,7 @@ static void handle_setup(struct udc_endpoint *ept)
 						data+= 9; /* skip interface desc */
 						/* taking the max packet size based on the USB host speed connected */
 						for (n = 0; n < 2; n++) {
-							data[4] = usb_highspeed ? 512:64;
+							data[4] = usb_highspeed ? 0:64;
 							data[5] = (usb_highspeed ? 512:64)>>8;
 							data += 7;
 						}

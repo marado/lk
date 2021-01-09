@@ -1,4 +1,4 @@
-/* Copyright (c) 2013-2015,2018 The Linux Foundation. All rights reserved.
+/* Copyright (c) 2013-2015,2018,2021, The Linux Foundation. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -684,7 +684,7 @@ static uint32_t mmc_get_ext_csd(struct sdhci_host *host, struct mmc_card *card)
 
 	ASSERT(card->ext_csd);
 
-	memset(card->ext_csd, 0, sizeof(card->ext_csd));
+	memset(card->ext_csd, 0, ROUNDUP(512, CACHE_LINE));
 
 	/* invalidate any cached buf data (controller updates main memory) */
 	arch_invalidate_cache_range((addr_t) card->ext_csd, 512);

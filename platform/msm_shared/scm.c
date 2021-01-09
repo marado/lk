@@ -1,4 +1,4 @@
-/* Copyright (c) 2011-2018,2019 The Linux Foundation. All rights reserved.
+/* Copyright (c) 2011-2018,2019,2021, The Linux Foundation. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -42,7 +42,11 @@
 #include <boot_device.h>
 #include "scm.h"
 
+#if !defined(__clang__)
 #pragma GCC optimize ("O0")
+#else
+#pragma clang optimize off
+#endif
 
 /* From Linux Kernel asm/system.h */
 #define __asmeq(x, y)  ".ifnc " x "," y " ; .err ; .endif\n\t"
@@ -1201,15 +1205,16 @@ static uint32_t scm_call_a32(uint32_t x0, uint32_t x1, uint32_t x2, uint32_t x3,
 			__asmeq("%1", "r1")
 			__asmeq("%2", "r2")
 			__asmeq("%3", "r3")
-			__asmeq("%4", "r0")
-			__asmeq("%5", "r1")
-			__asmeq("%6", "r2")
-			__asmeq("%7", "r3")
-			__asmeq("%8", "r4")
-			__asmeq("%9", "r5")
-			__asmeq("%10", "r6")
+			__asmeq("%4", "r6")
+			__asmeq("%5", "r0")
+			__asmeq("%6", "r1")
+			__asmeq("%7", "r2")
+			__asmeq("%8", "r3")
+			__asmeq("%9", "r4")
+			__asmeq("%10", "r5")
+			__asmeq("%11", "r6")
 			"smc    #0  @ switch to secure world\n"
-			: "=r" (r0), "=r" (r1), "=r" (r2), "=r" (r3)
+			: "=r" (r0), "=r" (r1), "=r" (r2), "=r" (r3), "=r" (r6)
 			: "r" (r0), "r" (r1), "r" (r2), "r" (r3), "r" (r4), "r" (r5), "r" (r6));
 	} while(r0 == 1);
 
@@ -1462,3 +1467,7 @@ bool allow_set_fuse(uint32_t version)
     return FALSE;
   }
 }
+
+#if defined(__clang__)
+#pragma clang optimize on
+#endif

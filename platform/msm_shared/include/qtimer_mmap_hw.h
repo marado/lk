@@ -1,5 +1,5 @@
 
-/* Copyright (c) 2012, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2012-2021, The Linux Foundation. All rights reserved.
 
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -28,7 +28,7 @@
  */
 
 #ifndef __PLATFORM_MSM_SHARED_QTMR_MMAP_H
-#define __PLATFORM_MSM_SHARED_QRMR_MMAP_H
+#define __PLATFORM_MSM_SHARED_QTMR_MMAP_H
 
 #include <platform/iomap.h>
 

@@ -1,4 +1,4 @@
-/* Copyright (c) 2013-2015, 2018, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2013-2021, 2018, The Linux Foundation. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -81,7 +81,6 @@ struct tz_rpmb_rw_resp
 	uint32_t version;
 }__PACKED;
 
-typedef int (*ListenerCallback)(void*, uint32_t);
 
 static void handle_init_request(void *buf, uint32_t sz)
 {
