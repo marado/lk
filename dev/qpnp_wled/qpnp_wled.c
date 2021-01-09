@@ -1,4 +1,4 @@
- /* Copyright (c) 2014-2016, The Linux Foundation. All rights reserved.
+ /* Copyright (c) 2014-2021, The Linux Foundation. All rights reserved.
 
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -50,8 +50,10 @@ static int qpnp_wled_avdd_trim_adjustments[NUM_SUPPORTED_AVDD_VOLTAGES] = {
 static int fls(uint16_t n)
 {
 	int i = 0;
-	for (; n; n >>= 1, i++);
-	  return i;
+	for (; n; n >>= 1){
+		i++;
+	}
+	return i;
 }
 
 static struct qpnp_wled *gwled;

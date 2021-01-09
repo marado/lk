@@ -1,4 +1,4 @@
-/* Copyright (c) 2013-2015, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2013-2021, The Linux Foundation. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -100,7 +100,7 @@ static inline bool is_dsi_config_dual(void)
 {
 	struct oem_panel_data *oem_data = mdss_dsi_get_oem_data_ptr();
 
-	return !is_dsi_config_split() && oem_data->sec_panel &&
+	return !is_dsi_config_split() &&
 		strcmp(oem_data->sec_panel, "");
 }
 

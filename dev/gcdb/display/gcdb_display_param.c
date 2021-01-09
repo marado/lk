@@ -1,4 +1,4 @@
-/* Copyright (c) 2013-2016, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2013-2021, The Linux Foundation. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -312,8 +312,7 @@ bool gcdb_display_cmdline_arg(char *pbuf, uint16_t buf_size)
 								panel_mode;
 			slave_panel_node =
 				panelstruct.paneldata->slave_panel_node_id;
-		} else if (oem_data.sec_panel &&
-			strcmp(oem_data.sec_panel, "")) {
+		} else if (strcmp(oem_data.sec_panel, "")) {
 			dsi_id = SIM_DSI_ID;
 			panel_node = NO_PANEL_CONFIG;
 			panel_mode = 0;
@@ -345,7 +344,7 @@ bool gcdb_display_cmdline_arg(char *pbuf, uint16_t buf_size)
 		return false;
 	}
 
-	if (oem_data.sec_panel && strcmp(oem_data.sec_panel, "")) {
+	if (strcmp(oem_data.sec_panel, "")) {
 		if (panel_mode & (DUAL_DSI_FLAG | SPLIT_DISPLAY_FLAG |
 			DST_SPLIT_FLAG)) {
 			dprintf(CRITICAL, "Invalid config: Primary panel is"
