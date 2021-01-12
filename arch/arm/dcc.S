@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2008 Brian Swetland
+ * Copyright (c) 2021, The Linux Foundation. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining
  * a copy of this software and associated documentation files
@@ -25,6 +26,21 @@
 .global dcc_getc
 
 #if defined(ARM_ISA_ARMV6) || defined(ARM_ISA_ARMV7)
+#if defined(__clang__)
+dcc_getc:
+	mrc p14, 0, r0, c0, c1, 0
+	tst r0, #(1 << 30)
+	moveq r0, #-1
+	mrcne p14, 0, r0, c0, c5, 0
+	bx lr
+
+dcc_putc:
+	mrc p14, 0, apsr_nzcv, c0, c1, 0
+	mcrcc p14, 0, r0, c0, c5, 0
+	movcc r0, #0
+	movcs r0, #-1
+	bx lr
+#else
 dcc_getc:
 	mrc 14, 0, r0, c0, c1, 0 
 	tst r0, #(1 << 30)
@@ -38,4 +54,5 @@ dcc_putc:
 	movcc r0, #0
 	movcs r0, #-1
 	bx lr
+#endif
 #endif

@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2008 Travis Geiselbrecht
+ * Copyright (c) 2021, The Linux Foundation. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining
  * a copy of this software and associated documentation files
@@ -62,10 +63,16 @@ void arch_early_init(void)
 
 	isb();
 
-	/* set enable bit in fpexc */
+    /* set enable bit in fpexc */
+#if !defined(__clang__)
 	__asm__ volatile("mrc  p10, 7, %0, c8, c0, 0" : "=r" (val));
 	val |= (1<<30);
 	__asm__ volatile("mcr  p10, 7, %0, c8, c0, 0" :: "r" (val));
+#else
+	__asm__ volatile("vmrs %0, fpscr" : "=r" (val));
+	val |= (1<<30);
+	__asm__ volatile("vmsr fpscr, %0" :: "r" (val));
+#endif
 #endif
 
 #if ARM_CPU_CORTEX_A8
