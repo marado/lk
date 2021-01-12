@@ -1,4 +1,4 @@
-/* Copyright (c) 2010-2017,2019 The Linux Foundation. All rights reserved.
+/* Copyright (c) 2010-2017,2019,2021, The Linux Foundation. All rights reserved.
 
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -51,7 +51,6 @@
 #define BOOT_FLAGS	1
 #define UPDATE_STATUS	2
 
-static const int MISC_PAGES = 3;			// number of pages to save
 static const int MISC_COMMAND_PAGE = 1;		// bootloader command is this page
 static char buf[4096];
 
