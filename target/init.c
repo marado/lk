@@ -275,8 +275,9 @@ bool target_uses_system_as_root(void)
 #if ENABLE_LE_VARIANT
 	return true;
 #else
-	if (target_get_vb_version() >= VB_M)
+	if (target_get_vb_version() >= VB_M) {
 		return true;
+	}
 #endif
 #endif
 		return false;
