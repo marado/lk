@@ -165,6 +165,35 @@ static int add_attribute_to_img(unsigned char *ptr, AUTH_ATTR *input)
 	return i2d_AUTH_ATTR(input, &ptr);
 }
 
+/* timesafe_memcmp() should perform a memcmp() in constant time (proportional to len) */
+/* Function returns 1 if the strings are different and 0 if the strings are the same  */
+
+static int timesafe_memcmp(const void* ptr1, const void* ptr2, size_t len)
+{
+    uint8_t rc = 0;
+    uint8_t const* p1 = (uint8_t const*) ptr1;
+    uint8_t const* p2 = (uint8_t const*) ptr2;
+
+    while (len > 0)
+    {
+        /* *p1 XOR * p2 will be zero if and only if *p1 == *p2                  */
+        /* The OR means that once rc becomes non-zero, it will remain that way. */
+        rc = rc | (*p1 ^ *p2);
+
+        /* Setup for next iteration                                             */
+        len--;
+        p1++;
+        p2++;
+    }
+
+    /* Reduce rc to 1 if rc is non-zero and 0 if rc is zero.                    */
+    rc = (rc >> 4) | (rc & 0x0F);
+    rc = (rc >> 2) | (rc & 0x03);
+    rc = (rc >> 1) | (rc & 0x01);
+
+    return rc?1:0;
+}
+
 bool boot_verify_compare_sha256(unsigned char *image_ptr,
 		unsigned int image_size, unsigned char *signature_ptr, RSA *rsa)
 {
@@ -208,7 +237,7 @@ bool boot_verify_compare_sha256(unsigned char *image_ptr,
 	* digest contains the value that this should be for the image that we're
 	* verifying, so compare them.*/
 
-	ret = memcmp(plain_text, digest, ASN1_ENCODED_SHA256_SIZE);
+	ret = timesafe_memcmp(plain_text, digest, ASN1_ENCODED_SHA256_SIZE);
 	if(ret == 0)
 	{
 		auth = true;
