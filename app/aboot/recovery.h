@@ -1,4 +1,4 @@
-/* Copyright (c) 2010-2017,2019 The Linux Foundation. All rights reserved.
+/* Copyright (c) 2010-2017,2019,2021 The Linux Foundation. All rights reserved.
 
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -41,6 +41,9 @@
 #define RECOVERY_BOOT_RECOVERY_CMD "boot-recovery"
 #define RECOVERY_BOOT_FASTBOOT_CMD "boot-fastboot"
 
+#define MISC_VIRTUAL_AB_MESSAGE_VERSION 2
+#define MISC_VIRTUAL_AB_MAGIC_HEADER 0x56740AB0
+
 /* bootselect partition format structure */
 struct boot_selection_info {
 	uint32_t signature;                // Contains value BOOTSELECT_SIGNATURE defined above
@@ -77,6 +80,26 @@ struct update_header {
 	unsigned fail_bitmap_length;
 };
 
+#define MISC_VIRTUALAB_PAGE_OFFSET 3
+
+typedef enum virtualab_merge_status {
+   NONE_MERGE_STATUS = 0,
+   UNKNOWN_MERGE_STATUS = 1,
+   SNAPSHOTTED = 2,
+   MERGING = 3,
+   CANCELLED = 4
+ } virtualab_merge_status;
+
+
+typedef struct {
+  uint8_t version;
+  uint32_t magic;
+  uint8_t merge_status;  // IBootControl 1.1, MergeStatus enum.
+  uint8_t source_status;   // Slot number when merge_status was written.
+  uint8_t reserved[57];
+} __attribute__ ((packed))misc_virtualab_message;
+
+
 int write_misc(unsigned page_offset, void *buf, unsigned size);
 
 int get_recovery_message(struct recovery_message *out);
@@ -93,5 +116,7 @@ int recovery_init (void);
 int get_ffbm(char *ffbm, unsigned size);
 
 extern unsigned boot_into_recovery;
+virtualab_merge_status get_snapshot_merge_status(void);
+int set_snapshot_merge_status (virtualab_merge_status merge_status);
 
 #endif

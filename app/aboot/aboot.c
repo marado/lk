@@ -120,6 +120,14 @@ struct fastboot_cmd_desc {
 	fastboot_cmd_fn cb;
 };
 
+static char *vab_snapshot_merge_status[] = {
+      "none",
+      "unknown",
+      "snapshotted",
+      "merging",
+      "cancelled"
+};
+
 #define EXPAND(NAME) #NAME
 #define TARGET(NAME) EXPAND(NAME)
 
@@ -326,6 +334,11 @@ struct getvar_partition_info part_type_known[] =
 	{ "recoveryfs" , "partition-size:", "partition-type:", "", "ext4" },
 };
 
+
+static const char *virtualab_critical_partitions[] = {
+     "misc",  "metadata",  "userdata"
+};
+
 char max_download_size[MAX_RSP_SIZE];
 char charger_screen_enabled[MAX_RSP_SIZE];
 char sn_buf[13];
@@ -333,6 +346,8 @@ char display_panel_buf[MAX_PANEL_BUF_SIZE];
 char panel_display_mode[MAX_RSP_SIZE];
 char soc_version_str[MAX_RSP_SIZE];
 char block_size_string[MAX_RSP_SIZE];
+char snapshot_merge_state_str[MAX_RSP_SIZE];
+
 #if PRODUCT_IOT
 
 /* For IOT we are using custom version */
@@ -348,6 +363,8 @@ char battery_soc_ok [MAX_RSP_SIZE];
 char get_variant[MAX_RSP_SIZE];
 
 extern int emmc_recovery_init(void);
+
+static bool check_virtualab_critical_partition (const char *partition_name);
 
 #if NO_KEYPAD_DRIVER
 extern int fastboot_trigger(void);
@@ -3377,8 +3394,10 @@ void cmd_erase_mmc(const char *arg, void *data, unsigned sz)
 	unsigned long long ptn = 0;
 	unsigned long long size = 0;
 	int index = INVALID_PTN;
+	int status;
 	uint8_t lun = 0;
 	char *footer = NULL;
+	virtualab_merge_status snapshot_merge_status;
 
 #if VERIFIED_BOOT
 	if(!strcmp(arg, KEYSTORE_PTN_NAME))
@@ -3394,6 +3413,31 @@ void cmd_erase_mmc(const char *arg, void *data, unsigned sz)
 	index = partition_get_index(arg);
 	ptn = partition_get_offset(index);
 	size = partition_get_size(index);
+
+	if (target_virtual_ab_ota_supported ()) {
+		if (check_virtualab_critical_partition (arg)) {
+			dprintf(CRITICAL, "Erase of %s is not allowed in %s state",
+			arg, snapshot_merge_state_str);
+			fastboot_fail ("Flashing is not allowed in this state");
+			return;
+		}
+
+		snapshot_merge_status = get_snapshot_merge_status ();
+		if (((snapshot_merge_status == MERGING) ||
+			(snapshot_merge_status == SNAPSHOTTED)) &&
+			!strncmp (arg, "super", strlen ("super"))) {
+				status = set_snapshot_merge_status (CANCELLED);
+				if (status != 0) {
+					fastboot_fail ("failed to update snapshot state to cancel");
+					return;
+				}
+
+				//updating fbvar snapshot-merge-state
+				snprintf(snapshot_merge_state_str,
+					strlen(vab_snapshot_merge_status[NONE_MERGE_STATUS]) + 1,
+					"%s", vab_snapshot_merge_status[NONE_MERGE_STATUS]);
+		}
+	}
 
 	if (!strncmp(arg, "avb_custom_key", strlen("avb_custom_key"))) {
                 dprintf(INFO, "erasing avb_custom_key\n");
@@ -4123,6 +4167,8 @@ void cmd_flash_mmc(const char *arg, void *data, unsigned sz)
 {
 	sparse_header_t *sparse_header;
 	meta_header_t *meta_header;
+	virtualab_merge_status snapshot_merge_status = NONE_MERGE_STATUS;
+	int status = 0;
 
 #ifdef SSD_ENABLE
 	/* 8 Byte Magic + 2048 Byte xml + Encrypted Data */
@@ -4216,6 +4262,32 @@ void cmd_flash_mmc(const char *arg, void *data, unsigned sz)
 		}
 	}
 #endif
+	if (target_virtual_ab_ota_supported ()) {
+		if (check_virtualab_critical_partition (arg)) {
+			dprintf(CRITICAL, "Flashing of %s is not allowed in %s state",
+				arg, snapshot_merge_state_str);
+			fastboot_fail ("Flashing is not allowed in this state");
+			return;
+			}
+
+    snapshot_merge_status = get_snapshot_merge_status ();
+    if (((snapshot_merge_status == MERGING) ||
+		(snapshot_merge_status == SNAPSHOTTED)) &&
+		!strncmp (arg, "super", strlen ("super"))) {
+			status = set_snapshot_merge_status (CANCELLED);
+			if (status != 0) {
+				fastboot_fail ("Failed to update snapshot state to cancel");
+				return;
+			}
+
+        //updating fbvar snapshot-merge-state
+			snprintf(snapshot_merge_state_str,
+				strlen(vab_snapshot_merge_status[NONE_MERGE_STATUS]) + 1, "%s",
+				vab_snapshot_merge_status[NONE_MERGE_STATUS]);
+		}
+    }
+
+
 	if (!strncmp(arg, "avb_custom_key", strlen("avb_custom_key"))) {
 		dprintf(INFO, "flashing avb_custom_key\n");
 		if (store_userkey(data, sz)) {
@@ -4415,6 +4487,52 @@ void cmd_reboot(const char *arg, void *data, unsigned sz)
 	reboot_device(0);
 }
 
+#ifdef VIRTUAL_AB_OTA
+void cmd_update_snapshot(const char *arg, void *data, unsigned sz)
+{
+	char *command = NULL;
+	const char *delim = ":";
+	int status = 0;
+
+	command = strstr (arg, delim);
+	if (command) {
+		command++;
+
+	if (!strncmp (command, "merge", strlen ("merge"))) {
+		if (get_snapshot_merge_status () == MERGING) {
+			cmd_reboot_fastboot (arg, data, size);
+		}
+		fastbootokay ("");
+        return;
+	}
+	else if (!strncmp (command, "cancel", strlen ("cancel"))) {
+		if (!device.is_unlocked ()) {
+		  fastboot_fail ("snapshot cancel is not allowed in lock state");
+		  return;
+		}
+
+	status = set_snapshot_merge_status (CANCELLED);
+	if (status != 0) {
+        fastboot_fail ("failed to update snapshot state to cancel");
+        return;
+	}
+
+    //updating fbvar snapshot-merge-state
+	snprintf(snapshot_merge_state_str,
+			strlen(vab_snapshot_merge_status[NONE_MERGE_STATUS]) + 1,
+			 "%s", vab_snapshot_merge_status[NONE_MERGE_STATUS]);
+
+      fastboot_okay ("");
+      return;
+    }
+  }
+  fastboot_fail ("Invalid snapshot-update command");
+  return;
+
+}
+#endif
+
+
 void cmd_set_active(const char *arg, void *data, unsigned sz)
 {
 	char *p, *sp = NULL;
@@ -4464,6 +4582,13 @@ void cmd_set_active(const char *arg, void *data, unsigned sz)
 			}
 		}
 	}
+	if (target_virtual_ab_ota_supported()) {
+		if (get_snapshot_merge_status () == MERGING) {
+			fastboot_fail ("Slot Change is not allowed in merging state");
+			return;
+		}
+	}
+
 	fastboot_fail("Invalid slot suffix.");
 	return;
 }
@@ -5002,6 +5127,7 @@ void aboot_fastboot_register_commands(void)
 {
 	int i;
 	char hw_platform_buf[MAX_RSP_SIZE];
+	virtualab_merge_status snapshot_merge_status;
 
 	struct fastboot_cmd_desc cmd_list[] = {
 						/* By default the enabled list is empty. */
@@ -5036,6 +5162,10 @@ void aboot_fastboot_register_commands(void)
 						{"reboot-fastboot",cmd_reboot_fastboot},
 						{"reboot-recovery",cmd_reboot_recovery},
 #endif
+#ifdef VIRTUAL_AB_OTA
+						{"snapshot-update", cmd_update_snapshot},
+#endif
+
 #if UNITTEST_FW_SUPPORT
 						{"oem run-tests", cmd_oem_runtests},
 #endif
@@ -5122,7 +5252,44 @@ void aboot_fastboot_register_commands(void)
 #endif
         if (target_dynamic_partition_supported())
 		fastboot_publish("is-userspace", "no");
+
+	if (target_virtual_ab_ota_supported()) {
+		snapshot_merge_status = get_snapshot_merge_status ();
+
+		switch (snapshot_merge_status) {
+		case SNAPSHOTTED:
+		snapshot_merge_status = SNAPSHOTTED;
+		break;
+		case MERGING:
+		snapshot_merge_status = MERGING;
+		break;
+		default:
+		snapshot_merge_status = NONE_MERGE_STATUS;
+		break;
+		}
+
+		snprintf(snapshot_merge_state_str, MAX_RSP_SIZE, "%s",
+			vab_snapshot_merge_status[snapshot_merge_status]);
+	fastboot_publish ("snapshot-update-status", snapshot_merge_state_str);
+	}
 }
+
+static bool check_virtualab_critical_partition (const char *partition_name)
+{
+	virtualab_merge_status snapshot_merge_status;
+	uint32_t iter = 0;
+	snapshot_merge_status = get_snapshot_merge_status ();
+	if ((snapshot_merge_status == MERGING ||
+			snapshot_merge_status == SNAPSHOTTED)) {
+			for (iter = 0; iter < ARRAY_SIZE (virtualab_critical_partitions); iter++) {
+				if (!strncmp (partition_name, virtualab_critical_partitions[iter],
+					strlen(virtualab_critical_partitions[iter]))) {
+						return true;
+				}
+			}
+	}
+	return false;
+ }
 
 void aboot_init(const struct app_descriptor *app)
 {

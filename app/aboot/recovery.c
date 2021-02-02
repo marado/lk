@@ -53,7 +53,7 @@
 
 static const int MISC_COMMAND_PAGE = 1;		// bootloader command is this page
 static char buf[4096];
-
+static misc_virtualab_message *virtualab_msg = NULL;
 unsigned boot_into_recovery = 0;
 
 extern uint32_t get_page_size();
@@ -664,4 +664,111 @@ cleanup:
 	return retval;
 }
 
+int set_snapshot_merge_status (virtualab_merge_status merge_status)
+{
+	int status = 0;
 
+	if (virtualab_msg != NULL) {
+		virtualab_merge_status old_merge_status;
+		char *ptn_name = "misc";
+		unsigned long long ptn = 0;
+		unsigned blocksize = mmc_get_device_blocksize();
+		unsigned int size = ROUND_TO_PAGE(sizeof(misc_virtualab_message), (unsigned)blocksize - 1);
+		unsigned char *data = NULL;
+		int index = INVALID_PTN;
+
+		data = malloc(size);
+		if(!data) {
+			dprintf(CRITICAL,"memory allocation error \n");
+			status = -1;
+			goto out;
+		}
+		index = partition_get_index((const char *) ptn_name);
+		ptn = partition_get_offset(index);
+		mmc_set_lun(partition_get_lun(index));
+		if(ptn == 0) {
+			dprintf(CRITICAL,"partition %s doesn't exist\n",ptn_name);
+			status = -1;
+			goto out;
+		}
+
+		old_merge_status = virtualab_msg->merge_status;
+		virtualab_msg->merge_status = merge_status;
+
+		memset(data, 0, size);
+		memcpy(data, virtualab_msg, sizeof(misc_virtualab_message));
+		if (mmc_write(ptn + (MISC_VIRTUALAB_PAGE_OFFSET * blocksize), size, (unsigned int*)data)) {
+			dprintf(CRITICAL,"mmc write failure %s %d\n",ptn_name, sizeof(misc_virtualab_message));
+			virtualab_msg->merge_status = old_merge_status;
+			status = -1;
+			goto out;
+		}
+
+out:
+		if (data) {
+			free(data);
+		}
+	}
+	else {
+		status = -1;
+	}
+
+	return status;
+}
+
+virtualab_merge_status get_snapshot_merge_status (void)
+{
+	virtualab_merge_status merge_status = NONE_MERGE_STATUS;
+
+	if (virtualab_msg == NULL) {
+		unsigned blocksize = mmc_get_device_blocksize();
+		unsigned int size = ROUND_TO_PAGE(sizeof(misc_virtualab_message),
+								(unsigned)blocksize - 1);
+		char *ptn_name = "misc";
+		unsigned long long ptn = 0;
+		int index = INVALID_PTN;
+
+		virtualab_msg = malloc(size);
+		if (!virtualab_msg) {
+			dprintf(CRITICAL, "Failed to alloc buffer for virtualab_msg\n");
+			virtualab_msg = NULL;
+			return merge_status;
+		}
+
+		index = partition_get_index((const char *) ptn_name);
+		ptn = partition_get_offset(index);
+		if(ptn == 0) {
+			dprintf(CRITICAL,"partition %s doesn't exist\n",ptn_name);
+			return merge_status;
+		}
+
+		mmc_set_lun(partition_get_lun(index));
+		memset(virtualab_msg, 0, size);
+		if (mmc_read((MISC_VIRTUALAB_PAGE_OFFSET * blocksize),
+			(unsigned int*)virtualab_msg, (uint32_t)size)) {
+            dprintf(CRITICAL, "ERROR: vbmeta read failure\n");
+			free(virtualab_msg);
+			virtualab_msg = NULL;
+			return merge_status;
+		}
+
+		if (virtualab_msg->magic != MISC_VIRTUAL_AB_MAGIC_HEADER ||
+			virtualab_msg->version != MISC_VIRTUAL_AB_MESSAGE_VERSION) {
+				dprintf(CRITICAL, "Error read virtualab msg version:%u magic:%u not valid\n",
+				virtualab_msg->version, virtualab_msg->magic);
+				free (virtualab_msg);
+				virtualab_msg = NULL;
+				return merge_status;
+		}
+		else {
+			dprintf(CRITICAL, "read virtualab MergeStatus:%x\n",
+				virtualab_msg->merge_status);
+			merge_status = virtualab_msg->merge_status;
+		}
+	}
+	else {
+		merge_status = virtualab_msg->merge_status;
+	}
+
+	return merge_status;
+}
