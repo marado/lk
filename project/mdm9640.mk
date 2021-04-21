@@ -61,3 +61,10 @@ DEFINES += USB_RESET_FROM_CLK=1
 # Turn on Werror
 CFLAGS += -Werror
 DEFINES += USE_TARGET_QMP_SETTINGS=1
+
+#SCM call before entering DLOAD mode
+DEFINES += PLATFORM_USE_SCM_DLOAD=1
+
+#Use PON register for reboot reason
+ENABLE_REBOOT_MODULE := 1
+DEFINES += USE_PON_REBOOT_REG=1
