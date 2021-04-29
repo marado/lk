@@ -1,4 +1,4 @@
-/* Copyright (c) 2019-2020, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2019-2021, The Linux Foundation. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -45,7 +45,7 @@ static struct panel_config truly_rm69090_qvga_cmd_v2_panel_data = {
 /* Panel resolution                                                          */
 /*---------------------------------------------------------------------------*/
 static struct panel_resolution truly_rm69090_qvga_cmd_v2_panel_res = {
-	368, 448, 40, 20, 2, 0, 6, 8, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0
+	368, 448, 50, 30, 2, 0, 12, 16, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0
 };
 
 /*---------------------------------------------------------------------------*/
