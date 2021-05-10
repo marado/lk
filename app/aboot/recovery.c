@@ -659,7 +659,10 @@ VirtualAbMergeStatus GetSnapshotMergeStatus (void)
 		if (VirtualAbMsg->Magic != MISC_VIRTUAL_AB_MAGIC_HEADER ||
 			VirtualAbMsg->Version != MISC_VIRTUAL_AB_MESSAGE_VERSION) {
 
-			dprintf(CRITICAL,"Error read virtualab msg version:%u magic:%u not valid\n", VirtualAbMsg->Version,VirtualAbMsg->Magic);
+			dprintf(CRITICAL,"Error read virtualab msg version:%u magic:%u not valid\n",
+					VirtualAbMsg->Version,VirtualAbMsg->Magic);
+
+			free(VirtualAbMsg);
 			VirtualAbMsg = NULL;
 		}
 		else
