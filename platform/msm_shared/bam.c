@@ -35,6 +35,7 @@
 #include <platform/interrupts.h>
 #include <platform/iomap.h>
 #include <platform/irqs.h>
+#include <qtimer.h>
 #include <pow2.h>
 
 #define HLOS_EE_INDEX          0
@@ -68,6 +69,7 @@ int bam_wait_for_interrupt(struct bam_instance *bam,
 {
 	uint32_t val;
 
+	udelay(1);
 	while (1)
 	{
 		/* Wait for a interrupt on the right pipe */
@@ -240,6 +242,7 @@ void bam_sys_gen_event(struct bam_instance *bam,
 	val &= (bam->pipe[pipe_num].fifo.size * BAM_DESC_SIZE - 1);
 
 	writel(val, BAM_P_EVNT_REGn(bam->pipe[pipe_num].pipe_num, bam->base));
+	udelay(1);
 }
 
 /* Function to read the updates for FIFO offsets.
