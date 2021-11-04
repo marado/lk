@@ -316,18 +316,18 @@ static struct pages_action menu_pages_action[] = {
 		power_key_func,
 	},
 	[DISPLAY_MENU_YELLOW] = {
-		NULL,
-		NULL,
+		boot_warning_volume_keys_func,
+		boot_warning_volume_keys_func,
 		power_key_func,
 	},
 	[DISPLAY_MENU_ORANGE] = {
-		NULL,
-		NULL,
+		boot_warning_volume_keys_func,
+		boot_warning_volume_keys_func,
 		power_key_func,
 	},
 	[DISPLAY_MENU_RED] = {
-		NULL,
-		NULL,
+		boot_warning_volume_keys_func,
+		boot_warning_volume_keys_func,
 		power_key_func,
 	},
 	[DISPLAY_MENU_LOGGING] = {
@@ -336,8 +336,8 @@ static struct pages_action menu_pages_action[] = {
 		power_key_func,
 	},
 	[DISPLAY_MENU_EIO] = {
-		NULL,
-		NULL,
+		boot_warning_volume_keys_func,
+		boot_warning_volume_keys_func,
 		power_key_func,
 	},
 	[DISPLAY_MENU_MORE_OPTION] = {
